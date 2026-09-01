@@ -17,11 +17,35 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const release = await github.rest.repos.getReleaseByTag({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              tag: 'OsyC',
-            });
+            const manifestResponse = await fetch(
+              `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${context.sha}/manifest.json`,
+            );
+            if (!manifestResponse.ok) throw new Error(`Could not fetch manifest.json: ${manifestResponse.status}`);
+            const manifest = JSON.parse(await manifestResponse.text());
+            const version = manifest.version;
+            if (typeof version !== 'string' || !/^\d+\.\d+\.\d+/.test(version)) {
+              throw new Error(`Invalid plugin version: ${version}`);
+            }
+
+            let release;
+            try {
+              release = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: version,
+              });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = await github.rest.repos.createRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag_name: version,
+                name: `OsyC ${version}`,
+                target_commitish: context.sha,
+                draft: false,
+                prerelease: false,
+              });
+            }
 
             const files = [
               ['main.js', 'application/javascript'],
