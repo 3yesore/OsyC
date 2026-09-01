@@ -1,0 +1,58 @@
+name: Publish OsyC release assets
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update the OsyC release assets
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const release = await github.rest.repos.getReleaseByTag({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag: 'OsyC',
+            });
+
+            const files = [
+              ['main.js', 'application/javascript'],
+              ['manifest.json', 'application/json'],
+              ['styles.css', 'text/css'],
+              ['versions.json', 'application/json'],
+            ];
+
+            for (const [name] of files) {
+              const existing = release.data.assets.find((asset) => asset.name === name);
+              if (existing) {
+                await github.rest.repos.deleteReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  asset_id: existing.id,
+                });
+              }
+            }
+
+            for (const [name, contentType] of files) {
+              const response = await fetch(
+                `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/${context.sha}/${name}`,
+              );
+              if (!response.ok) throw new Error(`Could not fetch ${name}: ${response.status}`);
+              const body = Buffer.from(await response.arrayBuffer());
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                name,
+                data: body,
+                headers: { 'content-type': contentType, 'content-length': body.length },
+              });
+            }
