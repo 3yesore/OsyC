@@ -50,6 +50,7 @@ jobs:
             const files = [
               ['main.js', 'application/javascript'],
               ['manifest.json', 'application/json'],
+              ['manifest-beta.json', 'application/json'],
               ['styles.css', 'text/css'],
               ['versions.json', 'application/json'],
             ];
