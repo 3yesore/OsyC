@@ -958,6 +958,55 @@ body.is-mobile .livesync-compatibility-review-notice {
     word-break: break-word;
 }
 
+/* User appearance settings must reach the content components, whose Svelte
+ * styles otherwise provide their own Obsidian defaults. */
+.osyc-ai-agent .ai-task-message,
+.osyc-ai-agent .ai-task-progress,
+.osyc-ai-agent .ai-task-trace,
+.osyc-ai-agent .ai-task-delivery,
+.osyc-ai-agent .ai-task-error,
+.osyc-ai-agent .ai-rich-content {
+    font-family: var(--osyc-ai-font-family) !important;
+    font-size: var(--osyc-ai-font-size) !important;
+    line-height: var(--osyc-ai-line-height) !important;
+    color: var(--osyc-ai-text) !important;
+}
+.osyc-ai-agent .ai-task-time,
+.osyc-ai-agent .ai-task-status,
+.osyc-ai-agent .ai-task-files-label,
+.osyc-ai-agent .ai-hint,
+.osyc-ai-agent .ai-list-count {
+    font-family: var(--osyc-ai-font-family) !important;
+    color: var(--osyc-ai-text-muted) !important;
+}
+.osyc-ai-agent .ai-task-card,
+.osyc-ai-agent .ai-status-card,
+.osyc-ai-agent .ai-cloudvault,
+.osyc-ai-agent .ai-recharge-panel,
+.osyc-ai-agent .ai-confirm-panel {
+    color: var(--osyc-ai-text) !important;
+}
+.osyc-ai-agent .ai-task-card.ai-status-running { border-left-color: var(--osyc-ai-accent) !important; }
+.osyc-ai-agent .ai-task-card.ai-status-done { border-left-color: var(--osyc-ai-success) !important; }
+.osyc-ai-agent .ai-task-card.ai-status-failed { border-left-color: var(--osyc-ai-error) !important; }
+.osyc-ai-agent .ai-empty-title,
+.osyc-ai-agent .ai-onboard-title,
+.osyc-ai-agent .ai-cloudvault-title,
+.osyc-ai-agent .ai-status-num,
+.osyc-ai-agent .ai-task-file,
+.osyc-ai-agent .ai-text-btn {
+    font-family: var(--osyc-ai-font-family) !important;
+    color: var(--osyc-ai-text) !important;
+}
+.osyc-ai-agent .ai-empty-hint,
+.osyc-ai-agent .ai-onboard-desc,
+.osyc-ai-agent .ai-cloudvault-time,
+.osyc-ai-agent .ai-cloudvault-count,
+.osyc-ai-agent .ai-cloudvault-msg {
+    font-family: var(--osyc-ai-font-family) !important;
+    color: var(--osyc-ai-text-muted) !important;
+}
+
 @media (max-width: 720px) {
     .osyc-ai-agent {
         --osyc-ai-content-width: 100%;
