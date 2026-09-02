@@ -842,22 +842,87 @@ body.is-mobile .livesync-compatibility-review-notice {
     --osyc-ai-content-width: 100%;
     --osyc-ai-surface: var(--background-primary);
     --osyc-ai-surface-alt: var(--background-secondary-alt, var(--background-secondary));
+    --osyc-ai-background-color: var(--background-primary);
+    --osyc-ai-text: var(--text-normal);
+    --osyc-ai-text-muted: var(--text-muted);
+    --osyc-ai-input: var(--background-modifier-form-field);
     --osyc-ai-border: var(--background-modifier-border);
     --osyc-ai-accent: var(--interactive-accent);
+    --osyc-ai-link: var(--link-color, var(--interactive-accent));
+    --osyc-ai-focus: var(--interactive-accent);
+    --osyc-ai-success: var(--text-success, #2f9e5b);
+    --osyc-ai-warning: var(--text-warning, #b77712);
+    --osyc-ai-error: var(--text-error, #d14b4b);
+    --osyc-ai-queued: var(--text-muted);
+    --osyc-ai-heading-scale: 1.15;
+    --osyc-ai-heading-font-family: var(--osyc-ai-font-family);
+    --osyc-ai-font-weight: 400;
+    --osyc-ai-letter-spacing: 0em;
+    --osyc-ai-paragraph-spacing: 1em;
+    --osyc-ai-density-gap: 12px;
     --osyc-ai-background-image: none;
     --osyc-ai-background-size: cover;
     --osyc-ai-background-position: center;
+    --osyc-ai-background-repeat: no-repeat;
+    --osyc-ai-background-opacity: 0;
+    --osyc-ai-background-blur: 0px;
     box-sizing: border-box;
     max-width: var(--osyc-ai-content-width);
     font-family: var(--osyc-ai-font-family);
     font-size: var(--osyc-ai-font-size);
     line-height: var(--osyc-ai-line-height);
-    background-color: var(--osyc-ai-surface);
+    font-weight: var(--osyc-ai-font-weight);
+    letter-spacing: var(--osyc-ai-letter-spacing);
+    color: var(--osyc-ai-text);
+    background-color: var(--osyc-ai-background-color, var(--osyc-ai-surface));
     background-image: var(--osyc-ai-background-image);
     background-size: var(--osyc-ai-background-size);
     background-position: var(--osyc-ai-background-position);
-    background-repeat: no-repeat;
+    background-repeat: var(--osyc-ai-background-repeat);
+    background-blend-mode: soft-light;
 }
+
+.osyc-ai-agent h1,
+.osyc-ai-agent h2,
+.osyc-ai-agent h3,
+.osyc-ai-agent h4 {
+    font-family: var(--osyc-ai-heading-font-family);
+    color: var(--osyc-ai-text);
+}
+
+.osyc-ai-agent p { margin-bottom: var(--osyc-ai-paragraph-spacing); }
+.osyc-ai-agent a { color: var(--osyc-ai-link); }
+.osyc-ai-agent input,
+.osyc-ai-agent textarea { background-color: var(--osyc-ai-input); }
+.osyc-ai-appearance-preview {
+    width: 100%;
+    max-width: 640px;
+    min-height: 96px;
+    margin: 8px 0 16px;
+    padding: calc(var(--osyc-ai-density-gap) * 1.5);
+    border: 1px solid var(--osyc-ai-border);
+    border-radius: 8px;
+    overflow-wrap: anywhere;
+}
+.osyc-ai-appearance-preview strong { font-size: calc(var(--osyc-ai-font-size) * var(--osyc-ai-heading-scale)); }
+.osyc-ai-agent .ai-debug-panel {
+    position: relative;
+    z-index: 4;
+    margin: 8px 0;
+    padding: 10px;
+    border: 1px dashed var(--osyc-ai-focus);
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--osyc-ai-surface-alt) 92%, var(--osyc-ai-focus));
+    color: var(--osyc-ai-text);
+}
+.osyc-ai-agent .ai-debug-title { font-weight: 700; margin-bottom: 6px; }
+.osyc-ai-agent .ai-debug-grid {
+    display: grid;
+    grid-template-columns: minmax(80px, 1fr) minmax(100px, 1fr);
+    gap: 4px 10px;
+    font-size: var(--font-ui-smaller);
+}
+.osyc-ai-agent .ai-debug-grid span { color: var(--osyc-ai-text-muted); }
 
 .osyc-ai-agent .ai-task-card,
 .osyc-ai-agent .ai-status-card,
