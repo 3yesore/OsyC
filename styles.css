@@ -841,7 +841,7 @@ body.is-mobile .livesync-compatibility-review-notice {
     --osyc-ai-line-height: var(--line-height-normal, 1.5);
     --osyc-ai-content-width: 100%;
     --osyc-ai-surface: var(--background-primary);
-    --osyc-ai-surface-alt: var(--background-secondary);
+    --osyc-ai-surface-alt: var(--background-secondary-alt, var(--background-secondary));
     --osyc-ai-border: var(--background-modifier-border);
     --osyc-ai-accent: var(--interactive-accent);
     --osyc-ai-background-image: none;
