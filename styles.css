@@ -923,6 +923,17 @@ body.is-mobile .livesync-compatibility-review-notice {
     font-size: var(--font-ui-smaller);
 }
 .osyc-ai-agent .ai-debug-grid span { color: var(--osyc-ai-text-muted); }
+.osyc-log-output {
+    max-height: min(55vh, 420px);
+    overflow: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    padding: 10px;
+    border: 1px solid var(--background-modifier-border);
+    background: var(--background-secondary);
+    font-size: var(--font-ui-small);
+}
+.osyc-log-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
 .osyc-ai-agent .ai-task-card,
 .osyc-ai-agent .ai-status-card,
