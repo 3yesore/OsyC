@@ -833,3 +833,76 @@ body.is-mobile .livesync-compatibility-review-notice {
     outline-offset: 1px;
     border-radius: 2px;
 }
+
+/* OsyC AI theme tokens */
+.osyc-ai-agent {
+    --osyc-ai-font-family: var(--font-text);
+    --osyc-ai-font-size: var(--font-ui-small);
+    --osyc-ai-line-height: var(--line-height-normal, 1.5);
+    --osyc-ai-content-width: 100%;
+    --osyc-ai-surface: var(--background-primary);
+    --osyc-ai-surface-alt: var(--background-secondary);
+    --osyc-ai-border: var(--background-modifier-border);
+    --osyc-ai-accent: var(--interactive-accent);
+    --osyc-ai-background-image: none;
+    --osyc-ai-background-size: cover;
+    --osyc-ai-background-position: center;
+    box-sizing: border-box;
+    max-width: var(--osyc-ai-content-width);
+    font-family: var(--osyc-ai-font-family);
+    font-size: var(--osyc-ai-font-size);
+    line-height: var(--osyc-ai-line-height);
+    background-color: var(--osyc-ai-surface);
+    background-image: var(--osyc-ai-background-image);
+    background-size: var(--osyc-ai-background-size);
+    background-position: var(--osyc-ai-background-position);
+    background-repeat: no-repeat;
+}
+
+.osyc-ai-agent .ai-task-card,
+.osyc-ai-agent .ai-status-card,
+.osyc-ai-agent .ai-cloudvault,
+.osyc-ai-agent .ai-recharge-panel,
+.osyc-ai-agent .ai-confirm-panel {
+    background-color: var(--osyc-ai-surface-alt);
+    border-color: var(--osyc-ai-border);
+}
+
+.osyc-ai-agent .ai-task-card {
+    max-width: 100%;
+}
+
+.osyc-ai-agent .ai-rich-content {
+    min-width: 0;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+.osyc-ai-agent .ai-rich-content img,
+.osyc-ai-agent .ai-rich-content video,
+.osyc-ai-agent .ai-rich-content iframe {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    object-fit: contain;
+}
+
+.osyc-ai-agent .ai-rich-content a {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+}
+
+@media (max-width: 720px) {
+    .osyc-ai-agent {
+        --osyc-ai-content-width: 100%;
+        background-position: var(--osyc-ai-background-position, center top);
+        background-attachment: scroll;
+    }
+
+    .osyc-ai-agent .ai-rich-content img,
+    .osyc-ai-agent .ai-rich-content video,
+    .osyc-ai-agent .ai-rich-content iframe {
+        max-height: min(45vh, 320px);
+    }
+}
