@@ -989,6 +989,22 @@ body.is-mobile .livesync-compatibility-review-notice {
 .osyc-ai-agent .ai-task-card.ai-status-running { border-left-color: var(--osyc-ai-accent) !important; }
 .osyc-ai-agent .ai-task-card.ai-status-done { border-left-color: var(--osyc-ai-success) !important; }
 .osyc-ai-agent .ai-task-card.ai-status-failed { border-left-color: var(--osyc-ai-error) !important; }
+.osyc-ai-agent-mount-error {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin: 16px;
+    padding: 16px;
+    border: 1px solid var(--background-modifier-error);
+    border-radius: 8px;
+    color: var(--text-normal);
+    background: var(--background-secondary);
+}
+.osyc-ai-agent-mount-error p {
+    margin: 0;
+    color: var(--text-muted);
+}
 .osyc-ai-agent .ai-empty-title,
 .osyc-ai-agent .ai-onboard-title,
 .osyc-ai-agent .ai-cloudvault-title,
