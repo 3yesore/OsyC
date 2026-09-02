@@ -834,6 +834,28 @@ body.is-mobile .livesync-compatibility-review-notice {
     border-radius: 2px;
 }
 
+/* OsyC Agent owns the scroll area inside its main-workspace view. Without
+ * this scoped parent rule, Obsidian's default .view-content scroller can pan
+ * the entire workspace when a mobile textarea receives focus. */
+.workspace-leaf-content[data-type="livesync-ai-agent"] {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+.workspace-leaf-content[data-type="livesync-ai-agent"] > .view-content {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: 0;
+}
+.workspace-leaf-content[data-type="livesync-ai-agent"] > .view-content > .ai-pane {
+    flex: 1 1 auto;
+    min-height: 0;
+}
+
 /* OsyC AI theme tokens */
 .osyc-ai-agent {
     --osyc-ai-font-family: var(--font-text);
