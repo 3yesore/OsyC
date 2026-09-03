@@ -957,7 +957,6 @@ body.is-mobile .livesync-compatibility-review-notice {
 }
 .osyc-log-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 
-.osyc-ai-agent .ai-task-card,
 .osyc-ai-agent .ai-status-card,
 .osyc-ai-agent .ai-cloudvault,
 .osyc-ai-agent .ai-recharge-panel,
@@ -968,6 +967,24 @@ body.is-mobile .livesync-compatibility-review-notice {
 
 .osyc-ai-agent .ai-task-card {
     max-width: 100%;
+    background: transparent;
+    border: 0;
+}
+
+.osyc-ai-agent .ai-shell,
+.osyc-ai-agent .ai-chat,
+.osyc-ai-agent .ai-chat-timeline,
+.osyc-ai-agent .ai-composer {
+    color: var(--osyc-ai-text);
+    background-color: var(--osyc-ai-background-color, var(--osyc-ai-surface));
+}
+
+.osyc-ai-agent .ai-sidebar,
+.osyc-ai-agent .ai-inline-panel,
+.osyc-ai-agent .ai-suggestion,
+.osyc-ai-agent .ai-quick-chip {
+    background-color: var(--osyc-ai-surface-alt);
+    border-color: var(--osyc-ai-border);
 }
 
 .osyc-ai-agent .ai-rich-content {
@@ -1012,7 +1029,6 @@ body.is-mobile .livesync-compatibility-review-notice {
     font-family: var(--osyc-ai-font-family) !important;
     color: var(--osyc-ai-text-muted) !important;
 }
-.osyc-ai-agent .ai-task-card,
 .osyc-ai-agent .ai-status-card,
 .osyc-ai-agent .ai-cloudvault,
 .osyc-ai-agent .ai-recharge-panel,
