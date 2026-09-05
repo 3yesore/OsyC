@@ -1,7 +1,7 @@
 {
     "id": "obsidian-livesync",
     "name": "OsyC",
-    "version": "1.0.58",
+    "version": "1.0.59",
     "minAppVersion": "1.7.2",
     "description": "OsyC · AI 笔记整理。基于 LiveSync 的私有同步能力，把你的笔记交给 AI 自动整理、归集、生成。输入卡密即可启用，无需手动配置同步。",
     "author": "OsyC",
