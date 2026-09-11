@@ -919,14 +919,74 @@ body.is-mobile .livesync-compatibility-review-notice {
 .osyc-ai-appearance-preview {
     width: 100%;
     max-width: 640px;
-    min-height: 96px;
+    min-height: 0;
     margin: 8px 0 16px;
     padding: calc(var(--osyc-ai-density-gap) * 1.5);
     border: 1px solid var(--osyc-ai-border);
     border-radius: 8px;
+    overflow: visible;
     overflow-wrap: anywhere;
 }
+.osyc-ai-appearance-preview-content {
+    font-family: var(--osyc-ai-font-family);
+    font-size: var(--osyc-ai-font-size);
+    line-height: var(--osyc-ai-line-height);
+    color: var(--osyc-ai-text);
+}
+.osyc-ai-appearance-preview-content h2 {
+    margin: 0 0 .7em;
+    font-family: var(--osyc-ai-heading-font-family);
+    font-size: calc(var(--osyc-ai-font-size) * var(--osyc-ai-heading-scale));
+    color: var(--osyc-ai-text);
+}
+.osyc-ai-appearance-preview-content p { margin: 0 0 1em; }
+.osyc-ai-appearance-preview-content blockquote {
+    margin: 0 0 1em;
+    padding: .5em .8em;
+    border-inline-start: 3px solid var(--osyc-ai-link);
+    background: var(--osyc-ai-surface-alt);
+    color: var(--osyc-ai-text-muted);
+}
+.osyc-ai-appearance-preview-content pre {
+    margin: 0;
+    padding: .7em .8em;
+    overflow: visible;
+    border: 1px solid var(--osyc-ai-border);
+    border-radius: 6px;
+    background: var(--osyc-ai-surface-alt);
+    color: var(--osyc-ai-text);
+}
+.osyc-ai-appearance-preview-content code {
+    font-family: var(--osyc-ai-code-font-family);
+    color: inherit;
+}
+.osyc-ai-appearance-preview-content pre code { background: transparent; }
 .osyc-ai-appearance-preview strong { font-size: calc(var(--osyc-ai-font-size) * var(--osyc-ai-heading-scale)); }
+.osyc-font-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+.osyc-font-preview {
+    display: flex;
+    flex: 0 0 100%;
+    align-items: baseline;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+    margin-top: 2px;
+    color: var(--text-muted);
+    font-size: var(--font-ui-smaller);
+    line-height: 1.35;
+    white-space: normal;
+}
+.osyc-font-preview-label { opacity: .8; }
+.osyc-font-preview-sample {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    color: var(--text-normal);
+}
 .osyc-ai-setting-subsection {
     margin: 18px 0 6px;
     color: var(--text-muted);
