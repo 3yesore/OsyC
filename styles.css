@@ -927,6 +927,27 @@ body.is-mobile .livesync-compatibility-review-notice {
     overflow-wrap: anywhere;
 }
 .osyc-ai-appearance-preview strong { font-size: calc(var(--osyc-ai-font-size) * var(--osyc-ai-heading-scale)); }
+.osyc-ai-setting-subsection {
+    margin: 18px 0 6px;
+    color: var(--text-muted);
+    font-size: var(--font-ui-small);
+    font-weight: 600;
+}
+.osyc-ai-appearance-advanced,
+.osyc-ai-interaction-advanced {
+    margin: 12px 0 4px;
+    border-top: 1px solid var(--background-modifier-border);
+}
+.osyc-ai-appearance-advanced > summary,
+.osyc-ai-interaction-advanced > summary {
+    min-height: 40px;
+    padding: 10px 2px;
+    color: var(--text-normal);
+    cursor: pointer;
+    font-weight: 600;
+}
+.osyc-ai-appearance-advanced-content,
+.osyc-ai-interaction-content { padding-bottom: 4px; }
 .osyc-ai-agent .ai-debug-panel {
     position: relative;
     z-index: 4;
