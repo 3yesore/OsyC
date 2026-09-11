@@ -917,9 +917,14 @@ body.is-mobile .livesync-compatibility-review-notice {
 .osyc-ai-agent input,
 .osyc-ai-agent textarea { background-color: var(--osyc-ai-input); }
 .osyc-ai-appearance-preview {
+    display: block;
+    position: relative;
+    box-sizing: border-box;
+    clear: both;
+    isolation: isolate;
     width: 100%;
     max-width: 640px;
-    min-height: 0;
+    min-height: 220px;
     margin: 8px 0 16px;
     padding: calc(var(--osyc-ai-density-gap) * 1.5);
     border: 1px solid var(--osyc-ai-border);
@@ -928,6 +933,11 @@ body.is-mobile .livesync-compatibility-review-notice {
     overflow-wrap: anywhere;
 }
 .osyc-ai-appearance-preview-content {
+    display: block;
+    position: static;
+    box-sizing: border-box;
+    min-height: 180px;
+    width: 100%;
     font-family: var(--osyc-ai-font-family);
     font-size: var(--osyc-ai-font-size);
     line-height: var(--osyc-ai-line-height);
