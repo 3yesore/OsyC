@@ -5,6 +5,12 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      prerelease:
+        description: Mark the release as a pre-release (required for unvalidated candidates)
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: write
@@ -27,6 +33,9 @@ jobs:
               throw new Error(`Invalid plugin version: ${version}`);
             }
 
+            const prerelease = context.eventName === 'workflow_dispatch'
+              ? String(context.payload.inputs?.prerelease ?? 'true') === 'true'
+              : true;
             let release;
             try {
               release = await github.rest.repos.getReleaseByTag({
@@ -43,7 +52,14 @@ jobs:
                 name: `OsyC ${version}`,
                 target_commitish: context.sha,
                 draft: false,
-                prerelease: false,
+                prerelease,
+              });
+            } else if (release.data.prerelease !== prerelease) {
+              release = await github.rest.repos.updateRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: release.data.id,
+                prerelease,
               });
             }
 

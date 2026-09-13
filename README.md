@@ -1,15 +1,28 @@
-# Self-hosted LiveSync + AI 整理
+# OsyC
 
-在 LiveSync 基座上二开：原本只做同步，现在多了一个 AI 面板，
-可以让远程 agent 代为整理笔记库。
+OsyC is an Obsidian note assistant with LiveSync-based synchronization. The
+official installation channel will be Obsidian Community Plugins. BRAT is
+retained only for real-device validation of prerelease builds.
 
-## 功能
+This repository contains auditable plugin assets only: `main.js`, both
+manifests, `styles.css`, and `versions.json`. The server-side Hermes adapter,
+deployment configuration, credentials, card keys, and vault data are not part
+of this repository.
 
-- **同步**：LiveSync 原生能力（CouchDB / S3 / P2P）
-- **AI 整理面板**：侧边栏，下指令 → 远程 agent 改笔记 → 回传结果
-- **定时任务**：设一次，AI 按时自动干活
-- **积分与续费**：卡密激活 + 充值并入原账户
+## 2.0.0 migration
 
-## 开发者备注
+This candidate uses the canonical plugin ID `osyc`. At first startup it checks
+whether the legacy `obsidian-livesync` plugin is still enabled and stops safely
+if it is, preventing two sync instances from running together. After the old
+plugin is disabled, OsyC copies its sync settings only when the legacy JSON is
+valid and no new configuration exists. The legacy directory remains available
+as a rollback copy.
 
-这是私有测试版本，非官方发布。通过 BRAT 安装。
+Migration failures never overwrite a new configuration, delete vault files, or
+clean up the legacy plugin. Keep the legacy release installed until the mobile
+acceptance checks have passed.
+
+## License
+
+OsyC is released under MIT. LiveSync upstream attribution and third-party
+notices are included in `LICENSE` and `NOTICE`.

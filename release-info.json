@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "channel": "prerelease",
+  "pluginId": "osyc",
+  "sourceCommit": "668f0b228ae5cd56d85613000ea6e0a4d4ff0855",
+  "assets": {
+    "main.js": "ed7f0fba90d34c58ee4cbdc5c7f35d734feb2b246452182e081bc231d3471bb7",
+    "manifest.json": "2c121e9a83df2b51a56d35cc7080b82a1c85b29582c02702b431412bcb8472f8",
+    "manifest-beta.json": "2c121e9a83df2b51a56d35cc7080b82a1c85b29582c02702b431412bcb8472f8",
+    "styles.css": "1e2cfe620db1f1b3d41698475a08c52c452ff276ba7c02ae696516b31aff9003",
+    "versions.json": "a48521bf9b71d75d40a099838f79a487553fa078c4424f178991f8accc4b641b"
+  }
+}

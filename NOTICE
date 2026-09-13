@@ -1,0 +1,9 @@
+OsyC
+Copyright (c) 2026 OsyC contributors
+
+OsyC includes and adapts code from Self-hosted LiveSync by vorotamoroz,
+licensed under the MIT License. See LICENSE for the full license text.
+
+The plugin source remains compatible with the upstream LiveSync MIT license.
+Third-party theme and dependency attributions are listed in the repository
+documentation and the corresponding source metadata files.
