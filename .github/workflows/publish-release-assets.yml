@@ -54,7 +54,8 @@ jobs:
                 draft: false,
                 prerelease,
               });
-            } else if (release.data.prerelease !== prerelease) {
+            }
+            if (release.data.prerelease !== prerelease) {
               release = await github.rest.repos.updateRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
