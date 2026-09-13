@@ -16,8 +16,8 @@ import { appearanceToCssVariables, DEFAULT_APPEARANCE, FONT_SOURCE_GROUPS, fontF
 import { annotateFontLabel, checkFontAvailability } from "@/osyc/theme/fontAvailability";
 import { applyThemeProfileStyles, migrateAppearanceToThemeProfile } from "@/osyc/theme/themeModel";
 import { syncMarkdownThemeScope } from "@/osyc/theme/themeScope";
-import { FONT_RESOURCE_DIR, buildFontFaceStyles, createFontFaceDescriptor, fontResourceForSource, fontResourcePath, fontSourceForResource, type FontResource } from "@/osyc/theme/fontResources";
-import { createThemePackStyle, THEME_PACK_OPTIONS, themePackForId } from "@/osyc/theme/themePack";
+import { FONT_RESOURCE_DIR, createFontFaceDescriptor, fontResourceForSource, fontResourcePath, fontSourceForResource, type FontResource } from "@/osyc/theme/fontResources";
+import { applyThemePackScope, THEME_PACK_OPTIONS, themePackForId } from "@/osyc/theme/themePack";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
 /** 存放在 vault 配置目录下，不参与同步，避免把凭据写进笔记库 */
@@ -46,17 +46,17 @@ function fontOptionsWithAvailability(options: Record<string, string>, resources:
 function appendFontPreview(setting: Setting, label: string, source: FontSource, customFamily?: string, className = "osyc-font-preview"): HTMLElement {
     const host = setting.controlEl;
     host.classList.add("osyc-font-control");
-    host.style.flexWrap = "wrap";
+    host.setCssStyles({ flexWrap: "wrap" });
     const preview = host.createDiv({ cls: className });
     preview.createSpan({ cls: "osyc-font-preview-label", text: label });
     const sample = preview.createSpan({ cls: "osyc-font-preview-sample", text: "中文样例 Aa 123" });
-    sample.style.setProperty("font-family", fontFamilyForSource(source, customFamily), "important");
+    sample.setCssStyles({ fontFamily: `${fontFamilyForSource(source, customFamily)} !important` });
     return preview;
 }
 
 function updateFontPreview(preview: HTMLElement | null, source: FontSource, customFamily?: string): void {
     const sample = preview?.querySelector<HTMLElement>(".osyc-font-preview-sample");
-    if (sample) sample.style.setProperty("font-family", fontFamilyForSource(source, customFamily), "important");
+    if (sample) sample.setCssStyles({ fontFamily: `${fontFamilyForSource(source, customFamily)} !important` });
 }
 
 class OsyCLogModal extends Modal {
@@ -190,7 +190,7 @@ class AIAgentSettingModal extends Modal {
                 : null;
             const resourceUrl = backgroundFile instanceof TFile ? this.app.vault.getResourcePath(backgroundFile) : undefined;
             for (const [key, value] of Object.entries(appearanceToCssVariables(this.appearance, resourceUrl, themeMode, this.fontResources))) {
-                this.previewEl.style.setProperty(key, value);
+                this.previewEl.setCssProps({ [key]: value });
             }
         };
         refreshPreview();
@@ -499,10 +499,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         .map((file) => file.path)
         .sort((a, b) => a.localeCompare(b));
     let fontResources: FontResource[] = [];
-    const fontResourceUrls = () => Object.fromEntries(fontResources.map((resource) => {
-        const path = fontResourcePath(resource.id, resource.fileName);
-        return path && adapter?.getResourcePath ? [resource.id, adapter.getResourcePath(path)] : [resource.id, ""];
-    }));
     const fontResourceUrl = (resource: FontResource): string => {
         const path = fontResourcePath(resource.id, resource.fileName);
         return path && adapter?.getResourcePath ? adapter.getResourcePath(path) : "";
@@ -510,7 +506,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const mountFontResource = async (resource: FontResource): Promise<boolean> => {
         const descriptor = createFontFaceDescriptor(resource, fontResourceUrl(resource));
         if (!descriptor) return false;
-        // CSS @font-face remains the compatibility path for older Obsidian WebViews.
+        // FontFace keeps imported resources local without injecting runtime CSS.
         if (typeof document === "undefined" || !("fonts" in document) || typeof FontFace === "undefined") return true;
         try {
             const face = new FontFace(descriptor.family, descriptor.source, descriptor.descriptors);
@@ -522,17 +518,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             osycLogger.warn("font_resource_mount_failed", { id: resource.id, error: String(error) });
             return false;
         }
-    };
-    const refreshFontResourceStyles = () => {
-        if (typeof document === "undefined") return;
-        const id = "osyc-ai-font-resources-style";
-        let style = document.getElementById(id) as HTMLStyleElement | null;
-        if (!style) {
-            style = document.createElement("style");
-            style.id = id;
-            document.head.appendChild(style);
-        }
-        style.textContent = buildFontFaceStyles(fontResources, fontResourceUrls());
     };
     const importFont = async (sourcePath: string): Promise<FontResource | null> => {
         const source = app.vault.getAbstractFileByPath(sourcePath);
@@ -563,7 +548,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             return null;
         }
         fontResources = [...fontResources, resource];
-        refreshFontResourceStyles();
         await persist();
         return resource;
     };
@@ -578,8 +562,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         if (appearance.themePackId) {
             const pack = themePackForId(appearance.themePackId);
             if (pack) {
-                const style = createThemePackStyle(pack, appearance.themePackScope);
-                removeThemePack = () => style.remove();
+                removeThemePack = applyThemePackScope(pack, appearance.themePackScope);
             }
         }
         applyThemeProfileStyles(
@@ -869,8 +852,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
          removeThemePack = null;
         app.workspace.off("layout-change", syncNoteThemeScopes);
         app.workspace.off("active-leaf-change", syncNoteThemeScopes);
-        document.getElementById("osyc-ai-appearance-style")?.remove();
-        document.getElementById("osyc-ai-font-resources-style")?.remove();
         if (typeof document !== "undefined" && "fonts" in document) {
             const fontSet = document.fonts as FontFaceSet & { delete(face: FontFace): boolean };
             for (const face of mountedFontFaces) fontSet.delete(face);
@@ -1000,7 +981,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                     floatingPosition = saved.floatingPosition;
                     appearance = saved.appearance ?? parseAppearance(undefined);
                     fontResources = saved.fontResources ?? [];
-                    refreshFontResourceStyles();
                     await Promise.all(fontResources.map((resource) => mountFontResource(resource)));
                     applyAppearance(appearance);
                     agent.configure(saved.apiBase ?? "", saved.token ?? "");
@@ -1018,7 +998,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                     }
                 } else {
                     agent.deviceId = createDeviceId();
-                    refreshFontResourceStyles();
                     applyAppearance(appearance);
                     await persist();
                 }
@@ -1027,7 +1006,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             }
         } else {
             agent.deviceId = createDeviceId();
-            refreshFontResourceStyles();
             applyAppearance(appearance);
         }
 

@@ -933,12 +933,9 @@ ${longTextCss}
 /** Apply the validated appearance as a single OsyC-local style node. */
 export function applyAppearanceStyles(settings: AppearanceSettings, resourceUrl?: string, themeMode: "light" | "dark" = "light"): void {
     if (typeof document === "undefined") return;
-    const id = "osyc-ai-appearance-style";
-    let style = document.getElementById(id) as HTMLStyleElement | null;
-    if (!style) {
-        style = document.createElement("style");
-        style.id = id;
-        document.head.appendChild(style);
-    }
-    style.textContent = appearanceToCssText(settings, resourceUrl, themeMode);
+    const vars = appearanceToCssVariables(settings, resourceUrl, themeMode);
+    const roots = document.querySelectorAll<HTMLElement>(
+        "body, .osyc-ai-agent, .osyc-ai-appearance-preview, .osyc-theme-notes"
+    );
+    for (const root of Array.from(roots)) root.setCssProps(vars);
 }

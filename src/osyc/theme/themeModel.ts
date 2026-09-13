@@ -217,12 +217,12 @@ export function applyThemeProfileStyles(
     fontResources: readonly { id: string; family: string }[] = []
 ): void {
     if (typeof document === "undefined") return;
-    const id = "osyc-ai-appearance-style";
-    let style = document.getElementById(id) as HTMLStyleElement | null;
-    if (!style) {
-        style = document.createElement("style");
-        style.id = id;
-        document.head.appendChild(style);
-    }
-    style.textContent = themeProfileToScopedCss(profile, resourceUrl, themeMode, fontResources);
+    const vars = appearanceToCssVariables(toAppearance(profile), resourceUrl, themeMode, fontResources);
+    vars["--osyc-ai-first-line-indent"] = `${profile.typography.firstLineIndent}em`;
+    vars["--osyc-ai-image-layout"] = profile.layout.imageLayout;
+    vars["--osyc-ai-table-mode"] = profile.layout.tableMode;
+    const roots = document.querySelectorAll<HTMLElement>(
+        "body, .osyc-ai-agent, .osyc-ai-appearance-preview, .osyc-theme-notes"
+    );
+    for (const root of Array.from(roots)) root.setCssProps(vars);
 }

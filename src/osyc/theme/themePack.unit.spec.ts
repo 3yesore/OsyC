@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
     BUILTIN_THEME_PACKS,
-    createThemePackStyle,
+    applyThemePackScope,
     scopeThemeCss,
     themePackForId,
     type ThemePackScope,
@@ -25,36 +25,22 @@ describe("OsyC theme pack loader", () => {
         expect(scoped).toContain("@keyframes pulse");
     });
 
-    it("creates one replaceable style node and removes it without touching OsyC styles", () => {
+    it("applies a replaceable scope class without creating a style node", () => {
         const pack = themePackForId("minimal-original");
         expect(pack).toBeDefined();
-        const styles: Array<{ id?: string; dataset: Record<string, string>; textContent: string; remove(): void }> = [];
+        const classes = new Set<string>();
         const doc = {
-            getElementById: (id: string) => styles.find((style) => style.id === id) ?? null,
-            createElement: () => {
-                const style = {
-                    id: undefined as string | undefined,
-                    dataset: {} as Record<string, string>,
-                    textContent: "",
-                    remove: () => {
-                        const index = styles.indexOf(style);
-                        if (index >= 0) styles.splice(index, 1);
-                    },
-                };
-                styles.push(style);
-                return style;
-            },
-            head: { appendChild: (style: (typeof styles)[number]) => style },
-            documentElement: { appendChild: (style: (typeof styles)[number]) => style },
-            querySelector: (selector: string) => selector === "style[data-osyc-theme-pack]" ? styles.find((style) => style.dataset.osycThemePack) ?? null : null,
+            body: { classList: {
+                add: (name: string) => classes.add(name),
+                remove: (name: string) => classes.delete(name),
+                toggle: (name: string, enabled: boolean) => enabled ? classes.add(name) : classes.delete(name),
+            } },
         } as unknown as Document;
-        const osycStyle = { id: "osyc-ai-appearance-style", dataset: {}, textContent: "keep me", remove: () => undefined };
-        styles.push(osycStyle);
-        const mount = createThemePackStyle(pack!, "notes" satisfies ThemePackScope, doc);
-        expect(doc.querySelector("style[data-osyc-theme-pack]")).not.toBeNull();
-        expect(doc.querySelector("style[data-osyc-theme-pack]")?.textContent).toContain("osyc-theme-notes");
-        mount.remove();
-        expect(doc.querySelector("style[data-osyc-theme-pack]")).toBeNull();
-        expect(doc.getElementById("osyc-ai-appearance-style")?.textContent).toBe("keep me");
+        const remove = applyThemePackScope(pack!, "notes" satisfies ThemePackScope, doc);
+        expect(classes.has("osyc-theme-pack-minimal-original")).toBe(true);
+        expect(classes.has("osyc-theme-pack-notes")).toBe(true);
+        remove();
+        expect(classes.has("osyc-theme-pack-minimal-original")).toBe(false);
+        expect(classes.has("osyc-theme-pack-notes")).toBe(false);
     });
 });

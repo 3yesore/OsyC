@@ -35,96 +35,6 @@ function queueLabel(plan: PlanType): string {
     return "标准队列";
 }
 
-const ACCOUNT_CSS_ID = "osyc-account-style";
-const ACCOUNT_CSS = `
-.ai-account-badge {
-    display: inline-block;
-    padding: 4px 14px;
-    border-radius: 999px;
-    font-size: var(--font-ui-small);
-    font-weight: 700;
-    color: #fff;
-    margin: 4px 0 12px;
-    background-color: var(--text-faint);
-}
-.ai-account-badge[data-plan="member"] { background-color: var(--interactive-accent); }
-.ai-account-badge[data-plan="pro"] {
-    background-color: color-mix(in srgb, var(--interactive-accent) 75%, var(--text-normal) 25%);
-}
-.ai-account-section { margin: 18px 0 6px; color: var(--text-normal); }
-.ai-account-hint {
-    font-size: var(--font-ui-smaller);
-    color: var(--text-muted);
-    line-height: 1.6;
-    margin: 2px 0;
-}
-.ai-account-skills { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
-.ai-account-skill {
-    font-size: var(--font-ui-smaller);
-    padding: 2px 10px;
-    border-radius: 999px;
-    background-color: var(--background-modifier-border);
-    color: var(--text-muted);
-}
-.ai-account-sync {
-    display: grid;
-    gap: 8px;
-    margin-top: 6px;
-    padding: 10px 12px;
-    border: 1px solid var(--background-modifier-border);
-    border-radius: 10px;
-    background-color: var(--background-secondary);
-}
-.ai-account-sync-title {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 8px;
-    color: var(--text-normal);
-    font-weight: 600;
-}
-.ai-account-sync-pill {
-    display: inline-flex;
-    align-items: center;
-    min-height: 22px;
-    padding: 0 8px;
-    border-radius: 999px;
-    color: var(--text-on-accent);
-    background-color: var(--text-faint);
-    font-size: var(--font-ui-smaller);
-    font-weight: 700;
-}
-.ai-account-sync-pill[data-sync-status="ok"] { background-color: var(--color-green); }
-.ai-account-sync-pill[data-sync-status="degraded"] { background-color: var(--color-orange); }
-.ai-account-sync-pill[data-sync-status="failed"] { background-color: var(--text-error); }
-.ai-account-sync-pill[data-sync-status="unknown"] { background-color: var(--text-faint); }
-.ai-account-sync-grid {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 5px 12px;
-    font-size: var(--font-ui-smaller);
-}
-.ai-account-sync-grid strong { color: var(--text-normal); font-weight: 600; }
-.ai-account-input {
-    width: min(220px, 100%);
-    margin-right: 8px;
-    background-color: var(--background-modifier-form-field);
-    border: 1px solid var(--background-modifier-border);
-    color: var(--text-normal);
-    border-radius: 4px;
-    padding: 4px 8px;
-}
-.ai-account-recovery {
-    display: grid;
-    gap: 8px;
-    margin-top: 8px;
-}
-.ai-account-recovery input {
-    width: 100%;
-    box-sizing: border-box;
-}
-`;
-
 /** 各档位的升级引导文案。pro 为最高档，给空字符串表示不显示升级区。 */
 const UPGRADE_HINT: Record<PlanType, string> = {
     base: "升级到会员 / Pro，解锁：定时整理、专属 OC 技能、云端私有空间备份与优先队列。",
@@ -163,15 +73,6 @@ function formatSyncTime(value: number | null): string {
 export class AIAgentAccountModal extends Modal {
     constructor(app: App, private agent: CmdAIAgent) {
         super(app);
-        this.ensureStyle();
-    }
-
-    private ensureStyle() {
-        if (document.getElementById(ACCOUNT_CSS_ID)) return;
-        const style = document.createElement("style");
-        style.id = ACCOUNT_CSS_ID;
-        style.textContent = ACCOUNT_CSS;
-        document.head.appendChild(style);
     }
 
     override onOpen() {

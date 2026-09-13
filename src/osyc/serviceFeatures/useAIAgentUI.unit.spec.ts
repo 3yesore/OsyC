@@ -86,10 +86,9 @@ describe("OsyC 设置页信息架构", () => {
 
     it("提供 Vault 字体载入入口并注入字体资源样式", () => {
         expect(source).toContain("载入本地字体");
-        expect(source).toContain("buildFontFaceStyles");
         expect(source).toContain("fontResourcePath");
         expect(source).toContain("adapter.writeBinary");
-        expect(source).toContain("osyc-ai-font-resources-style");
+        expect(source).not.toContain('createElement("style")');
     });
 
     it("在导入和启动时显式挂载 FontFace，并在卸载时清理", () => {

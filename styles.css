@@ -972,6 +972,101 @@ body.is-mobile .livesync-compatibility-review-notice {
 }
 .osyc-ai-appearance-preview-content pre code { background: transparent; }
 .osyc-ai-appearance-preview strong { font-size: calc(var(--osyc-ai-font-size) * var(--osyc-ai-heading-scale)); }
+
+/* Account modal and floating launcher are loaded with the plugin stylesheet. */
+.ai-account-badge { display: inline-block; padding: 4px 14px; border-radius: 999px; font-size: var(--font-ui-small); font-weight: 700; color: #fff; margin: 4px 0 12px; background-color: var(--text-faint); }
+.ai-account-badge[data-plan="member"] { background-color: var(--interactive-accent); }
+.ai-account-badge[data-plan="pro"] { background-color: color-mix(in srgb, var(--interactive-accent) 75%, var(--text-normal) 25%); }
+.ai-account-section { margin: 18px 0 6px; color: var(--text-normal); }
+.ai-account-hint { font-size: var(--font-ui-smaller); color: var(--text-muted); line-height: 1.6; margin: 2px 0; }
+.ai-account-skills { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.ai-account-skill { font-size: var(--font-ui-smaller); padding: 2px 10px; border-radius: 999px; background-color: var(--background-modifier-border); color: var(--text-muted); }
+.ai-account-sync { display: grid; gap: 8px; margin-top: 6px; padding: 10px 12px; border: 1px solid var(--background-modifier-border); border-radius: 10px; background-color: var(--background-secondary); }
+.ai-account-sync-title { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--text-normal); font-weight: 600; }
+.ai-account-sync-pill { display: inline-flex; align-items: center; min-height: 22px; padding: 0 8px; border-radius: 999px; color: var(--text-on-accent); background-color: var(--text-faint); font-size: var(--font-ui-smaller); font-weight: 700; }
+.ai-account-sync-pill[data-sync-status="ok"] { background-color: var(--color-green); }
+.ai-account-sync-pill[data-sync-status="degraded"] { background-color: var(--color-orange); }
+.ai-account-sync-pill[data-sync-status="failed"] { background-color: var(--text-error); }
+.ai-account-sync-pill[data-sync-status="unknown"] { background-color: var(--text-faint); }
+.ai-account-sync-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; font-size: var(--font-ui-smaller); }
+.ai-account-sync-grid strong { color: var(--text-normal); font-weight: 600; }
+.ai-account-input { width: min(220px, 100%); margin-right: 8px; background-color: var(--background-modifier-form-field); border: 1px solid var(--background-modifier-border); color: var(--text-normal); border-radius: 4px; padding: 4px 8px; }
+.ai-account-recovery { display: grid; gap: 8px; margin-top: 8px; }
+.ai-account-recovery input { width: 100%; box-sizing: border-box; }
+
+.ai-float-ball-root { box-sizing: border-box; position: fixed; z-index: 10001; width: 60px; height: 60px; }
+.ai-float-ball { width: 60px; height: 60px; border-radius: 50%; border: none; cursor: grab; display: inline-flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 700; letter-spacing: 0; color: #fff; background: var(--interactive-accent); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3); touch-action: none; user-select: none; -webkit-user-select: none; }
+.ai-float-ball:active, .ai-float-ball.ai-float-dragging { cursor: grabbing; }
+.ai-float-ball.ai-pulse { animation: ai-float-pulse 2.4s ease-in-out infinite; }
+@keyframes ai-float-pulse { 0%, 100% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 0 0 0 rgba(127, 127, 127, 0); } 50% { box-shadow: 0 6px 18px rgba(0, 0, 0, 0.3), 0 0 0 8px rgba(127, 127, 127, 0.12); } }
+
+/* User-selected note appearance is driven by CSS variables set through the
+ * Obsidian DOM helpers; selectors stay in the bundled stylesheet. */
+.osyc-theme-notes {
+    color: var(--osyc-ai-note-text, var(--text-normal));
+    background-color: var(--osyc-ai-note-background, var(--background-primary));
+}
+.osyc-theme-notes .markdown-reading-view,
+.osyc-theme-notes .markdown-preview-view,
+.osyc-theme-notes .markdown-rendered,
+.osyc-theme-notes .markdown-source-view,
+.osyc-theme-notes .markdown-source-view .cm-content,
+.osyc-theme-notes .markdown-source-view .cm-line {
+    color: var(--osyc-ai-note-text, var(--text-normal));
+    background-color: var(--osyc-ai-note-background, var(--background-primary));
+    font-family: var(--osyc-ai-note-font-family, var(--font-text)) !important;
+    font-size: var(--osyc-ai-note-font-size, var(--font-text-size, 16px)) !important;
+    line-height: var(--osyc-ai-note-line-height, var(--line-height-normal, 1.5)) !important;
+    font-weight: var(--osyc-ai-note-font-weight, 400) !important;
+    letter-spacing: var(--osyc-ai-note-letter-spacing, 0em) !important;
+}
+.osyc-theme-notes .markdown-reading-view .markdown-preview-sizer,
+.osyc-theme-notes .markdown-preview-view .markdown-preview-sizer,
+.osyc-theme-notes .markdown-rendered {
+    max-width: var(--osyc-ai-note-content-width, none);
+    margin-inline: auto;
+}
+.osyc-theme-notes .markdown-reading-view h1,
+.osyc-theme-notes .markdown-reading-view h2,
+.osyc-theme-notes .markdown-reading-view h3,
+.osyc-theme-notes .markdown-reading-view h4,
+.osyc-theme-notes .markdown-reading-view h5,
+.osyc-theme-notes .markdown-reading-view h6,
+.osyc-theme-notes .markdown-preview-view h1,
+.osyc-theme-notes .markdown-preview-view h2,
+.osyc-theme-notes .markdown-preview-view h3,
+.osyc-theme-notes .markdown-preview-view h4,
+.osyc-theme-notes .markdown-preview-view h5,
+.osyc-theme-notes .markdown-preview-view h6,
+.osyc-theme-notes .markdown-rendered h1,
+.osyc-theme-notes .markdown-rendered h2,
+.osyc-theme-notes .markdown-rendered h3,
+.osyc-theme-notes .markdown-rendered h4,
+.osyc-theme-notes .markdown-rendered h5,
+.osyc-theme-notes .markdown-rendered h6,
+.osyc-theme-notes .inline-title {
+    font-family: var(--osyc-ai-note-heading-font-family, var(--font-text)) !important;
+    font-size: calc(var(--osyc-ai-note-font-size, var(--font-text-size, 16px)) * var(--osyc-ai-heading-scale, 1.15)) !important;
+    color: var(--osyc-ai-note-text, var(--text-normal)) !important;
+}
+.osyc-theme-notes .markdown-reading-view p,
+.osyc-theme-notes .markdown-preview-view p,
+.osyc-theme-notes .markdown-rendered p { margin-block-end: var(--osyc-ai-note-paragraph-spacing, 1em); }
+.osyc-theme-notes .markdown-reading-view a,
+.osyc-theme-notes .markdown-preview-view a,
+.osyc-theme-notes .markdown-rendered a { color: var(--osyc-ai-note-link, var(--link-color)); }
+.osyc-theme-notes .markdown-reading-view pre,
+.osyc-theme-notes .markdown-preview-view pre,
+.osyc-theme-notes .markdown-rendered pre,
+.osyc-theme-notes .markdown-reading-view :not(pre) > code,
+.osyc-theme-notes .markdown-preview-view :not(pre) > code,
+.osyc-theme-notes .markdown-rendered :not(pre) > code {
+    background-color: var(--osyc-ai-note-code-background, var(--background-secondary));
+    border-color: var(--osyc-ai-note-border, var(--background-modifier-border));
+    color: var(--osyc-ai-note-code-text, var(--text-normal));
+}
+.osyc-theme-pack-minimal-original .osyc-theme-notes,
+.osyc-theme-pack-chinese-writing-original .osyc-theme-notes { --osyc-ai-image-layout: var(--osyc-ai-image-layout, single); }
 .osyc-font-control {
     display: flex;
     align-items: center;

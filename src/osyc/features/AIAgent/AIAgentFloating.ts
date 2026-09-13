@@ -16,26 +16,8 @@ export interface FloatingCallbacks {
     onPositionChange?: (position: FloatingPoint) => void;
 }
 
-const STYLE_ID = "osyc-floating-style";
 const FLOATING_ROOT_ID = "osyc-ai-floating-ball";
 const GLOBAL_CLEANUP_KEY = "__osycFloatingCleanup";
-const FLOATING_CSS = `
-.ai-float-ball-root { box-sizing: border-box; }
-.ai-float-ball-root { position: fixed; z-index: 10001; width: 60px; height: 60px; }
-.ai-float-ball {
-    width: 60px; height: 60px; border-radius: 50%; border: none; cursor: grab;
-    display: inline-flex; align-items: center; justify-content: center;
-    font-size: 15px; font-weight: 700; letter-spacing: 0; color: #fff;
-    background: var(--interactive-accent); box-shadow: 0 6px 18px rgba(0,0,0,0.3);
-    touch-action: none; user-select: none; -webkit-user-select: none;
-}
-.ai-float-ball:active, .ai-float-ball.ai-float-dragging { cursor: grabbing; }
-.ai-float-ball.ai-pulse { animation: ai-float-pulse 2.4s ease-in-out infinite; }
-@keyframes ai-float-pulse {
-    0%, 100% { box-shadow: 0 6px 18px rgba(0,0,0,0.3), 0 0 0 0 rgba(127,127,127,0); }
-    50% { box-shadow: 0 6px 18px rgba(0,0,0,0.3), 0 0 0 8px rgba(127,127,127,0.12); }
-}
-`;
 
 /**
  * A draggable shortcut only. The conversation itself is always rendered by the
@@ -66,8 +48,6 @@ export class AIAgentFloating {
 
     mount(): void {
         if (this.ballRoot) return;
-        this.ensureStyle();
-
         // Obsidian can reload a plugin bundle without running the previous
         // instance's unload hook. Keep one cross-bundle owner so stale balls
         // cannot remain interactive on top of the current workspace.
@@ -115,14 +95,6 @@ export class AIAgentFloating {
         this.applyBallPosition();
     }
 
-    private ensureStyle(): void {
-        if (document.getElementById(STYLE_ID)) return;
-        const style = document.createElement("style");
-        style.id = STYLE_ID;
-        style.textContent = FLOATING_CSS;
-        document.head.appendChild(style);
-    }
-
     private viewport() {
         return { width: window.visualViewport?.width ?? window.innerWidth, height: window.visualViewport?.height ?? window.innerHeight };
     }
@@ -138,8 +110,7 @@ export class AIAgentFloating {
         const next = position
             ? clampBallPosition(position, viewport, DEFAULT_FLOATING_GEOMETRY)
             : restoreBallPosition(this.normalizedPosition, viewport, DEFAULT_FLOATING_GEOMETRY);
-        this.ballRoot.style.left = `${next.x}px`;
-        this.ballRoot.style.top = `${next.y}px`;
+        this.ballRoot.setCssStyles({ left: `${next.x}px`, top: `${next.y}px` });
     }
 
     private persistPosition(position: FloatingPoint): void {

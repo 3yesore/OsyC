@@ -80,13 +80,13 @@ export function cssForThemePack(pack: ThemePack, scope: ThemePackScope): string 
     return scope === "workspace" ? pack.workspaceCss : pack.notesCss;
 }
 
-export function createThemePackStyle(pack: ThemePack, scope: ThemePackScope, doc: Document = document): HTMLStyleElement {
-    doc.getElementById("osyc-theme-pack")?.remove();
-    const style = doc.createElement("style");
-    style.id = "osyc-theme-pack";
-    style.dataset.osycThemePack = pack.id;
-    style.dataset.osycThemeScope = scope;
-    style.textContent = cssForThemePack(pack, scope);
-    (doc.head ?? doc.documentElement).appendChild(style);
-    return style;
+export function applyThemePackScope(pack: ThemePack, scope: ThemePackScope, doc: Document = document): () => void {
+    const root = doc.body;
+    const packClass = `osyc-theme-pack-${pack.id}`;
+    root.classList.add(packClass);
+    root.classList.toggle("osyc-theme-pack-notes", scope === "notes");
+    return () => {
+        root.classList.remove(packClass);
+        root.classList.toggle("osyc-theme-pack-notes", false);
+    };
 }
