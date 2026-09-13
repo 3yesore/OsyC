@@ -1,0 +1,11 @@
+@fontsource/noto-sans-sc@5.3.0
+  https://www.npmjs.com/package/@fontsource/noto-sans-sc
+  https://github.com/notofonts/noto-cjk
+
+@fontsource/inter@5.3.0
+  https://www.npmjs.com/package/@fontsource/inter
+  https://github.com/rsms/inter
+
+@fontsource/jetbrains-mono@5.3.0
+  https://www.npmjs.com/package/@fontsource/jetbrains-mono
+  https://github.com/JetBrains/JetBrainsMono

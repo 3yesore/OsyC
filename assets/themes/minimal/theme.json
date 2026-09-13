@@ -1,0 +1,8 @@
+{
+  "id": "minimal-original",
+  "name": "Minimal",
+  "license": "MIT",
+  "source": "https://github.com/kepano/obsidian-minimal",
+  "sourceCommit": "c4704fbc23625f4b35b0ab9b2e1eb584e6891be2",
+  "css": "original.css"
+}

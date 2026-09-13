@@ -1,0 +1,183 @@
+# 1.0
+
+Well then, everyone: it has been roughly a year since I declared the 0.25 beta. During that time, we have concentrated mainly on fixing defects and completing the features that the project needed.
+
+Version 1.0 has been in mind for some time. We have now brought together the work intended to make it possible: stronger CI, more detailed tests, an E2E runner suited to synchronisation, and testing tools for physical devices. These now form a coherent Kit rather than a collection of isolated pieces. With those foundations in place, it seems that the time has finally come to reshape the structure of this repository.
+
+None of this would have been possible without your issue reports, pull requests, sponsorship, and the support provided through OpenAI's Codex for Open Source. I would like to express my gratitude once again. As with every pull request contributed to the project, code produced with Codex and similar tools is reviewed and audited by me, vrtmrz. Anyone interested in how I manage that process can refer to my dotfiles.
+
+This will call for your help once again. I would be very grateful for your co-operation as we build a sounder foundation for the project and its future development.
+
+Earlier releases remain available in the 1.0 release history, the 1.0 preview history, the 0.25 release history, and the legacy release history.
+
+## Unreleased
+
+- Candidate OsyC `2.0.0` introduces the standalone plugin ID `osyc` for Community Plugins distribution. It includes a guarded migration path from the legacy `obsidian-livesync` directory, preserves the shared Agent configuration file, blocks dual sync instances, and keeps the existing MIT licensing and LiveSync attribution. This release must remain prerelease until migration and mobile network acceptance pass.
+
+- Candidate OsyC `1.0.78` restores the `/api/sync/handshake` contract and sync snapshot in the backend, keeps a fresh handshake from being overwritten by stale status data, aligns bundled font family names with shipped assets, and bridges original theme typography variables to OsyC note fonts. Focused tests pass; server deployment and mobile BRAT acceptance remain pending.
+
+- Candidate OsyC `1.0.77` package replaces user-facing AI/Agent labels with `OC` and removes RMB-equivalent quota amounts from the account entitlement summary; internal quota accounting and API fields are unchanged.
+- Candidate OsyC theme-rendering fix extends scoped styling to real Markdown and CodeMirror content roots, adapts Agent surfaces to OsyC preset tokens, and adds isolated background-image rendering with live font previews. Focused tests and iOS compatibility checks pass; real-device acceptance and release reservation remain pending.
+- Expanded the device-font catalog with additional Chinese, Latin, and monospace fallback stacks; added read-only source snapshots and license records for the reviewed open-source themes and layout modules.
+
+## 1.0.77
+
+12th September, 2026
+
+- Renamed visible AI/Agent entry points and response labels to `OC` across the mobile and desktop plugin UI.
+- Removed RMB-equivalent model quota amounts from the account entitlement summary without changing backend quota state or billing behaviour.
+
+## 1.0.76
+
+12th September, 2026
+
+- Fixed OsyC theme heading fonts for Obsidian file titles across reading, live-preview, and source layouts.
+- Corrected scoped Markdown selectors so nested content rules are applied once and remain isolated to OsyC note views.
+
+## 1.0.75
+
+11th September, 2026
+
+- Reissued the BRAT package from one release commit so the tag, source fingerprint, and all five assets remain aligned.
+- Added an explicit client-side runtime compatibility gate: a server that declares an incompatible plugin range is rejected before a task request is sent.
+- Completed the local background-image preview path and strengthened font-preview precedence in the OsyC appearance settings.
+
+## 1.0.74
+
+11th September, 2026
+
+- Extended scoped note theming to code blocks, inline code, quotes, tables, callouts, embeds, and dividers so content blocks no longer fall back to Obsidian default surfaces.
+- Strengthened note font, size, line-height, and colour declarations across reading, live preview, and source editor content.
+- Reworked the appearance preview as a static full-width sample and added live font samples below each font selector for mobile-friendly comparison.
+
+## 1.0.73
+
+11th September, 2026
+
+- Repackaged the OsyC Agent and scoped theme updates as a distinct BRAT release after `1.0.72`, with aligned plugin metadata and API entry points.
+- Streams the authoritative Hermes visible response through `response_text`, merges legacy preview events without truncating to the last fragment, and removes transient lifecycle labels at terminal state.
+- Removes the duplicate OC assistant name and keeps ordinary chat inline without generating Markdown artifacts.
+- Records a safe `/api/runtime-info` fingerprint so mobile diagnostics can detect backend/adapter release mixing.
+
+## 1.0.72
+
+11th September, 2026
+
+- Improved OsyC Agent conversation rendering with native Obsidian Markdown output, readable Chinese typography, and stable streaming message identities.
+- Added explicit Artifact intent handling so ordinary chat does not create redundant Markdown files; requested reports retain natural titles and safe conflict suffixes.
+- Kept synchronization status compact in the Agent header while preserving account and credit information.
+- Added versioned, scoped OsyC theme and local-font safety adapters with readable fallbacks and no remote font loading.
+- Hardened streaming updates, phase-event merging, and delivery-state rendering so stale analysis or sync messages do not remain after completion.
+
+## 1.0.70
+
+11th September, 2026
+
+- Reorganised the OsyC account view so plan entitlements, model quota, queue priority, device limits, Cloud-Vault capacity, and readable skill names are shown in separate mobile-friendly sections.
+- Reorganised OsyC settings into Connection, Note appearance, and Agent interaction sections while retaining native controls and live preview.
+
+## 1.0.69
+
+- Automatically normalize legacy `/osyc` API base URLs to the current Hermes service root, restoring status, LiveSync handshake, and task requests after the public Tunnel migration.
+
+## 1.0.68
+
+- Explain outdated API endpoints when refreshing the LiveSync handshake instead of showing a generic failure.
+
+## 1.0.67
+
+- Added account actions to re-activate a card key or refresh the LiveSync handshake without invoking a model or charging credits.
+- Added safe server-side sync coverage summary to the account view.
+
+## 1.0.65
+
+- Keep legacy progress fallbacks out of the chat and show verified reading and clarification details alongside the streamed OC reply.
+
+## 1.0.60
+
+6th September, 2026
+
+- Cleaned up OC assistant streaming so `response_text` stays the authoritative reply and repeated preview fragments no longer stack into the chat.
+- Tightened dialogue intent detection so ordinary整理任务 mentioning `profile` or `skill` no longer fall into capability disclosure.
+
+## 1.0.21
+
+26th August, 2026
+
+It is becoming more 'ordinary' with each release, but please let me know if anything has become less convenient.
+
+### Interface and translation
+
+#### Fixed
+
+- Remote Configuration section headings no longer overlap their contents when scrolling on mobile. Action buttons in Remote Configuration, Maintenance, and Patches now remain inside the settings pane on narrow screens.
+
+## 1.0.20
+
+~~1.0.19~~ was cancelled because prerelease validation exposed an incorrect warning at start-up.
+
+25th August, 2026
+
+I know this is the second time I have said it, but I had grown quite fond of the settings screen. It seems, however, that a simpler, healthier life is called for.
+
+### Interface and translation
+
+#### Fixed
+
+- Compatibility pause warnings now direct you to the dedicated compatibility review instead of the Change Log.
+- The Obsidian 1.13 settings page now waits for saved settings before choosing its initial layout. This prevents a spurious missing-replicator warning at start-up, keeps configured devices on the Synchronisation-first layout even when automatic synchronisation triggers are disabled, and keeps Quick Setup first on unconfigured devices.
+
+#### Improved
+
+- Settings page names, controls in General Settings, Quick Setup actions, and Advanced controls now use Obsidian 1.13's native settings interface and global search, while retaining their familiar icons. The landing page keeps Remote Configuration and Sync Settings together, places Appearance, Logging, and Extra menus under General Settings, and groups maintenance, optional features, advanced settings, and help by purpose. Earlier supported Obsidian versions continue to use the pane-based interface.
+- Settings changes which require database initialisation now use a focused Setup Manager dialogue to choose between existing synchronisation data and the files in the current Vault. The selected reset or rebuild is reserved before the settings are saved, while cancelling offers a separate, explicit settings-only fallback.
+
+## 1.0.18
+
+24th August, 2026
+
+### Synchronisation and storage
+
+#### Fixed
+
+- Reset and rebuild workflows now use the local database selected by their updated settings, preventing stale data from reopening after a **Database Suffix** change. If database initialisation does not complete, the workflow remains paused instead of continuing with incomplete state.
+
+#### Improved
+
+- Rebuilds now recheck restored file events against the current Vault, use current file contents, and finish processing them before the plug-in reports readiness.
+
+## 1.0.17
+
+23rd August, 2026
+
+### Interface and translation
+
+#### Fixed
+
+- Settings generated from the settings manifest, Setup Wizard configuration summaries, and warnings about externally changed settings now honour **Display language** when a translation is available, instead of remaining in English (PR #1123). Thank you to @nimula for the contribution!
+
+### Peer-to-peer synchronisation
+
+#### Improved
+
+- P2P connection profiles now provide four **P2P message size** presets and a **Connection path** choice between **Automatic** and **TURN relay only**. Smaller messages can improve compatibility on paths which fragment or drop larger WebRTC messages, while relay-only routing requires a configured TURN server. P2P connection strings and encrypted Setup URIs preserve both choices.
+    - Thank you to @andrewschreiber for the detailed fragmentation diagnosis and working 800-byte threshold in vrtmrz/livesync-commonlib#97, which informed this compatibility design.
+- An optional self-hosted Coturn Compose starter is now available for P2P deployments that need a TURN relay. It uses a pinned upstream image and documents its network, credential, security, and verification boundaries.
+
+## 1.0.16
+
+19th August, 2026
+
+### Conflict handling and recovery
+
+#### Fixed
+
+- **Back to this revision** in Document History now restores the selected content as a new non-deleted successor revision before reflecting it to the Vault. A readable revision restored after a logical deletion therefore remains restored through later synchronisation instead of being overwritten by the deletion.
+    - If the file changes while restoration is in progress, the operation stops instead of extending a stale revision. Existing conflicts remain available through **Inspect conflicts and file/database differences**.
+
+### Synchronisation and storage
+
+#### Improved
+
+- One-shot CouchDB synchronisation now releases stalled web-compatible connection checks before replication starts, so a later synchronisation can make a fresh attempt (Commonlib 0.1.16).
+    - The 60-second safeguard applies only to pre-replication checks. It does not limit ordinary synchronisation, and the **Use Internal API** path is unchanged.

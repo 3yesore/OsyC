@@ -1,0 +1,52 @@
+{
+    "schemaVersion": 1,
+    "updatedAt": "2026-09-12",
+    "releaseOwner": "release-captain",
+    "sourceRepository": {
+        "name": "obsidian-livesync",
+        "branch": "codex/osyc-1.0.67-sync-entry",
+        "commit": "8bbeedd8"
+    },
+    "distributionRepository": {
+        "name": "3yesore/OsyC",
+        "remote": "https://github.com/3yesore/OsyC.git",
+        "branch": "main",
+        "commit": "a1f1085"
+    },
+    "currentStable": {
+        "version": "1.0.75",
+        "tag": "1.0.75",
+        "status": "published",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/1.0.75",
+        "assets": ["main.js", "manifest.json", "manifest-beta.json", "styles.css", "versions.json"]
+    },
+    "previousStable": {
+        "version": "1.0.74",
+        "tag": "1.0.74",
+        "status": "superseded"
+    },
+    "candidate": {
+        "version": "1.0.78",
+        "status": "published-prerelease",
+        "sourceBranch": "codex/osyc-1.0.67-sync-entry",
+        "sourceCommit": "10929a44",
+        "distributionCommit": "6f34b1e",
+        "tag": "1.0.78",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/1.0.78",
+        "bratValidation": "pending-mobile"
+    },
+    "publicationRules": {
+        "singleWriter": "release-captain",
+        "immutableTags": true,
+        "forcePush": false,
+        "featureAgentsMayPublish": false,
+        "featureAgentsMayPublishTestPackages": true,
+        "testPackage": {
+            "mustBePrerelease": true,
+            "requiresReservedVersion": true,
+            "requiresExactFiveAssets": true,
+            "stablePromotionOwner": "release-captain"
+        },
+        "bratStableValidationRequired": true
+    }
+}

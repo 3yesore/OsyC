@@ -1,0 +1,1122 @@
+NOTE: This document not completed. I'll improve this doc in a while. but your contributions are always welcome.
+
+# Settings of Self-hosted LiveSync
+
+There are many settings in Self-hosted LiveSync. This document describes each setting in detail (not how-to). Configuration and settings are divided into several categories and indicated by icons. The icon is as follows:
+
+On Obsidian 1.13 or later, the root settings page is organised by task. On an unconfigured installation, **Quick Setup** appears first, followed by **Synchronisation** and **General Settings**. Once this plug-in has been configured, **Synchronisation** and **General Settings** appear first, followed by **Set up other devices** and **Quick Setup**. Earlier supported Obsidian versions retain a pane-based interface with the same controls; they open **Quick Setup** when unconfigured and **General Settings** when configured.
+
+| Icon | Root group               | Contents or availability                                      |
+| :--: | ------------------------ | ------------------------------------------------------------- |
+|  🧙‍♂️  | Quick Setup              | Setup URI, onboarding, and enable actions                     |
+|  🔄  | Synchronisation          | Remote Configuration and Sync Settings                        |
+|  ⚙️  | General Settings         | Appearance, Logging, and Extra menus                          |
+|  📲  | Set up other devices     | Copy a Setup URI or show its QR code after configuration      |
+|  🛠️  | Maintenance and recovery | Maintenance and Hatch                                         |
+|  🧩  | Extra features           | Selector and Customisation sync when advanced features appear |
+|  🔧  | Advanced settings        | Advanced, Power users, and Patches when their modes appear    |
+|  ℹ️  | Help and information     | Help and troubleshooting, and Change Log                      |
+
+## Feature maturity for 1.0
+
+The following status applies to optional and compatibility features in the 1.0 line:
+
+| Status               | Features                                                                                                                                              | 1.0 policy                                                                                                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Supported, opt-in    | Peer-to-Peer Synchronisation, Hidden File Sync, and Customisation Sync                                                                                | Maintained and covered by focused real-runtime tests. Enable them only where their separate setup and operational constraints are acceptable.                                   |
+| Maintained, advanced | Data Compression                                                                                                                                      | Available as an explicit storage and bandwidth trade-off. It remains disabled by default because the measured processing and memory costs outweigh the mixed-dataset saving.    |
+| Beta or experimental | JWT authentication, ignore files, automatic newer-file conflict resolution, and Garbage Collection V3 for CouchDB                                     | Retained for explicit testing and specialised use. They remain disabled by default and are not part of the minimum supported setup.                                             |
+| Compatibility only   | V1 dynamic iteration counts, the old IndexedDB adapter, non-current hash algorithms, Eden chunks, and the stored `doNotUseFixedRevisionForChunks` key | Existing settings and data remain readable. New Vaults use the current defaults, and compatibility controls are shown only where a migration or recovery path still needs them. |
+
+### Apply changes which require initialisation
+
+Some compatibility settings are not saved immediately. They remain pending
+until **Apply** is selected. The Apply action remains visible on the root
+settings page and on the relevant child page. The following dialogue asks which
+existing data should be used after restarting:
+
+- **Reset Synchronisation on This Device** reconstructs this device's local
+  database from the configured remote. For P2P, an online source device is
+  selected after restart.
+- **Overwrite Server Data with This Device's Files** reconstructs the local and
+  remote databases from this Vault. The P2P equivalent prepares only this
+  device from its current Vault files.
+- **Review another way to apply these settings** returns to a separate choice
+  between keeping the changes pending and applying them without initialisation.
+  Applying them alone is an advanced compatibility fallback and can make the
+  device incompatible with its existing synchronisation data.
+
+LiveSync reserves the selected next-start operation before saving the pending
+settings. If validation or that reservation fails, the settings remain
+unapplied and the settings-only fallback is not offered.
+
+| Icon | Description                                                        |
+| :--: | ------------------------------------------------------------------ |
+|  💬  | [0. Change Log](#0-change-log)                                     |
+|  🧙‍♂️  | [1. Quick Setup and Extra menus](#1-quick-setup-and-extra-menus)   |
+|  ⚙️  | [2. General Settings](#2-general-settings)                         |
+|  🛰️  | [3. Remote Configuration](#3-remote-configuration)                 |
+|  🔄  | [4. Sync Settings](#4-sync-settings)                               |
+|  🚦  | [5. Selector (Advanced)](#5-selector-advanced)                     |
+|  🔌  | [6. Customisation sync (Advanced)](#6-customisation-sync-advanced) |
+|  🧰  | [7. Hatch](#7-hatch)                                               |
+|  🔧  | [8. Advanced (Advanced)](#8-advanced-advanced)                     |
+|  💪  | [9. Power users (Power User)](#9-power-users-power-user)           |
+|  🩹  | [10. Patches (Edge Case)](#10-patches-edge-case)                   |
+|  🎛️  | [11. Maintenance](#11-maintenance)                                 |
+
+## 0. Change Log
+
+This pane always shows the current release history. It does not track whether a particular plug-in version has been read and does not open automatically after an ordinary update.
+
+Internal database or settings compatibility reviews use a separate safety dialogue, not this pane. After the Obsidian layout is ready, a pending review opens as **Synchronisation paused for compatibility review**. The dialogue explains why remote synchronisation has been paused and preserves the automatic synchronisation choices which were configured before the update. Closing it or selecting **Keep synchronisation paused** leaves synchronisation paused. Use the persistent Notice's **Review why** link, or run the `Review why synchronisation is paused` command, to reopen it. Opening **Change Log** does not acknowledge the review.
+
+A configured Vault which was copied, restored, or opened in a new Obsidian profile can require this review because its device-local acknowledgement is not part of the Vault data. An empty local database is not accepted as evidence that it is safe to continue. An existing unconfigured Vault remains in onboarding without this synchronisation warning; its missing acknowledgement is not filled in automatically, so it is evaluated if the Vault is configured later. When the detected state can be handled by the running version, **Resume synchronisation** records the current internal database version and restores the configured behaviour. An older installation cannot dismiss a pause caused by a newer database or settings version.
+
+## 1. Quick Setup and Extra menus
+
+Quick Setup contains the actions used to configure Self-hosted LiveSync. On Obsidian 1.13 or later these actions appear on the root settings page. In the pane-based interface, they remain available together on the **Quick Setup** pane.
+
+An unconfigured installation does not open the onboarding dialogue automatically or scan the Vault into the local database. A long-lived Notice offers the onboarding action. If the Notice is dismissed, use **Rerun Onboarding Wizard** in the root **Quick Setup** group on Obsidian 1.13 or later. On earlier supported Obsidian versions, open **Self-hosted LiveSync settings** → **Quick Setup** → **Rerun Onboarding Wizard**.
+
+Choose the new-device path when this device owns the files which should initialise synchronisation. Choose the existing-device path when it should receive an established remote state. The wizard reserves Rebuild or Fetch respectively before enabling the settings and requesting a restart, so the selected initialisation runs before the ordinary start-up scan.
+
+### 1. Setup actions
+
+Most preferred method to setup Self-hosted LiveSync. You can setup Self-hosted LiveSync with a few clicks.
+
+#### Connect with Setup URI
+
+Setup the Self-hosted LiveSync with the `setup URI` which is [copied from another device](#copy-current-settings-as-a-new-setup-uri) or the setup script.
+
+A current Setup URI retains its remote profiles, display names, and separate main and P2P selections. Older Setup URIs containing only flat connection settings remain supported and are migrated to a remote profile when applied.
+
+#### Manual setup
+
+Step-by-step setup for Self-hosted LiveSync. You can setup Self-hosted LiveSync manually with Minimal setting items.
+
+Completing manual CouchDB, Object Storage, or P2P setup creates the corresponding remote profile without replacing profiles which are already saved. CouchDB and Object Storage setup select the new profile as the main remote. P2P setup selects it for P2P use and, when the wizard is enabling LiveSync, also selects it as the main remote. A descriptive display name is generated and can be changed later.
+
+#### Enable LiveSync
+
+This button only appears when the setup was not completed. If you have completed the setup manually, you can enable LiveSync on this device by this button.
+
+### 2. Set up other devices
+
+#### Copy the current settings to a Setup URI
+
+You can copy the current settings as a new setup URI. And this URI can be used to setup the other devices as [Use the copied setup URI](#use-the-copied-setup-uri).
+
+### 3. Extra menus
+
+To keep the settings dialogue concise, some menus and features are hidden by default. On Obsidian 1.13 or later, enable them through **General Settings** → **Extra menus**. In the pane-based interface, the same controls appear in General Settings.
+
+#### Enable advanced features
+
+Setting key: useAdvancedMode
+
+Following panes will be shown when you enable this setting.
+| Icon | Description |
+| :--: | ------------------------------------------------------------------ |
+| 🚦 | [5. Selector (Advanced)](#5-selector-advanced) |
+| 🔌 | [6. Customisation sync (Advanced)](#6-customisation-sync-advanced) |
+| 🔧 | [8. Advanced (Advanced)](#8-advanced-advanced) |
+
+#### Enable poweruser features
+
+Setting key: usePowerUserMode
+
+Following panes will be shown when you enable this setting.
+| Icon | Description |
+| :--: | ------------------------------------------------------------------ |
+| 💪 | [9. Power users (Power User)](#9-power-users-power-user) |
+
+#### Enable edge case treatment features
+
+Setting key: useEdgeCaseMode
+
+Following panes will be shown when you enable this setting.
+| Icon | Description |
+| :--: | ------------------------------------------------------------------ |
+| 🩹 | [10. Patches (Edge Case)](#10-patches-edge-case) |
+
+## 2. General Settings
+
+### 1. Appearance
+
+#### Display Language
+
+Setting key: displayLanguage
+
+You can change the display language. It is independent of the system language and/or Obsidian's language.
+Note: Not all messages have been translated. And, please revert to "Default" when reporting errors. Of course, your contribution to translation is always welcome!
+
+#### Show status inside the editor
+
+Setting key: showStatusOnEditor
+
+We can show the status of synchronisation inside the editor.
+
+Reflected after reboot
+
+#### Show status as icons only
+
+Setting key: showOnlyIconsOnEditor
+
+Show status as icons only. This is useful when you want to save space on the status bar.
+
+#### Show status on the status bar
+
+Setting key: showStatusOnStatusbar
+
+We can show the status of synchronisation on the status bar. (Default: On)
+
+#### Show status icon instead of file warnings banner
+
+Setting key: hideFileWarningNotice
+
+If enabled, the ⛔ icon will be shown inside the status instead of the file warnings banner. No details will be shown.
+
+#### Network warning style
+
+Setting key: networkWarningStyle
+
+How to display network errors when the sync server is unreachable.
+
+### 2. Logging
+
+#### Show only notifications
+
+Setting key: lessInformationInLog
+
+Prevent logging and show only notification. Please disable when you report the logs
+
+#### Verbose Log
+
+Setting key: showVerboseLog
+
+Show verbose log. Please enable when you report the logs
+
+## 3. Remote Configuration
+
+### 1. Connection settings
+
+Self-hosted LiveSync stores multiple remote connection profiles under **Connection settings** → **Saved connections**. Each profile represents a CouchDB database, an Object Storage connection, or a P2P configuration, and several profiles can be kept in one Vault.
+
+Each profile has an opaque identifier and a presentation name. The name does not need to be unique and is not used to select the profile. The main remote and the P2P remote are selected independently, so code and settings imports must preserve both selections rather than relying on a special identifier such as `default`.
+
+- **➕ Add new connection**: Create a new connection profile by launching the setup dialogue.
+- **📥 Import connection**: Paste a connection string (e.g., `sls+https://...`, `sls+s3://...`, `sls+p2p://...`) to import a remote configuration profile.
+- **🔧 Configure**: Open the setup dialogue to edit settings for the selected connection profile.
+- **✅ Activate**: Select and activate this profile as the current active remote.
+- **🗑️ Delete**: Remove this connection profile from the list.
+
+#### Remote Type
+
+Setting key: remoteType
+
+The active connection type. This is automatically projected to the legacy configuration when you activate a connection profile.
+
+### 2. Notification
+
+#### Notify when the estimated remote storage size exceeds on start up
+
+Setting key: notifyThresholdOfRemoteStorageSize
+
+MB (0 to disable). At startup, Self-hosted LiveSync shows a long-lived, clickable notice when this value has not been configured or the estimated remote storage size exceeds it. Select **Review options** to open the detailed, untimed dialogue. Running the remote-size check explicitly opens that dialogue directly.
+
+### 3. Privacy & Encryption
+
+#### End-to-End Encryption
+
+Setting key: encrypt
+
+Enable end-to-end encryption. enabling this is recommend. If you change the passphrase, you need to rebuild databases (You will be informed).
+
+#### Passphrase
+
+Setting key: passphrase
+
+Encrypting passphrase. If you change the passphrase, you need to rebuild databases (You will be informed).
+
+#### Path Obfuscation
+
+Setting key: usePathObfuscation
+
+In default, the path of the file is not obfuscated to improve the performance. If you enable this, the path of the file will be obfuscated. This is useful when you want to hide the path of the file.
+
+#### Encryption Algorithm
+
+Setting key: E2EEAlgorithm
+
+The encryption algorithm version used for end-to-end encryption.
+
+- `v2` (V2: AES-256-GCM With HKDF): Recommended and default version.
+- `forceV1` or `""` (V1: Legacy): Older legacy encryption. Only use this if you have an existing vault encrypted in the legacy format.
+
+#### Use dynamic iteration count (legacy V1 compatibility)
+
+Setting key: useDynamicIterationCount
+
+This setting applies only to legacy V1 encryption data. Keep the saved value when opening an existing V1 database. New Vaults use E2EE V2 and do not use this setting.
+
+---
+
+**now writing from here onwards, sorry**
+
+---
+
+### 4. Fetch settings
+
+#### Fetch config from remote server
+
+Fetch necessary settings from already configured remote server.
+
+### 5. Minio,S3,R2
+
+These settings are configured within the S3/MinIO/R2 Setup dialogue when adding (`➕`) or editing (`🔧`) an Object Storage connection profile.
+
+#### Endpoint URL
+
+Setting key: endpoint
+
+The URL of the remote storage endpoint.
+Note: Only Secure (HTTPS) connections can be used on Obsidian Mobile.
+
+#### Access Key
+
+Setting key: accessKey
+
+The Access Key ID used for authentication.
+
+#### Secret Key
+
+Setting key: secretKey
+
+The Secret Access Key used for authentication.
+
+#### Region
+
+Setting key: region
+
+The storage region (e.g., `us-east-1`, or `auto` for Cloudflare R2).
+
+#### Bucket Name
+
+Setting key: bucket
+
+The name of the bucket to store synchronised files.
+
+#### Use Custom HTTP Handler
+
+Setting key: useCustomRequestHandler
+
+This option is labeled **Use internal API** in the setup dialogue. Enable this if your Object Storage does not support CORS. It uses Obsidian's internal API to communicate with the S3 server, which is not compliant with web standards but can bypass CORS restrictions. Note that this might break in future Obsidian versions.
+
+#### File prefix on the bucket
+
+Setting key: bucketPrefix
+
+This option is labeled **Folder Prefix** in the setup dialogue. Effectively a directory. Should end with `/`. e.g., `vault-name/`. Leave blank to store data at the root of the bucket.
+
+#### Enable forcePathStyle
+
+Setting key: forcePathStyle
+
+This option is labeled **Use Path-Style Access** in the setup dialogue. If enabled, the forcePathStyle option will be used for bucket operations.
+
+#### Custom Headers
+
+Setting key: bucketCustomHeaders
+
+Custom HTTP headers to include in every request sent to the Object Storage bucket. Specify them in the format `Header-Name: Value`, with each header on a new line.
+
+#### Test Connection
+
+#### Apply Settings
+
+### 6. CouchDB
+
+These settings are configured within the CouchDB Setup dialogue when adding (`➕`) or editing (`🔧`) a CouchDB connection profile.
+
+#### Server URI
+
+Setting key: couchDB_URI
+
+The URI of the CouchDB server.
+Only secure HTTPS connections can be used on Obsidian Mobile. The setup dialogue accepts a complete HTTP or HTTPS URL and normalises it when the settings are applied.
+
+#### Username
+
+Setting key: couchDB_USER
+
+The username used to authenticate with CouchDB.
+
+#### Password
+
+Setting key: couchDB_PASSWORD
+
+The password used to authenticate with CouchDB.
+
+#### Database Name
+
+Setting key: couchDB_DBNAME
+
+The name of the database. It must not be empty. CouchDB validates the name when the connection is attempted; the setup dialogue does not apply a narrower client-side naming rule.
+
+#### Use Request API to avoid inevitable CORS problem
+
+Setting key: useRequestAPI
+
+This option is labelled **Use Internal API** in the setup dialogue. If enabled, Obsidian's internal request API is used to bypass CORS restrictions. It sends the configured credentials to the CouchDB server through an Obsidian-owned API, so use it only with a server you trust. Configure CouchDB CORS correctly where possible; this compatibility workaround may change in future Obsidian versions.
+
+#### Custom Headers
+
+Setting key: couchDB_CustomHeaders
+
+Custom HTTP headers to include in every request sent to the CouchDB server. Specify them in the format `Header-Name: Value`, with each header on a new line.
+
+#### Use JWT Authentication
+
+Setting key: useJWT
+
+Enable JSON Web Token (JWT) authentication for CouchDB. This is an experimental feature and has not been thoroughly verified.
+
+#### JWT Algorithm
+
+Setting key: jwtAlgorithm
+
+The algorithm used to sign the JWT. Supported algorithms: `HS256`, `HS512`, `ES256`, `ES512`.
+
+#### JWT Expiration Duration (minutes)
+
+Setting key: jwtExpDuration
+
+Token expiration duration in minutes. Set to 0 to disable expiration.
+
+#### JWT Key
+
+Setting key: jwtKey
+
+The secret key (for HS256/HS512) or the PKCS#8 PEM-formatted private key (for ES256/ES512) used to sign the JWT.
+
+#### JWT Key ID (kid)
+
+Setting key: jwtKid
+
+The Key ID (`kid`) header parameter included in the JWT.
+
+#### JWT Subject (sub)
+
+Setting key: jwtSub
+
+The subject (`sub`) claim of the JWT, which should match your CouchDB username.
+
+#### Connection and save actions
+
+The action depends on why the dialogue was opened:
+
+- Onboarding for the first device uses **Create or connect to database and continue**. It may create the database when it does not exist and the supplied account has permission.
+- Onboarding for an additional device uses **Connect to existing database and continue**. It does not create a missing database.
+- Adding or editing a saved remote profile uses **Test connection and save**. It does not create a missing database.
+- Settings mode also offers **Save without connecting**. The existing profile is updated, but automatic synchronisation may fail until the connection is corrected.
+
+Onboarding requires a successful connection. It does not expose an unverified continuation action.
+
+#### Check server requirements
+
+This optional check reads the CouchDB server configuration through Obsidian's internal request API and sends the configured credentials to that server. Administrator access may be required. The initial check is read-only. Each offered fix names the exact CouchDB setting and proposed value, and requires separate confirmation before making that change.
+
+#### Apply Settings
+
+### 7. Peer-to-Peer (P2P) Synchronisation
+
+#### Enable P2P Synchronisation
+
+Setting key: P2P_Enabled
+
+Enable direct peer-to-peer synchronisation via WebRTC.
+
+#### Signalling relay URLs
+
+Setting key: P2P_relays
+
+The Nostr-compatible WebSocket relay URL or URLs used for peer discovery and WebRTC connection negotiation. Multiple URLs can be separated by commas. A signalling relay does not store or transfer Vault contents. See [How peer-to-peer synchronisation works](p2p.md).
+
+#### Group ID
+
+Setting key: P2P_roomID
+
+The room ID or Group ID used to identify your group of synchronising devices. All devices you wish to synchronise must use the same Group ID. You can enter any custom string or generate a random Group ID.
+
+#### Passphrase
+
+Setting key: P2P_passphrase
+
+The password or passphrase used to authenticate and encrypt P2P communication. All devices must use the same passphrase.
+
+#### Device Peer ID
+
+Setting key: P2P_DevicePeerName
+
+The peer name or identifier of this device in the P2P network. This should be unique within your group of devices.
+
+#### Automatically start P2P connection on launch
+
+Setting key: P2P_AutoStart
+
+This option is labeled **Auto Start P2P Connection** in the setup dialogue. If enabled, the P2P connection will start automatically when the plug-in launches.
+
+#### Connect and disconnect
+
+Closing a P2P connection leaves the LiveSync P2P room, stops its replication service, closes the signalling relay sockets, and pauses their automatic reconnection. An idle WebRTC connection may remain temporarily under the transport's ownership so that it can be reused, but it cannot carry traffic for the room which has been left. Connecting again resumes relay reconnection and joins a new LiveSync room.
+
+#### Announce changes automatically after connecting
+
+Setting key: P2P_AutoBroadcast
+
+When enabled, this device notifies connected peers after a local change. The notification contains no Vault data. A receiving peer fetches the change only when it follows this device.
+
+#### TURN Server URLs (comma-separated)
+
+Setting key: P2P_turnServers
+
+A comma-separated list of TURN server URLs. TURN is an optional fallback which relays encrypted WebRTC traffic when strict NAT or firewall rules prevent a direct peer connection. It is distinct from the required signalling relay. In most environments, this field can remain blank.
+
+#### TURN Username
+
+Setting key: P2P_turnUsername
+
+The username for authentication with the TURN server.
+
+#### TURN Credential
+
+Setting key: P2P_turnCredential
+
+The password or credential for authentication with the TURN server.
+
+#### P2P message size
+
+Setting key: P2P_maxWirePayloadBytes
+
+This profile setting limits each outgoing Commonlib RPC message before Trystero applies its own framing. It is not a Vault Chunk size, an IP MTU, or an SCTP fragment size. The available presets are **Standard** (15,360 bytes), **Reduced** (2,048 bytes), **Conservative** (1,024 bytes), and **Maximum compatibility** (800 bytes). Smaller values trade throughput for compatibility on paths which appear to drop larger WebRTC messages.
+
+The sender controls the size of its outgoing messages. Select the same conservative preset on every device which may send across the constrained path. Existing profiles without this key use **Standard**. P2P connection strings and encrypted Setup URIs retain the selected preset.
+
+#### Connection path
+
+Setting key: P2P_connectionPath
+
+**Automatic** lets WebRTC select a viable direct or TURN-relayed path and is the default. **TURN relay only** forces `iceTransportPolicy: 'relay'` and is available only when the profile contains at least one valid `turn:` or `turns:` URL. Removing the last valid TURN URL while relay-only mode is selected restores **Automatic** and displays a Notice.
+
+This choice belongs to the P2P profile and is retained in P2P connection strings and encrypted Setup URIs. Separate profiles may use the same Group ID and credentials with different compatibility choices; only the selected P2P profile is active.
+
+## 4. Sync Settings
+
+### 1. Synchronisation Preset
+
+#### Presets
+
+Setting key: preset
+Apply preset configuration
+
+### 2. Synchronisation Method
+
+#### Sync Mode
+
+Setting key: syncMode
+
+The trigger mechanism for synchronisation.
+
+- **LiveSync** (`LIVESYNC`): Real-time, continuous, bidirectional synchronisation.
+  Note: This requires a CouchDB or WebRTC P2P remote server. It is not supported for S3-compatible Object Storage.
+- **Periodic Sync** (`PERIODIC`): Synchronisation is performed at regular intervals specified by the **Periodic Sync interval** setting.
+- **On Events** (`ONEVENTS`): Synchronisation is triggered by specific events (such as save, file open, or startup) configured via the toggles below.
+
+#### Periodic Sync interval
+
+Setting key: periodicReplicationInterval
+Interval (sec)
+
+#### Minimum interval for syncing
+
+Setting key: syncMinimumInterval
+
+The minimum interval for automatic synchronisation on event.
+
+#### Sync on Save
+
+Setting key: syncOnSave
+Starts synchronisation when a file is saved.
+
+#### Sync on Editor Save
+
+Setting key: syncOnEditorSave
+When you save a file in the editor, start a sync automatically
+
+#### Sync on File Open
+
+Setting key: syncOnFileOpen
+Forces the file to be synced when opened.
+
+#### Sync on Startup
+
+Setting key: syncOnStart
+Automatically Sync all files when opening Obsidian.
+
+#### Sync after merging file
+
+Setting key: syncAfterMerge
+Sync automatically after merging files
+
+#### Keep replication active in the background
+
+Setting key: keepReplicationActiveInBackground
+Desktop only; uses more battery and network. This setting applies to continuous and periodic replication.
+
+#### Allow sleep during synchronisation
+
+Setting key: allowSleepDuringSynchronisation
+
+Allow the operating system to sleep while finite synchronisation operations are in progress. This option applies on every platform and is disabled by default. When it is disabled, finite operations request best-effort screen-awake protection.
+
+#### Allow sleep during synchronisation on the desktop
+
+Setting key: allowSleepDuringSynchronisationOnDesktop
+
+Desktop only. Allow the operating system to sleep during finite synchronisation operations even when the general option is disabled. This option is enabled by default, so periodic or event-driven synchronisation does not repeatedly prevent automatic desktop sleep. Disable it to retain best-effort screen-awake protection on desktop.
+
+Setup URIs preserve both sleep preferences. Older Setup URIs which do not contain them use the defaults described above. The preferences cover finite remote operations, including one-shot replication, P2P peer discovery and selection, rebuilds, fetches, remote chunk fetching, and applying downloaded documents to the Vault. They do not control whether continuous replication remains active while Obsidian is hidden, and allowing sleep does not force the operating system to suspend the device.
+
+### 3. Update thinning
+
+#### Batch database update
+
+Setting key: batchSave
+Reducing the frequency with which on-disk changes are reflected into the DB
+
+#### Minimum delay for batch database updating
+
+Setting key: batchSaveMinimumDelay
+Seconds. Saving to the local database will be delayed until this value after we stop typing or saving.
+
+#### Maximum delay for batch database updating
+
+Setting key: batchSaveMaximumDelay
+Saving will be performed forcefully after this number of seconds.
+
+### 4. Deletion Propagation (Advanced)
+
+#### Legacy trash setting
+
+Setting key: trashInsteadDelete
+This key remains accepted for settings imports, Setup URIs, and compatibility with earlier versions, but it is no longer shown in the settings interface. Remote file deletion follows the user's Obsidian deletion preferences through the `FileManager.trashFile` API, regardless of this legacy value.
+
+#### Keep empty folder
+
+Setting key: doNotDeleteFolder
+Should we keep folders that do not have any files inside?
+
+### 5. Conflict resolution (Advanced)
+
+Conflict resolution preserves unknown local content and automatically merges only when the available revision history supplies a safe shared base. See [Conflict resolution and revision provenance](specs_conflict_resolution.md) for the revision-tree rules, stale and concurrent resolutions, binary-file limitation, and the device-local provenance used while a conflict remains unresolved.
+
+#### (BETA) Always overwrite with a newer file
+
+Setting key: resolveConflictsByNewerFile
+Testing only. Resolve file conflicts by selecting the copy with the newer modification time. This can overwrite modified files and cannot establish which revision reflects the user's intent.
+
+#### Delay conflict resolution of inactive files
+
+Setting key: checkConflictOnlyOnOpen
+Should we only check for conflicts when a file is opened?
+
+#### Delay merge conflict prompt for inactive files.
+
+Setting key: showMergeDialogOnlyOnActive
+Should we prompt you about conflicting files when a file is opened?
+
+### 6. Sync settings via markdown (Advanced)
+
+#### Filename
+
+Setting key: settingSyncFile
+Save settings to a markdown file. You will be notified when new settings arrive. You can set different files by the platform.
+
+#### Write credentials in the file
+
+Setting key: writeCredentialsForSettingSync
+(Not recommended) If set, credentials will be stored in the file.
+
+#### Notify all setting files
+
+Setting key: notifyAllSettingSyncFile
+
+### 7. Hidden Files (Advanced)
+
+See the [Hidden File Sync guide](./tips/hidden-file-sync.md) before enabling this feature. Rebuild and Fetch setup operations deliberately leave optional features disabled; establish ordinary note synchronisation first, then initialise Hidden File Sync independently on each device.
+
+#### Enable Hidden files sync
+
+Setting key: syncInternalFiles
+Enable the synchronisation of hidden files and folders (e.g. settings files, templates, snippets, and themes under `.obsidian`).
+
+#### Scan for hidden files before replication
+
+Setting key: syncInternalFilesBeforeReplication
+
+#### Scan hidden files periodically
+
+Setting key: syncInternalFilesInterval
+Seconds, 0 to disable
+
+#### Suppress notification of hidden files change
+
+Setting key: suppressNotifyHiddenFilesChange
+
+If enabled, the notification of hidden files change will be suppressed.
+
+## 5. Selector (Advanced)
+
+### 1. Normal Files
+
+#### Synchronising files
+
+(RegExp) Empty to sync all files. Set filter as a regular expression to limit synchronising files.
+
+#### Non-Synchronising files
+
+(RegExp) If this is set, any changes to local and remote files that match this will be skipped.
+
+#### Maximum file size
+
+Setting key: syncMaxSizeInMB
+(MB) If this is set, changes to local and remote files that are larger than this will be skipped. If the file becomes smaller again, a newer one will be used.
+
+#### (Beta) Use ignore files
+
+Setting key: useIgnoreFiles
+If this is set, changes to local files which are matched by the ignore files will be skipped. Remote changes are determined using local ignore files.
+
+#### Ignore files
+
+Setting key: ignoreFiles
+Comma separated `.gitignore, .dockerignore`
+
+When a saved setting changes whether a normal file can be reflected, LiveSync re-evaluates the normal-file metadata already held in the local database. This covers selector expressions, ignore-file settings, maximum-size and modification-time limits, and file-name case handling. A remote revision which was received and checkpointed while excluded can therefore be reflected after the criteria are broadened, without rewinding the remote checkpoint. Narrowing the criteria does not delete files which have already been reflected.
+
+### 2. Hidden Files (Advanced)
+
+#### Ignore patterns
+
+#### Add default patterns
+
+## 6. Customisation sync (Advanced)
+
+Customisation Sync is a supported, advanced opt-in feature. Its current per-file implementation is covered by a two-Vault real-Obsidian workflow for snippets, configuration files, and plug-in files. Hidden File Sync is a separate feature with different setup, selection, and conflict behaviour; do not use both features to manage the same files.
+
+### 1. Customisation Sync
+
+#### Device name
+
+Setting key: deviceAndVaultName
+Unique name between all synchronised devices. To edit this setting, please disable customisation sync once.
+
+#### Per-file-saved customisation sync
+
+Setting key: usePluginSyncV2
+If enabled, per-file efficient customisation sync will be used. We need a small migration when enabling this. And all devices should be updated to v0.23.18. Once we enable this, we lose compatibility with old versions.
+
+#### Enable customisation sync
+
+Setting key: usePluginSync
+
+#### Scan customisation automatically
+
+Setting key: autoSweepPlugins
+Scan customisation before replicating.
+
+#### Scan customisation periodically
+
+Setting key: autoSweepPluginsPeriodic
+Scan customisation every 1 minute.
+
+#### Notify customised
+
+Setting key: notifyPluginOrSettingUpdated
+Notify when another device has newly customised.
+
+#### Open
+
+Open the dialogue
+
+## 7. Hatch
+
+### 1. Reporting Issue
+
+#### Make report to inform the issue
+
+#### Copy database information for a file
+
+Select a file to copy its local database information. The command **Copy database information for the active file** performs the same inspection for the file open in the editor.
+
+The report includes the Vault-relative path, document and chunk identifiers, local database revisions, conflicts, and local chunk availability. It does not query the remote or include file contents. Paths and identifiers can still be private metadata, so review the report before sharing it.
+
+#### Write logs into the file
+
+Setting key: writeLogToTheFile
+Warning! This will have a serious impact on performance. And the logs will not be synchronised under the default name. Please be careful with logs; they often contain your confidential information.
+
+### 2. Scram Switches
+
+Emergency controls to suspend synchronisation processes in order to prevent database corruption. If a critical mismatch or sync error occurs, the plug-in may automatically enter a Scram state and suspend operations.
+
+#### Suspend file watching
+
+Setting key: suspendFileWatching
+
+Stop watching for local file changes.
+
+#### Suspend database reflecting
+
+Setting key: suspendParseReplicationResult
+
+Stop reflecting database changes to storage files.
+
+### 3. Recovery and Repair
+
+#### Recreate chunks for current Vault files
+
+Recreate chunks from files currently present in the Vault. This can repair missing chunks for those exact current contents after they have been confirmed as authoritative. It cannot reconstruct unavailable historical or conflict content.
+
+#### Inspect conflicts and file/database differences
+
+Compare each Vault file with every current leaf revision in the local database. Each winner and conflict revision is shown separately with its exact revision identifier, local chunk availability, and relationship to the current Vault file. Unavailable shared ancestors are reported separately because they prevent conservative three-way merging but are not current leaves which can be discarded.
+
+Select **Begin inspection** to run the inspection. Each reported file and current leaf revision has a wrench menu for read-only comparison, applying an exact database revision to the Vault, recording an exact byte match, preserving the Vault file as a child of a selected branch, retrying chunk retrieval, or explicitly discarding a branch. Destructive actions require confirmation. Follow [Recover a conflicted or mismatched file](recovery.md#recover-a-conflicted-or-mismatched-file) before changing revision history.
+
+The same inspection also reports local Metadata whose stored document ID does not agree with its recorded path. A stale entry does not suppress ordinary inspection when consistently addressed Metadata can still be resolved for that logical path; otherwise, the unresolved path is excluded from ordinary file-repair actions. When the current winner has no conflict leaves and has an unambiguous target, its wrench menu offers a separately confirmed, one-entry repair. The target is derived from the current local file-name case and path obfuscation settings, then written and verified before the obsolete ID is removed. Ambiguous, conflicted, deleted, excluded, or otherwise unsafe entries remain read-only. This action does not rename Vault files or folders. Follow [Repair a Metadata document ID mismatch](recovery.md#repair-a-metadata-document-id-mismatch) for the complete backup, repair, propagation, and verification procedure. For widespread naming differences across devices, use that guide to choose an authoritative Vault, correct its storage names while Obsidian is closed, rebuild the central remote, and reset the other devices.
+
+#### Resolve All conflicted files by the newer one
+
+After confirmation, resolve every conflict by modification time. This logically deletes every version except the newest one. It is a destructive policy choice and cannot recover content which is already unavailable.
+
+#### Check and convert non-path-obfuscated files
+
+### 4. Reset
+
+#### Back to non-configured
+
+#### Delete all customisation sync data
+
+## 8. Advanced (Advanced)
+
+### 1. Memory cache
+
+#### Memory cache size (by total items)
+
+Setting key: hashCacheMaxCount
+
+#### Memory cache size (by total characters)
+
+Setting key: hashCacheMaxAmount
+(Mega chars)
+
+### 2. Local Database Tweak
+
+#### Enhance chunk size
+
+Setting key: customChunkSize
+
+#### Chunk Splitter
+
+Setting key: chunkSplitterVersion
+
+Select the chunk splitter version; V3 is the most efficient. If you experience issues, please choose Default or Legacy.
+
+#### Use splitting-limit-capped chunk splitter
+
+Setting key: enableChunkSplitterV2
+If enabled, chunks will be split into no more than 100 items. However, dedupe is slightly weaker.
+
+#### Use Segmented-splitter
+
+Setting key: useSegmenter
+If this enabled, chunks will be split into semantically meaningful segments. Not all platforms support this feature.
+
+### 3. Transfer Tweak
+
+#### Fetch chunks on demand
+
+Setting key: readChunksOnline
+(ex. Read chunks online) If this option is enabled, LiveSync reads chunks online directly instead of replicating them locally. Increasing Custom chunk size is recommended.
+
+#### Batch size of on-demand fetching
+
+Setting key: concurrencyOfReadChunksOnline
+
+#### The delay for consecutive on-demand fetches
+
+Setting key: minimumIntervalOfReadChunksOnline
+
+#### Maximum request size for manually resending chunks
+
+Setting key: sendChunksBulkMaxSize
+
+Limit the maximum size of chunks sent in one request by the explicit **Resend all chunks** maintenance operation (MB). Ordinary and initial replication do not use this setting.
+
+## 9. Power users (Power User)
+
+### 1. Remote Database Tweak
+
+#### Incubate Chunks in Document (sunset compatibility)
+
+Setting key: useEden
+This setting is no longer offered for new configuration. Existing saved values remain accepted so that established databases can be opened and migrated without silently changing their structure.
+
+#### Maximum Incubating Chunks
+
+Setting key: maxChunksInEden
+The maximum number of chunks that can be incubated within the document. Chunks exceeding this number will immediately graduate to independent chunks.
+
+#### Maximum Incubating Chunk Size
+
+Setting key: maxTotalLengthInEden
+The maximum total size of chunks that can be incubated within the document. Chunks exceeding this size will immediately graduate to independent chunks.
+
+#### Maximum Incubation Period
+
+Setting key: maxAgeInEden
+The maximum duration for which chunks can be incubated within the document. Chunks exceeding this period will graduate to independent chunks.
+
+#### Data Compression (advanced opt-in)
+
+Setting key: enableCompression
+
+Data Compression applies fflate level 8 to each chunk before E2EE. A chunk is left uncompressed when compression would not make it smaller, and readers continue to accept both representations. Changing the setting does not require a rebuild for compatibility; existing and new representations can coexist.
+
+The setting remains disabled by default because the measured storage and transfer benefit comes with workload-dependent processing and memory costs. See the [Data Compression specification](specs_data_compression.md) for the contract, evidence, execution model, and reproduction command.
+
+### 2. CouchDB Connection Tweak
+
+#### Batch size
+
+Setting key: batch_size
+Number of changes to sync at a time. Defaults to 50. Minimum is 2.
+
+#### Batch limit
+
+Setting key: batches_limit
+Number of batches to process at a time. Defaults to 40. Minimum is 2. This along with batch size controls how many docs are kept in memory at a time.
+
+#### Use timeouts instead of heartbeats
+
+Setting key: useTimeouts
+If this option is enabled, PouchDB will hold the connection open for 60 seconds, and if no change arrives in that time, close and reopen the socket, instead of holding it open indefinitely. Useful when a proxy limits request duration but can increase resource usage.
+
+### 3. Configuration Encryption
+
+#### Encrypting sensitive configuration items
+
+Setting key: configPassphraseStore
+
+#### Passphrase of sensitive configuration items
+
+Setting key: configPassphrase
+This passphrase will not be copied to another device. It will be set to `Default` until you configure it again.
+
+### 4. Developer
+
+#### Enable Developers' Debug Tools.
+
+Setting key: enableDebugTools
+Requires restart of Obsidian
+
+## 10. Patches (Edge Case)
+
+### 1. Compatibility (Metadata)
+
+#### Do not keep metadata of deleted files.
+
+Setting key: deleteMetadataOfDeletedFiles
+
+#### Delete old metadata of deleted files on start-up
+
+Setting key: automaticallyDeleteMetadataOfDeletedFiles
+(Days passed, 0 to disable automatic-deletion)
+
+### 2. Compatibility (Conflict Behaviour)
+
+#### Always prompt merge conflicts
+
+Setting key: disableMarkdownAutoMerge
+Should we prompt you for every single merge, even if we can safely merge automatcially?
+
+#### Apply Latest Change if Conflicting
+
+Setting key: writeDocumentsIfConflicted
+Enable this option to automatically apply the most recent change to documents even when it conflicts
+
+### 3. Compatibility (Database structure)
+
+#### (Obsolete) Use an old adapter for compatibility (obsolete)
+
+Setting key: useIndexedDBAdapter
+Before v0.17.16, we used an old adapter for the local database. Now the new adapter is preferred. However, it needs local database rebuilding. Please disable this toggle when you have enough time. If leave it enabled, also while fetching from the remote database, you will be asked to disable this.
+
+#### Content-derived chunk revisions (obsolete setting)
+
+Setting key: doNotUseFixedRevisionForChunks
+Chunk revisions are always derived from their content. This key remains accepted in stored settings and Setup URIs for compatibility, but its value no longer changes behaviour and it is not a maintenance prerequisite.
+
+#### Handle files as Case-Sensitive
+
+Setting key: handleFilenameCaseSensitive
+If this enabled, All files are handled as case-Sensitive (Previous behaviour).
+
+When this setting is disabled, changing only the letter case of a file name within the same directory is synchronised as a rename. Changing the letter case of a directory name is not supported by this handling.
+
+New Vaults use case-insensitive handling for cross-platform compatibility. Existing settings with an explicit value preserve that choice. Earlier releases also followed the case-insensitive branch when this value was absent, so 1.0 saves a missing legacy value as `false` without requiring a compatibility review or database rebuild.
+
+### 4. Compatibility (Internal API Usage)
+
+#### Scan changes on customisation sync
+
+Setting key: watchInternalFileChanges
+Do not use internal API
+
+### 5. Edge case addressing (Database)
+
+#### Database suffix
+
+Setting key: additionalSuffixOfDatabaseName
+LiveSync could not handle multiple vaults which have same name without different prefix, This should be automatically configured.
+
+#### The Hash algorithm for chunk IDs (compatibility)
+
+Setting key: hashAlg
+
+`xxhash64` is the supported current value. Older algorithms remain selectable only as an edge-case compatibility path for existing databases. Changing the algorithm can reduce chunk reuse between devices and requires the normal tweak review.
+
+### 6. Edge case addressing (Behaviour)
+
+#### Fetch database with previous behaviour
+
+Setting key: doNotSuspendOnFetching
+
+#### Keep empty folder
+
+Setting key: doNotDeleteFolder
+Should we keep folders that do not have any files inside?
+
+#### Process files even if seems to be corrupted
+
+Setting key: processSizeMismatchedFiles
+
+Enable this setting to process files with size mismatches, which can sometimes be created by certain external APIs or integrations.
+
+### 7. Edge case addressing (Processing)
+
+#### Do not split chunks in the background
+
+Setting key: disableWorkerForGeneratingChunks
+If disabled(toggled), chunks will be split on the UI thread (Previous behaviour).
+
+#### Process small files in the foreground
+
+Setting key: processSmallFilesInUIThread
+If enabled, the file under 1kb will be processed in the UI thread.
+
+#### Automatically align compatible chunk settings
+
+Setting key: autoAcceptCompatibleTweak
+
+Current releases enable this by default when the differences are limited to compatible chunk settings. The side with the newer recorded modification time is used for the chunk hash algorithm, chunk size, or splitter version; the remote value is used when neither side has a recorded time or the times are equal. No dialogue or database reconstruction is required. Existing content remains readable, but changing these values can reduce chunk reuse. Turn this off to review compatible differences manually. Any difference which also involves an incompatible setting always requires an explicit decision.
+
+### 8. Compatibility (Trouble addressed)
+
+#### Do not check configuration mismatch before replication
+
+Setting key: disableCheckingConfigMismatch
+
+### 9. Remediation
+
+#### Maximum file modification time for reflected file events
+
+Setting key: maxMTimeForReflectEvents
+
+Files with modification times greater than this value (in seconds since the Unix epoch) will not have their events reflected. Set to 0 to disable this limit.
+
+## 11. Maintenance
+
+### 1. Scram!
+
+#### Lock Server
+
+Lock the remote server to prevent synchronisation with other devices.
+
+#### Emergency restart
+
+Disables all synchronisation and restart.
+
+### 2. Syncing
+
+#### Resend
+
+Explicitly resend all locally available chunks to the remote. This is a recovery and maintenance operation; ordinary replication does not pre-send every chunk.
+
+#### Reset journal received history
+
+Initialise journal received history. On the next sync, every item except this device sent will be downloaded again.
+
+#### Reset journal sent history
+
+Initialise journal sent history. On the next sync, every item except this device received will be sent again.
+
+### 3. Rebuilding Operations (Local)
+
+#### Reset Synchronisation on This Device
+
+Restore or reconstruct local database from remote.
+
+### 4. Total Overhaul
+
+#### Overwrite Server Data with This Device's Files
+
+Rebuild local and remote database with local files.
+
+### 5. Rebuilding Operations (Remote Only)
+
+#### Perform cleanup
+
+Reduces storage space by discarding all non-latest revisions. This requires the same amount of free space on the remote server and the local client.
+
+#### Overwrite remote
+
+Overwrite remote with local DB and passphrase.
+
+#### Reset all journal counter
+
+Initialise all journal history, On the next sync, every item will be received and sent.
+
+#### Purge all journal counter
+
+Purge all download/upload cache.
+
+#### Fresh Start Wipe
+
+Delete all data on the remote server.
+
+### 6. Garbage Collection V3 (CouchDB only)
+
+Garbage Collection V3 identifies Chunk documents which are not reachable from any current file or conflict branch, creates logical deletions for those Chunks locally, propagates the deletions to CouchDB, and requests remote compaction.
+
+Use it only when the Vault, local database, and remote are healthy, and every relevant device has synchronised. It can make an ordinary superseded file revision unreadable when no current state still needs its Chunks. It does not repair corruption or replace a deliberate rebuild. See the [Garbage Collection V3 specification](specs_garbage_collection.md).
+
+### 7. Reset
+
+#### Discard existing settings and databases
+
+Reset the Self-hosted LiveSync settings and local database. This is a hazardous operation; make a backup before using it.
+
+#### Delete local database to reset or uninstall Self-hosted LiveSync

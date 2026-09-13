@@ -1,0 +1,248 @@
+import { getLanguage, Notice, Plugin, type App, type PluginManifest } from "./deps";
+import { setGetLanguage } from "@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions";
+setGetLanguage(getLanguage);
+import { LiveSyncCommands } from "./features/LiveSyncCommands.ts";
+import { HiddenFileSync } from "./features/HiddenFileSync/CmdHiddenFileSync.ts";
+import { ConfigSync } from "./features/ConfigSync/CmdConfigSync.ts";
+// import { ModuleDev } from "./modules/extras/ModuleDev.ts";
+
+import { ModuleInteractiveConflictResolver } from "./modules/features/ModuleInteractiveConflictResolver.ts";
+import { ModuleLog } from "./modules/features/ModuleLog.ts";
+import { ModuleObsidianEvents } from "./modules/essentialObsidian/ModuleObsidianEvents.ts";
+import { ModuleObsidianSettingDialogue } from "./modules/features/ModuleObsidianSettingTab.ts";
+import { ModuleObsidianDocumentHistory } from "./modules/features/ModuleObsidianDocumentHistory.ts";
+import { ModuleObsidianGlobalHistory } from "./modules/features/ModuleGlobalHistory.ts";
+import { LocalDatabaseMaintenance } from "./features/LocalDatabaseMainte/CmdLocalDatabaseMainte.ts";
+import type { InjectableServiceHub } from "@vrtmrz/livesync-commonlib/compat/services/implements/injectable/InjectableServiceHub";
+import { ObsidianServiceHub } from "./modules/services/ObsidianServiceHub.ts";
+import { ServiceRebuilder } from "@vrtmrz/livesync-commonlib/compat/serviceModules/Rebuilder";
+import { ServiceDatabaseFileAccess } from "@/serviceModules/DatabaseFileAccess.ts";
+import { ServiceFileAccessObsidian } from "@/serviceModules/ServiceFileAccessImpl.ts";
+import { StorageAccessManager } from "@vrtmrz/livesync-commonlib/compat/managers/StorageProcessingManager";
+import { ServiceFileHandler } from "./serviceModules/FileHandler.ts";
+import { FileAccessObsidian } from "./serviceModules/FileAccessObsidian.ts";
+import { StorageEventManagerObsidian } from "./managers/StorageEventManagerObsidian.ts";
+import type { ServiceModules } from "./types.ts";
+import { setNoticeClass } from "@vrtmrz/livesync-commonlib/compat/mock_and_interop/wrapper";
+import type { ObsidianServiceContext } from "@/modules/services/ObsidianServiceContext";
+import { LiveSyncBaseCore } from "./LiveSyncBaseCore.ts";
+import { ModuleObsidianMenu } from "./modules/essentialObsidian/ModuleObsidianMenu.ts";
+import { ModuleObsidianSettingsAsMarkdown } from "./modules/features/ModuleObsidianSettingAsMarkdown.ts";
+import { SetupManager } from "./modules/features/SetupManager.ts";
+import { ModuleMigration } from "./modules/essential/ModuleMigration.ts";
+import { enableI18nFeature } from "./serviceFeatures/onLayoutReady/enablei18n.ts";
+import { useOfflineScanner } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner";
+import { useRemoteConfiguration } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/remoteConfig";
+import { useCheckRemoteSize } from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/checkRemoteSize";
+import { useRedFlagFeatures } from "./serviceFeatures/redFlag.ts";
+import { useSetupProtocolFeature } from "./serviceFeatures/setupObsidian/setupProtocol.ts";
+import { useSetupQRCodeFeature } from "@/serviceFeatures/setupObsidian/qrCode";
+import { useSetupURIFeature } from "@/serviceFeatures/setupObsidian/setupUri";
+import { useSetupManagerHandlersFeature } from "./serviceFeatures/setupObsidian/setupManagerHandlers.ts";
+import { useP2PReplicatorFeature } from "@vrtmrz/livesync-commonlib/compat/replication/trystero/useP2PReplicatorFeature";
+import { useP2PReplicatorCommands } from "@vrtmrz/livesync-commonlib/compat/replication/trystero/useP2PReplicatorCommands";
+import { useP2PReplicatorUI } from "./serviceFeatures/useP2PReplicatorUI.ts";
+import { useReviewHarness } from "./serviceFeatures/useReviewHarness.ts";
+import { createOpenReplicationUI, createOpenRebuildUI } from "./features/P2PSync/P2PReplicator/P2PReplicationUI.ts";
+import { useCompatibilityReview } from "./serviceFeatures/compatibilityReview.ts";
+import { createObsidianCompatibilityReviewUi } from "./serviceFeatures/compatibilityReviewObsidian.ts";
+import { createFileReflectionProvenance } from "./serviceModules/FileReflectionProvenance.ts";
+import { useAIAgentUI } from "./osyc/serviceFeatures/useAIAgentUI.ts";
+import { getObsidianCommunityPluginManager } from "./common/obsidianCommunityPlugins.ts";
+import { CURRENT_PLUGIN_ID, LEGACY_PLUGIN_ID, migrateLegacyPluginData } from "./osyc/migration/pluginIdMigration.ts";
+export type LiveSyncCore = LiveSyncBaseCore<ObsidianServiceContext, LiveSyncCommands>;
+export default class ObsidianLiveSyncPlugin extends Plugin {
+    core: LiveSyncCore;
+
+    /**
+     * Initialise service modules.
+     */
+    private initialiseServiceModules(
+        core: LiveSyncBaseCore<ObsidianServiceContext, LiveSyncCommands>,
+        services: InjectableServiceHub<ObsidianServiceContext>
+    ): ServiceModules {
+        const storageAccessManager = new StorageAccessManager();
+        // If we want to implement to the other platform, implement ObsidianXXXXXService.
+        const vaultAccess = new FileAccessObsidian(this.app, {
+            storageAccessManager: storageAccessManager,
+            vaultService: services.vault,
+            settingService: services.setting,
+            APIService: services.API,
+            pathService: services.path,
+        });
+        const storageEventManager = new StorageEventManagerObsidian(this, core, {
+            fileProcessing: services.fileProcessing,
+            setting: services.setting,
+            vaultService: services.vault,
+            storageAccessManager: storageAccessManager,
+            APIService: services.API,
+        });
+        const storageAccess = new ServiceFileAccessObsidian({
+            API: services.API,
+            setting: services.setting,
+            fileProcessing: services.fileProcessing,
+            vault: services.vault,
+            appLifecycle: services.appLifecycle,
+            storageEventManager: storageEventManager,
+            storageAccessManager: storageAccessManager,
+            vaultAccess: vaultAccess,
+        });
+
+        const databaseFileAccess = new ServiceDatabaseFileAccess({
+            events: services.context.events,
+            API: services.API,
+            database: services.database,
+            path: services.path,
+            storageAccess: storageAccess,
+            vault: services.vault,
+        });
+
+        const fileHandler = new ServiceFileHandler({
+            events: services.context.events,
+            API: services.API,
+            databaseFileAccess: databaseFileAccess,
+            conflict: services.conflict,
+            setting: services.setting,
+            fileProcessing: services.fileProcessing,
+            vault: services.vault,
+            path: services.path,
+            replication: services.replication,
+            storageAccess: storageAccess,
+            fileReflectionProvenance: createFileReflectionProvenance(services.keyValueDB),
+        });
+        const rebuilder = new ServiceRebuilder({
+            events: services.context.events,
+            API: services.API,
+            database: services.database,
+            appLifecycle: services.appLifecycle,
+            setting: services.setting,
+            remote: services.remote,
+            databaseEvents: services.databaseEvents,
+            replication: services.replication,
+            replicator: services.replicator,
+            UI: services.UI,
+            vault: services.vault,
+            fileHandler: fileHandler,
+            fileProcessing: services.fileProcessing,
+            storageAccess: storageAccess,
+            control: services.control,
+        });
+        return {
+            rebuilder,
+            fileHandler,
+            databaseFileAccess,
+            storageAccess,
+        };
+    }
+
+    /**
+     * @obsolete Use services.setting.saveSettingData instead. Save the settings to the disk. This is usually called after changing the settings in the code, to persist the changes.
+     */
+    async saveSettings() {
+        await this.core.services.setting.saveSettingData();
+    }
+
+    constructor(app: App, manifest: PluginManifest) {
+        super(app, manifest);
+        // Maybe no more need to setNoticeClass, but for safety, set it in the constructor of the main plugin class.
+        // TODO: remove this.
+        setNoticeClass(Notice);
+
+        const serviceHub = new ObsidianServiceHub(this);
+        let waitForCompatibilityReview = (): Promise<void> => Promise.resolve();
+
+        this.core = new LiveSyncBaseCore(
+            serviceHub,
+            (core, serviceHub) => {
+                return this.initialiseServiceModules(core, serviceHub);
+            },
+            (core) => {
+                const extraModules = [
+                    new ModuleObsidianEvents(this, core),
+                    new ModuleObsidianSettingDialogue(this, core),
+                    new ModuleObsidianMenu(core),
+                    new ModuleObsidianSettingsAsMarkdown(core),
+                    new ModuleLog(this, core),
+                    new ModuleObsidianDocumentHistory(this, core),
+                    new ModuleInteractiveConflictResolver(this, core),
+                    new ModuleObsidianGlobalHistory(this, core),
+                    // new ModuleDev(this, core),
+                    new SetupManager(core), // this should be moved to core?
+                    new ModuleMigration(core, () => waitForCompatibilityReview()),
+                ];
+                return extraModules;
+            },
+            (core) => {
+                const addOns = [new ConfigSync(core), new HiddenFileSync(core), new LocalDatabaseMaintenance(core)];
+                return addOns;
+            },
+            (core) => {
+                //TODO Fix: useXXXX
+                const featuresInitialiser = enableI18nFeature;
+                const curriedFeature = () => featuresInitialiser(core);
+                core.services.appLifecycle.onLayoutReady.addHandler(curriedFeature);
+                const setupManager = core.getModule(SetupManager);
+                const replicator = useP2PReplicatorFeature(
+                    core,
+                    createOpenReplicationUI(this.app),
+                    createOpenRebuildUI(this.app)
+                );
+                useP2PReplicatorCommands(core, replicator);
+                useP2PReplicatorUI(core, core, replicator);
+                useRemoteConfiguration(core);
+
+                useSetupProtocolFeature(core, setupManager);
+                useSetupQRCodeFeature(core);
+                useSetupURIFeature(core);
+                useSetupManagerHandlersFeature(core, setupManager);
+                useOfflineScanner(core);
+                useRedFlagFeatures(core);
+                useCheckRemoteSize(core);
+                const compatibilityReview = useCompatibilityReview(
+                    core,
+                    createObsidianCompatibilityReviewUi(core.confirm)
+                );
+                waitForCompatibilityReview = () => compatibilityReview.openReview();
+                useReviewHarness(core, this, replicator, compatibilityReview);
+                useAIAgentUI(core, core);
+                // p2pReplicatorResult = useP2PReplicator(core, [
+                //     VIEW_TYPE_P2P,
+                //     (leaf: any) => new P2PReplicatorPaneView(leaf, core, p2pReplicatorResult!),
+                // ]);
+            }
+        );
+    }
+
+    private async _startUp() {
+        const legacyEnabled = (() => {
+            try {
+                return getObsidianCommunityPluginManager(this.app).enabledPlugins.has(LEGACY_PLUGIN_ID);
+            } catch {
+                return false;
+            }
+        })();
+        try {
+            const migration = await migrateLegacyPluginData(this.app.vault.adapter, { legacyEnabled });
+            if (migration.action === "block-legacy-enabled") {
+                new Notice("请先停用旧版 LiveSync，再启动 OsyC，避免重复同步。");
+                return;
+            }
+            if (migration.action === "migrate") {
+                new Notice("OsyC 已迁移旧版同步配置，正在等待新的同步握手。");
+            }
+        } catch (error) {
+            new Notice("OsyC 无法安全迁移旧版配置，已暂停启动；请保留旧插件并重试。");
+            console.error(`[${CURRENT_PLUGIN_ID}] legacy configuration migration failed`, error);
+            return;
+        }
+        if (!(await this.core.services.control.onLoad())) return;
+        const onReady = this.core.services.control.onReady.bind(this.core.services.control);
+        this.app.workspace.onLayoutReady(onReady);
+    }
+    override onload() {
+        void this._startUp();
+    }
+    override onunload(): void {
+        return void this.core.services.control.onUnload();
+    }
+}

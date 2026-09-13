@@ -1,0 +1,8 @@
+{
+  "id": "chinese-writing-original",
+  "name": "Chinese Writing Layout",
+  "license": "MIT",
+  "source": "https://github.com/idoncar2/chinese-writing-layout",
+  "sourceCommit": "420c5b3598ec09a6f0ef4e3450506cdce861207d",
+  "css": "original.css"
+}

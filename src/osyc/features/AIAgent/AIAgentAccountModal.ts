@@ -1,0 +1,424 @@
+import { Modal, Notice, Setting, type App } from "@/deps.ts";
+import { get } from "svelte/store";
+import { openObsidianSettings } from "@/common/obsidianSettings.ts";
+import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState } from "./CmdAIAgent";
+
+const PLAN_LABEL: Record<PlanType, string> = {
+    base: "基础版",
+    member: "会员",
+    pro: "Pro",
+};
+
+const SKILL_LABEL: Record<string, string> = {
+    "basic-organize": "基础整理",
+    "cloud-vault": "Cloud-Vault 备份",
+    "defuddle": "网页内容提取",
+    "graph-ai": "OC 关系图谱",
+    "json-canvas": "Canvas 画布",
+    "layout-polish": "排版精修",
+    "obsidian-bases": "Bases 数据库",
+    "obsidian-cli": "Obsidian 命令操作",
+    "obsidian-markdown": "Markdown 笔记",
+    priority: "优先队列",
+    "smart-daily": "智能日记",
+    "theme-custom": "主题自定义",
+};
+
+function formatSkillName(slug: string): string {
+    const safe = slug.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    return SKILL_LABEL[safe] ?? (safe.replace(/[-_]+/g, " ") || "未命名技能");
+}
+
+function queueLabel(plan: PlanType): string {
+    if (plan === "pro") return "优先队列";
+    if (plan === "member") return "会员队列";
+    return "标准队列";
+}
+
+const ACCOUNT_CSS_ID = "osyc-account-style";
+const ACCOUNT_CSS = `
+.ai-account-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: var(--font-ui-small);
+    font-weight: 700;
+    color: #fff;
+    margin: 4px 0 12px;
+    background-color: var(--text-faint);
+}
+.ai-account-badge[data-plan="member"] { background-color: var(--interactive-accent); }
+.ai-account-badge[data-plan="pro"] {
+    background-color: color-mix(in srgb, var(--interactive-accent) 75%, var(--text-normal) 25%);
+}
+.ai-account-section { margin: 18px 0 6px; color: var(--text-normal); }
+.ai-account-hint {
+    font-size: var(--font-ui-smaller);
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 2px 0;
+}
+.ai-account-skills { display: flex; flex-wrap: wrap; gap: 6px; padding-top: 6px; }
+.ai-account-skill {
+    font-size: var(--font-ui-smaller);
+    padding: 2px 10px;
+    border-radius: 999px;
+    background-color: var(--background-modifier-border);
+    color: var(--text-muted);
+}
+.ai-account-sync {
+    display: grid;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 10px 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 10px;
+    background-color: var(--background-secondary);
+}
+.ai-account-sync-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-normal);
+    font-weight: 600;
+}
+.ai-account-sync-pill {
+    display: inline-flex;
+    align-items: center;
+    min-height: 22px;
+    padding: 0 8px;
+    border-radius: 999px;
+    color: var(--text-on-accent);
+    background-color: var(--text-faint);
+    font-size: var(--font-ui-smaller);
+    font-weight: 700;
+}
+.ai-account-sync-pill[data-sync-status="ok"] { background-color: var(--color-green); }
+.ai-account-sync-pill[data-sync-status="degraded"] { background-color: var(--color-orange); }
+.ai-account-sync-pill[data-sync-status="failed"] { background-color: var(--text-error); }
+.ai-account-sync-pill[data-sync-status="unknown"] { background-color: var(--text-faint); }
+.ai-account-sync-grid {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 5px 12px;
+    font-size: var(--font-ui-smaller);
+}
+.ai-account-sync-grid strong { color: var(--text-normal); font-weight: 600; }
+.ai-account-input {
+    width: min(220px, 100%);
+    margin-right: 8px;
+    background-color: var(--background-modifier-form-field);
+    border: 1px solid var(--background-modifier-border);
+    color: var(--text-normal);
+    border-radius: 4px;
+    padding: 4px 8px;
+}
+.ai-account-recovery {
+    display: grid;
+    gap: 8px;
+    margin-top: 8px;
+}
+.ai-account-recovery input {
+    width: 100%;
+    box-sizing: border-box;
+}
+`;
+
+/** 各档位的升级引导文案。pro 为最高档，给空字符串表示不显示升级区。 */
+const UPGRADE_HINT: Record<PlanType, string> = {
+    base: "升级到会员 / Pro，解锁：定时整理、专属 OC 技能、云端私有空间备份与优先队列。",
+    member: "升级到 Pro，解锁：优先队列、更多 Cloud-Vault 空间与最多 10 台设备。",
+    pro: "",
+};
+
+const SYNC_STATUS_LABEL: Record<AIAgentSyncState["status"], string> = {
+    ok: "正常",
+    degraded: "降级",
+    failed: "失败",
+    unknown: "未知",
+};
+
+const SYNC_CONFLICT_LABEL: Record<AIAgentSyncState["conflict_state"], string> = {
+    none: "无冲突",
+    pending: "待处理",
+    needs_user_action: "需要用户处理",
+};
+
+function formatSyncTime(value: number | null): string {
+    if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "—";
+    const ts = value < 100_000_000_000 ? Math.round(value * 1000) : Math.round(value);
+    return new Date(ts).toLocaleString("zh-CN");
+}
+
+/**
+ * 「我的账户」详情弹窗。
+ *
+ * 只展示后端下发的 plan / entitlements，不做任何权限判断 —— 权限以后端为准，
+ * 本地展示被篡改也不影响实际能力（agent 执行时后端会再校验）。
+ *
+ * 升级不是真购买（当前购买走闲鱼卡密），这里只给引导文案，
+ * 提示用户去购买对应档位的卡密再激活。
+ */
+export class AIAgentAccountModal extends Modal {
+    constructor(app: App, private agent: CmdAIAgent) {
+        super(app);
+        this.ensureStyle();
+    }
+
+    private ensureStyle() {
+        if (document.getElementById(ACCOUNT_CSS_ID)) return;
+        const style = document.createElement("style");
+        style.id = ACCOUNT_CSS_ID;
+        style.textContent = ACCOUNT_CSS;
+        document.head.appendChild(style);
+    }
+
+    override onOpen() {
+        const { contentEl } = this;
+        contentEl.empty();
+        const state = get(this.agent.state);
+        const plan = (state.plan || "base") as PlanType;
+        const ent = state.entitlements;
+
+        contentEl.createEl("h3", { text: "我的账户" });
+
+        // 档位徽章
+        const badge = contentEl.createEl("div", { cls: "ai-account-badge" });
+        badge.textContent = PLAN_LABEL[plan] ?? plan;
+        badge.setAttribute("data-plan", plan);
+
+        const expireText = state.expireAt
+            ? new Date(state.expireAt).toLocaleDateString("zh-CN")
+            : "—";
+
+        new Setting(contentEl).setName("剩余积分").setDesc(`${state.credits} 分`);
+        new Setting(contentEl).setName("到期时间").setDesc(expireText);
+
+        contentEl.createEl("h4", { text: "权益总览", cls: "ai-account-section" });
+        if (ent) {
+            new Setting(contentEl).setName("私有同步").setDesc(ent.sync ? "已开通" : "未开通");
+            new Setting(contentEl).setName("OC 整理任务").setDesc(ent.aiTasks ? "已开通" : "未开通");
+            new Setting(contentEl).setName("定时整理").setDesc(ent.schedules ? "已开通" : "未开通（会员/Pro）");
+            new Setting(contentEl).setName("Cloud-Vault 空间").setDesc(
+                ent.cloudVault ? `已开通（${ent.cloudQuotaMb || 0} MB）` : "未开通（会员/Pro）"
+            );
+            new Setting(contentEl).setName("队列优先级").setDesc(queueLabel(plan));
+            new Setting(contentEl).setName("设备数上限").setDesc(`${ent.maxDevices} 台`);
+            contentEl.createEl("h4", { text: "技能与能力", cls: "ai-account-section" });
+            this.renderSkills(contentEl, ent);
+        } else {
+            contentEl.createEl("p", { text: "权益信息加载中…", cls: "ai-account-hint" });
+        }
+
+        // 设备管理 + 自带 Key（账户级，进入弹窗时懒加载）
+        this.renderDeviceSection(contentEl);
+
+        contentEl.createEl("h4", { text: "LiveSync 状态", cls: "ai-account-section" });
+        this.renderSyncState(contentEl, state.syncState);
+
+        contentEl.createEl("h4", { text: "账户激活", cls: "ai-account-section" });
+        this.renderReactivation(contentEl);
+
+        // 升级引导
+        const hint = UPGRADE_HINT[plan];
+        if (hint) {
+            contentEl.createEl("h4", { text: "升级解锁更多", cls: "ai-account-section" });
+            contentEl.createEl("p", { text: hint, cls: "ai-account-hint" });
+            contentEl.createEl("p", {
+                text: "购买对应档位的卡密后，回到激活页输入即可升级。",
+                cls: "ai-account-hint",
+            });
+        }
+
+        new Setting(contentEl).addButton((btn) =>
+            btn.setButtonText("关闭").setCta().onClick(() => this.close())
+        );
+    }
+
+    /** 设备与自带 Key 区块。未激活时给提示；已激活则异步拉取并渲染。 */
+    private renderDeviceSection(contentEl: HTMLElement) {
+        contentEl.createEl("h4", { text: "设备与自带 Key", cls: "ai-account-section" });
+        const box = contentEl.createEl("div");
+        if (!get(this.agent.state).activated) {
+            box.createEl("p", { text: "激活账户后可管理设备与自带 Key。", cls: "ai-account-hint" });
+            return;
+        }
+        box.createEl("p", { text: "加载中…", cls: "ai-account-hint" });
+        void this.refreshDevices(box);
+    }
+
+    private async refreshDevices(box: HTMLElement) {
+        await this.agent.loadDevices();
+        const d = get(this.agent.state).devices;
+        if (d.error) {
+            box.empty();
+            box.createEl("p", { text: d.error, cls: "ai-account-hint" });
+            return;
+        }
+        box.empty();
+
+        // 设备列表
+        box.createEl("p", {
+            text: `已绑定设备 ${d.devices.length} / ${d.max_devices}`,
+            cls: "ai-account-hint",
+        });
+        for (const dev of d.devices) {
+            const setting = new Setting(box);
+            setting.setName(dev.is_current ? `${dev.device_id}（本机）` : dev.device_id);
+            setting.setDesc(dev.has_byo_key ? "已配自带 Key" : "走 OsyC 额度");
+            if (!dev.is_current) {
+                setting.addButton((btn) =>
+                    btn.setButtonText("撤销").onClick(async () => {
+                        const res = await this.agent.revokeDevice(dev.device_id);
+                        if (res.ok) {
+                            await this.refreshDevices(box);
+                        } else {
+                            box.createEl("p", { text: res.message, cls: "ai-account-hint" });
+                        }
+                    })
+                );
+            }
+        }
+
+        // 自带 API Key（仅作用于本机）
+        const byo = new Setting(box)
+            .setName("自带 API Key")
+            .setDesc("填了后本机执行真实模型走你的额度，不消耗 OsyC 配额");
+        const input = byo.controlEl.createEl("input", {
+            cls: "ai-account-input",
+            type: "password",
+            placeholder: "sk-...",
+        }) as HTMLInputElement;
+        byo.addButton((btn) =>
+            btn.setButtonText("保存").setCta().onClick(async () => {
+                const res = await this.agent.saveByoKey(input.value);
+                if (res.ok) {
+                    input.value = "";
+                    await this.refreshDevices(box);
+                } else {
+                    box.createEl("p", { text: res.message, cls: "ai-account-hint" });
+                }
+            })
+        );
+        const cur = d.devices.find((x) => x.is_current);
+        if (cur?.has_byo_key) {
+            byo.addButton((btn) =>
+                btn.setButtonText("清空").onClick(async () => {
+                    await this.agent.clearByoKey();
+                    await this.refreshDevices(box);
+                })
+            );
+        }
+    }
+
+    private renderSkills(contentEl: HTMLElement, ent: AIEntitlements) {
+        const setting = new Setting(contentEl).setName("专属 OC 技能");
+        if (ent.skills && ent.skills.length > 0) {
+            const list = setting.controlEl.createEl("div", { cls: "ai-account-skills" });
+            for (const s of ent.skills) {
+                list.createEl("span", { text: formatSkillName(s), cls: "ai-account-skill", attr: { title: s } });
+            }
+        } else {
+            setting.setDesc("当前档位暂无专属能力");
+        }
+    }
+
+    private renderSyncState(contentEl: HTMLElement, syncState: AIAgentSyncState) {
+        const box = contentEl.createEl("div", { cls: "ai-account-sync" });
+        const title = box.createEl("div", { cls: "ai-account-sync-title" });
+        title.createEl("span", { text: "同步状态" });
+        const pill = title.createEl("span", { cls: "ai-account-sync-pill" });
+        const enabledLabel = syncState.enabled ? SYNC_STATUS_LABEL[syncState.status] ?? "未知" : "未启用";
+        pill.textContent = syncState.enabled ? enabledLabel : "未启用";
+        pill.setAttribute("data-sync-status", syncState.enabled ? syncState.status : "unknown");
+
+        const grid = box.createEl("div", { cls: "ai-account-sync-grid" });
+        grid.createEl("strong", { text: "Vault" });
+        grid.createEl("span", { text: syncState.vault_name ?? "—" });
+        grid.createEl("strong", { text: "最近下行" });
+        grid.createEl("span", { text: formatSyncTime(syncState.last_pull_at) });
+        grid.createEl("strong", { text: "最近上行" });
+        grid.createEl("span", { text: formatSyncTime(syncState.last_push_at) });
+        grid.createEl("strong", { text: "延迟" });
+        grid.createEl("span", { text: syncState.staleness_seconds == null ? "—" : `${syncState.staleness_seconds} 秒` });
+        grid.createEl("strong", { text: "冲突" });
+        grid.createEl("span", { text: SYNC_CONFLICT_LABEL[syncState.conflict_state] ?? "—" });
+        if (syncState.markdown_files != null || syncState.total_files != null) {
+            grid.createEl("strong", { text: "同步覆盖" });
+            grid.createEl("span", {
+                text: `${syncState.markdown_files ?? 0} 篇 Markdown / ${syncState.total_files ?? 0} 个文件${syncState.empty_files ? `，空文件 ${syncState.empty_files}` : ""}`,
+            });
+        }
+
+        if (syncState.last_error_hint || syncState.last_error_code) {
+            box.createEl("p", {
+                text: [
+                    syncState.last_error_code ? `错误码 ${syncState.last_error_code}` : "",
+                    syncState.last_error_hint ? syncState.last_error_hint : "",
+                ].filter(Boolean).join(" · "),
+                cls: "ai-account-hint",
+            });
+        } else {
+            box.createEl("p", { text: "暂无同步错误", cls: "ai-account-hint" });
+        }
+
+        new Setting(contentEl)
+            .setName("同步设置")
+            .setDesc("打开 LiveSync 的 Synchronisation 页面，查看和调整同步配置。")
+            .addButton((btn) =>
+                btn.setButtonText("打开").setCta().onClick(() => {
+                    try {
+                        openObsidianSettings(this.app, "synchronisation");
+                    } catch (error) {
+                        console.error("打开同步设置失败", error);
+                    }
+                })
+            );
+
+        new Setting(contentEl)
+            .setName("重新同步")
+            .setDesc("重新执行一次服务器握手并刷新同步覆盖率，不调用模型、不扣积分。")
+            .addButton((btn) =>
+                btn.setButtonText("刷新").setCta().onClick(async () => {
+                    btn.setDisabled(true);
+                    const result = await this.agent.refreshSync();
+                    btn.setDisabled(false);
+                    new Notice(result.message);
+                    if (result.ok) this.onOpen();
+                })
+            );
+    }
+
+    private renderReactivation(contentEl: HTMLElement) {
+        const setting = new Setting(contentEl)
+            .setName("重新激活卡密")
+            .setDesc("用于更换卡密、恢复同步配置或在新设备重新绑定。不会显示或保存卡密原文。")
+            .addButton((btn) =>
+                btn.setButtonText("重新激活").setCta().onClick(async () => {
+                    const input = setting.controlEl.querySelector("input") as HTMLInputElement | null;
+                    const cardKey = input?.value.trim() ?? "";
+                    if (!cardKey) {
+                        new Notice("请输入卡密");
+                        return;
+                    }
+                    btn.setDisabled(true);
+                    const result = await this.agent.activate(cardKey);
+                    btn.setDisabled(false);
+                    if (input) input.value = "";
+                    new Notice(result.message);
+                    if (result.ok) this.onOpen();
+                })
+            );
+        const input = setting.controlEl.createEl("input", {
+            type: "password",
+            placeholder: "输入新的卡密",
+            attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
+        }) as HTMLInputElement;
+        input.addClass("ai-account-input");
+    }
+
+    override onClose() {
+        this.contentEl.empty();
+    }
+}
