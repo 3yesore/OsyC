@@ -1,9 +1,9 @@
 {
     "id": "osyc",
     "name": "OsyC",
-    "version": "2.0.1",
+    "version": "2.0.2",
     "minAppVersion": "1.7.2",
-    "description": "Organize notes with an AI assistant and sync them across your Obsidian devices.",
+    "description": "Organize notes with an AI assistant and sync them across devices.",
     "author": "OsyC",
     "authorUrl": "https://github.com/3yesore",
     "isDesktopOnly": false

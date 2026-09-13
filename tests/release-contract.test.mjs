@@ -19,6 +19,7 @@ test("manifest description is a concise English action sentence", async () => {
   const manifest = JSON.parse(await read("manifest.json"));
   assert.match(manifest.description, /^[A-Za-z][^.!?]{10,119}[.!?]$/);
   assert.doesNotMatch(manifest.description.toLowerCase(), /^osyc\b/);
+  assert.doesNotMatch(manifest.description.toLowerCase(), /\bobsidian\b/);
 });
 
 test("README discloses network, account, payment, server processing, and privacy policy", async () => {
