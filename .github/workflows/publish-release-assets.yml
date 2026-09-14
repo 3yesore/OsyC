@@ -46,9 +46,9 @@ jobs:
               throw new Error(`Invalid plugin version: ${version}`);
             }
 
-            const prerelease = context.eventName === 'workflow_dispatch'
+            const requestedPrerelease = context.eventName === 'workflow_dispatch'
               ? String(context.payload.inputs?.prerelease ?? 'true') === 'true'
-              : true;
+              : null;
             let release;
             try {
               release = await github.rest.repos.getReleaseByTag({
@@ -66,15 +66,18 @@ jobs:
                 body: `Auditable OsyC client release ${version}. See the repository source and README for build, privacy, and attribution details.`,
                 target_commitish: context.sha,
                 draft: false,
-                prerelease,
+                prerelease: requestedPrerelease ?? true,
               });
             }
-            if (release.data.prerelease !== prerelease) {
+            // A normal push refreshes assets without changing an existing
+            // stable release back into a prerelease. Only an explicit manual
+            // dispatch may change the channel after publication.
+            if (requestedPrerelease !== null && release.data.prerelease !== requestedPrerelease) {
               release = await github.rest.repos.updateRelease({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 release_id: release.data.id,
-                prerelease,
+                prerelease: requestedPrerelease,
               });
             }
 
