@@ -10,8 +10,8 @@ describe("OsyC 用户可见品牌文案", () => {
     it("悬浮球和工作区入口使用 OC 品牌", () => {
         const floating = sourceOf("./AIAgentFloating.ts");
         const pane = sourceOf("./AIAgentPaneView.ts");
-        expect(floating).toContain('ball.textContent = "OC"');
-        expect(floating).toContain('打开 OC 对话页');
+        expect(floating).toContain('text: "OC"');
+        expect(floating).toContain('打开 oc 对话页');
         expect(pane).toContain('title = "OC"');
         expect(pane).toContain('return "OC"');
     });

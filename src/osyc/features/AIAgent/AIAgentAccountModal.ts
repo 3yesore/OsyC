@@ -79,13 +79,13 @@ export class AIAgentAccountModal extends Modal {
         const { contentEl } = this;
         contentEl.empty();
         const state = get(this.agent.state);
-        const plan = (state.plan || "base") as PlanType;
+        const plan: PlanType = state.plan || "base";
         const ent = state.entitlements;
 
         contentEl.createEl("h3", { text: "我的账户" });
 
         // 档位徽章
-        const badge = contentEl.createEl("div", { cls: "ai-account-badge" });
+        const badge = contentEl.createDiv({ cls: "ai-account-badge" });
         badge.textContent = PLAN_LABEL[plan] ?? plan;
         badge.setAttribute("data-plan", plan);
 
@@ -140,7 +140,7 @@ export class AIAgentAccountModal extends Modal {
     /** 设备与自带 Key 区块。未激活时给提示；已激活则异步拉取并渲染。 */
     private renderDeviceSection(contentEl: HTMLElement) {
         contentEl.createEl("h4", { text: "设备与自带 Key", cls: "ai-account-section" });
-        const box = contentEl.createEl("div");
+        const box = contentEl.createDiv();
         if (!get(this.agent.state).activated) {
             box.createEl("p", { text: "激活账户后可管理设备与自带 Key。", cls: "ai-account-hint" });
             return;
@@ -190,7 +190,7 @@ export class AIAgentAccountModal extends Modal {
             cls: "ai-account-input",
             type: "password",
             placeholder: "sk-...",
-        }) as HTMLInputElement;
+        });
         byo.addButton((btn) =>
             btn.setButtonText("保存").setCta().onClick(async () => {
                 const res = await this.agent.saveByoKey(input.value);
@@ -216,9 +216,9 @@ export class AIAgentAccountModal extends Modal {
     private renderSkills(contentEl: HTMLElement, ent: AIEntitlements) {
         const setting = new Setting(contentEl).setName("专属 OC 技能");
         if (ent.skills && ent.skills.length > 0) {
-            const list = setting.controlEl.createEl("div", { cls: "ai-account-skills" });
+            const list = setting.controlEl.createDiv({ cls: "ai-account-skills" });
             for (const s of ent.skills) {
-                list.createEl("span", { text: formatSkillName(s), cls: "ai-account-skill", attr: { title: s } });
+                list.createSpan({ text: formatSkillName(s), cls: "ai-account-skill", attr: { title: s } });
             }
         } else {
             setting.setDesc("当前档位暂无专属能力");
@@ -226,28 +226,28 @@ export class AIAgentAccountModal extends Modal {
     }
 
     private renderSyncState(contentEl: HTMLElement, syncState: AIAgentSyncState) {
-        const box = contentEl.createEl("div", { cls: "ai-account-sync" });
-        const title = box.createEl("div", { cls: "ai-account-sync-title" });
-        title.createEl("span", { text: "同步状态" });
-        const pill = title.createEl("span", { cls: "ai-account-sync-pill" });
+        const box = contentEl.createDiv({ cls: "ai-account-sync" });
+        const title = box.createDiv({ cls: "ai-account-sync-title" });
+        title.createSpan({ text: "同步状态" });
+        const pill = title.createSpan({ cls: "ai-account-sync-pill" });
         const enabledLabel = syncState.enabled ? SYNC_STATUS_LABEL[syncState.status] ?? "未知" : "未启用";
         pill.textContent = syncState.enabled ? enabledLabel : "未启用";
         pill.setAttribute("data-sync-status", syncState.enabled ? syncState.status : "unknown");
 
-        const grid = box.createEl("div", { cls: "ai-account-sync-grid" });
+        const grid = box.createDiv({ cls: "ai-account-sync-grid" });
         grid.createEl("strong", { text: "Vault" });
-        grid.createEl("span", { text: syncState.vault_name ?? "—" });
+        grid.createSpan({ text: syncState.vault_name ?? "—" });
         grid.createEl("strong", { text: "最近下行" });
-        grid.createEl("span", { text: formatSyncTime(syncState.last_pull_at) });
+        grid.createSpan({ text: formatSyncTime(syncState.last_pull_at) });
         grid.createEl("strong", { text: "最近上行" });
-        grid.createEl("span", { text: formatSyncTime(syncState.last_push_at) });
+        grid.createSpan({ text: formatSyncTime(syncState.last_push_at) });
         grid.createEl("strong", { text: "延迟" });
-        grid.createEl("span", { text: syncState.staleness_seconds == null ? "—" : `${syncState.staleness_seconds} 秒` });
+        grid.createSpan({ text: syncState.staleness_seconds == null ? "—" : `${syncState.staleness_seconds} 秒` });
         grid.createEl("strong", { text: "冲突" });
-        grid.createEl("span", { text: SYNC_CONFLICT_LABEL[syncState.conflict_state] ?? "—" });
+        grid.createSpan({ text: SYNC_CONFLICT_LABEL[syncState.conflict_state] ?? "—" });
         if (syncState.markdown_files != null || syncState.total_files != null) {
             grid.createEl("strong", { text: "同步覆盖" });
-            grid.createEl("span", {
+            grid.createSpan({
                 text: `${syncState.markdown_files ?? 0} 篇 Markdown / ${syncState.total_files ?? 0} 个文件${syncState.empty_files ? `，空文件 ${syncState.empty_files}` : ""}`,
             });
         }
@@ -297,7 +297,7 @@ export class AIAgentAccountModal extends Modal {
             .setDesc("用于更换卡密、恢复同步配置或在新设备重新绑定。不会显示或保存卡密原文。")
             .addButton((btn) =>
                 btn.setButtonText("重新激活").setCta().onClick(async () => {
-                    const input = setting.controlEl.querySelector("input") as HTMLInputElement | null;
+                    const input = setting.controlEl.querySelector<HTMLInputElement>("input");
                     const cardKey = input?.value.trim() ?? "";
                     if (!cardKey) {
                         new Notice("请输入卡密");
@@ -315,7 +315,7 @@ export class AIAgentAccountModal extends Modal {
             type: "password",
             placeholder: "输入新的卡密",
             attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
-        }) as HTMLInputElement;
+        });
         input.addClass("ai-account-input");
     }
 

@@ -51,10 +51,11 @@ describe("CmdAIAgent", () => {
     });
 
     it("按服务端声明的插件兼容范围校验版本", () => {
-        expect(isRuntimeCompatible("1.0.73", ">=1.0.73 <1.1.0")).toBe(true);
-        expect(isRuntimeCompatible("1.0.72", ">=1.0.73 <1.1.0")).toBe(false);
-        expect(isRuntimeCompatible("1.1.0", ">=1.0.73 <1.1.0")).toBe(false);
-        expect(isRuntimeCompatible("dev", ">=1.0.73 <1.1.0")).toBe(false);
+        expect(isRuntimeCompatible("2.0.3", ">=2.0.3 <2.1.0")).toBe(true);
+        expect(isRuntimeCompatible("2.0.4", ">=2.0.3 <2.1.0")).toBe(true);
+        expect(isRuntimeCompatible("1.9.9", ">=2.0.3 <2.1.0")).toBe(false);
+        expect(isRuntimeCompatible("2.1.0", ">=2.0.3 <2.1.0")).toBe(false);
+        expect(isRuntimeCompatible("dev", ">=2.0.3 <2.1.0")).toBe(false);
     });
 
     it("已确认服务端不兼容时不发送任务", async () => {

@@ -222,7 +222,10 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
             }
         })();
         try {
-            const migration = await migrateLegacyPluginData(this.app.vault.adapter, { legacyEnabled });
+            const migration = await migrateLegacyPluginData(this.app.vault.adapter, {
+                configDir: this.app.vault.configDir,
+                legacyEnabled,
+            });
             if (migration.action === "block-legacy-enabled") {
                 new Notice("请先停用旧版 LiveSync，再启动 OsyC，避免重复同步。");
                 return;

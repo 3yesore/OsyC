@@ -14,7 +14,7 @@ import {
 import { delay, isObjectDifferent, sizeToHumanReadable } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import { Logger } from "@vrtmrz/livesync-commonlib/compat/common/logger";
 import { checkSyncInfo } from "@vrtmrz/livesync-commonlib/compat/pouchdb/negotiation";
-import { testCrypt } from "octagonal-wheels/encryption/encryption";
+import { testEncryptionFeature } from "octagonal-wheels/encryption/hkdf";
 import ObsidianLiveSyncPlugin from "@/main.ts";
 import { scheduleTask } from "@/common/utils.ts";
 import { LiveSyncCouchDBReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
@@ -990,7 +990,7 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
             Logger($msg("obsidianLiveSyncSettingTab.logEncryptionNoPassphrase"), LOG_LEVEL_NOTICE);
             return false;
         }
-        if (this.editingSettings.encrypt && !(await testCrypt())) {
+        if (this.editingSettings.encrypt && !(await testEncryptionFeature())) {
             Logger($msg("obsidianLiveSyncSettingTab.logEncryptionNoSupport"), LOG_LEVEL_NOTICE);
             return false;
         }
@@ -1002,7 +1002,7 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
             Logger($msg("obsidianLiveSyncSettingTab.logEncryptionNoPassphrase"), LOG_LEVEL_NOTICE);
             return;
         }
-        if (this.editingSettings.encrypt && !(await testCrypt())) {
+        if (this.editingSettings.encrypt && !(await testEncryptionFeature())) {
             Logger($msg("obsidianLiveSyncSettingTab.logEncryptionNoSupport"), LOG_LEVEL_NOTICE);
             return;
         }

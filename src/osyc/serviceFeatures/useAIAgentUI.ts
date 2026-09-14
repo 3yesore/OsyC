@@ -1,4 +1,4 @@
-import { MarkdownView, Modal, Notice, Setting, TFile, type App } from "@/deps.ts";
+import { Modal, Notice, Setting, TFile, type App } from "@/deps.ts";
 import type { WorkspaceLeaf } from "@/deps";
 import { AIAgentPaneView, VIEW_TYPE_AI_AGENT } from "@/osyc/features/AIAgent/AIAgentPaneView";
 import { AIAgentFloating } from "@/osyc/features/AIAgent/AIAgentFloating";
@@ -11,7 +11,6 @@ import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interf
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { buildSetupPatch, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
-import { captureActiveNoteSnapshot, type ActiveNoteSnapshot } from "@/osyc/features/AIAgent/activeNoteContext";
 import { appearanceToCssVariables, DEFAULT_APPEARANCE, FONT_SOURCE_GROUPS, fontFamilyForSource, fontOptionsForSources, parseAppearance, THEME_PRESET_OPTIONS, type AppearanceSettings, type FontSource } from "@/osyc/features/AIAgent/appearance";
 import { annotateFontLabel, checkFontAvailability } from "@/osyc/theme/fontAvailability";
 import { applyThemeProfileStyles, migrateAppearanceToThemeProfile } from "@/osyc/theme/themeModel";
@@ -286,12 +285,12 @@ class AIAgentSettingModal extends Modal {
         new Setting(contentEl)
             .setName("正文字号")
             .setDesc("拖动调整字号")
-            .addSlider((slider) => slider.setLimits(13, 24, 1).setValue(this.appearance.fontSize ?? 16).setDynamicTooltip().onChange((value) => updateAppearance({ fontSize: value })))
+            .addSlider((slider) => slider.setLimits(13, 24, 1).setValue(this.appearance.fontSize ?? 16).onChange((value) => updateAppearance({ fontSize: value })))
             .addButton((button) => button.setButtonText("跟随主题").onClick(() => updateAppearance({ fontSize: null })));
         new Setting(contentEl)
             .setName("行高")
             .setDesc("拖动调整阅读舒适度")
-            .addSlider((slider) => slider.setLimits(1.3, 2.2, 0.1).setValue(this.appearance.lineHeight ?? 1.5).setDynamicTooltip().onChange((value) => updateAppearance({ lineHeight: Math.round(value * 10) / 10 })))
+            .addSlider((slider) => slider.setLimits(1.3, 2.2, 0.1).setValue(this.appearance.lineHeight ?? 1.5).onChange((value) => updateAppearance({ lineHeight: Math.round(value * 10) / 10 })))
             .addButton((button) => button.setButtonText("跟随主题").onClick(() => updateAppearance({ lineHeight: null })));
         const advancedDetails = contentEl.createEl("details", { cls: "osyc-ai-appearance-advanced" });
         advancedDetails.open = typeof window === "undefined" || window.innerWidth > 720;
@@ -341,7 +340,7 @@ class AIAgentSettingModal extends Modal {
         new Setting(advancedContent)
             .setName("背景透明度")
             .setDesc("拖动调整背景可见程度")
-            .addSlider((slider) => slider.setLimits(0, 1, 0.05).setValue(this.appearance.background.opacity).setDynamicTooltip().onChange((value) => updateAppearance({ background: { ...this.appearance.background, opacity: value } } as Partial<AppearanceSettings>)));
+            .addSlider((slider) => slider.setLimits(0, 1, 0.05).setValue(this.appearance.background.opacity).onChange((value) => updateAppearance({ background: { ...this.appearance.background, opacity: value } } as Partial<AppearanceSettings>)));
         new Setting(advancedContent)
             .addButton((btn) => btn.setButtonText("恢复外观默认").onClick(() => {
                 this.appearance = parseAppearance(DEFAULT_APPEARANCE);
@@ -781,22 +780,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         ).open();
     };
 
-    const captureCurrentNote = async (): Promise<{ snapshot?: ActiveNoteSnapshot; error?: string }> => {
-        if (!includeActiveNoteContext || !agent.settings.apiBase.startsWith("https://")) return {};
-        const view = app.workspace.getActiveViewOfType(MarkdownView);
-        const file = view?.file;
-        if (!view || !file) return {};
-        const activeEditor = app.workspace.activeEditor;
-        const editor = activeEditor?.file?.path === file.path ? activeEditor.editor : undefined;
-        return captureActiveNoteSnapshot({
-            enabled: true,
-            path: file.path,
-            mode: editor ? (view.getMode() === "source" ? "edit" : "live-preview") : "reading",
-            editor,
-            read: () => app.vault.read(file),
-        });
-    };
-
     /**
      * 注销当前账户：清空凭据 + 删持久化文件 + 回到未激活状态。
      *
@@ -895,7 +878,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
 
         api.addCommand({
             id: "open-ai-agent",
-            name: "OC : 打开 OC 面板",
+            name: "打开 OC 面板",
             callback: () => openPane(),
         });
 
@@ -903,17 +886,17 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         floating.mount();
         api.addCommand({
             id: "open-ai-agent-from-floating",
-            name: "OC : 打开 OC 对话页",
+            name: "打开 OC 对话页",
             callback: () => floating.toggle(),
         });
         api.addCommand({
             id: "open-osyc-log",
-            name: "OsyC : 打开 OsyC 日志",
+            name: "打开日志",
             callback: () => new OsyCLogModal(app).open(),
         });
         api.addCommand({
             id: "copy-osyc-log",
-            name: "OsyC : 复制脱敏诊断报告",
+            name: "复制脱敏诊断报告",
             callback: () => {
                 void navigator.clipboard
                     .writeText(osycLogger.report())

@@ -325,12 +325,12 @@ export function parseAppearance(value: unknown): AppearanceSettings {
     result.longTextStrategy = enumValue(value.longTextStrategy, ["wrap", "code-scroll", "all-scroll"], result.longTextStrategy);
     result.colourPreset = enumValue(value.colourPreset, THEME_PRESET_KEYS, result.colourPreset);
     if (isRecord(value.colourOverrides)) {
-        result.colourOverrides = Object.fromEntries(
-            Object.entries(value.colourOverrides)
-                .filter(([key]) => /^[a-z][a-zA-Z]*$/.test(key))
-                .map(([key, colour]) => [key, safeColour(colour)])
-                .filter(([, colour]) => colour !== null)
-        );
+        result.colourOverrides = Object.entries(value.colourOverrides).reduce<Record<string, string>>((colours, [key, colour]) => {
+            if (!/^[a-z][a-zA-Z]*$/.test(key)) return colours;
+            const safe = safeColour(colour);
+            if (safe !== null) colours[key] = safe;
+            return colours;
+        }, {});
     }
     if (isRecord(value.background)) {
         const bg = value.background;

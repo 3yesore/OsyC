@@ -17,7 +17,7 @@ export interface FloatingCallbacks {
 }
 
 const FLOATING_ROOT_ID = "osyc-ai-floating-ball";
-const GLOBAL_CLEANUP_KEY = "__osycFloatingCleanup";
+type OsyCWindow = Window & { __osycFloatingCleanup?: () => void };
 
 /**
  * A draggable shortcut only. The conversation itself is always rendered by the
@@ -51,10 +51,8 @@ export class AIAgentFloating {
         // Obsidian can reload a plugin bundle without running the previous
         // instance's unload hook. Keep one cross-bundle owner so stale balls
         // cannot remain interactive on top of the current workspace.
-        const globalState = globalThis as typeof globalThis & {
-            __osycFloatingCleanup?: () => void;
-        };
-        globalState[GLOBAL_CLEANUP_KEY]?.();
+        const windowState = window as OsyCWindow;
+        windowState.__osycFloatingCleanup?.();
         // Also remove roots from pre-1.0.36 bundles. Those bundles used a
         // different class and could survive a BRAT hot update, leaving a
         // second ball or an interactive drawer over the workspace.
@@ -66,24 +64,22 @@ export class AIAgentFloating {
         ];
         document.querySelectorAll<HTMLElement>(staleRootSelectors.join(", ")).forEach((node) => node.remove());
 
-        const ballRoot = document.createElement("div");
-        ballRoot.id = FLOATING_ROOT_ID;
-        ballRoot.className = "ai-float-ball-root";
-        const ball = document.createElement("button");
-        ball.className = "ai-float-ball ai-pulse";
-        ball.type = "button";
-        ball.textContent = "OC";
-        ball.setAttribute("aria-label", "打开 OC 对话页");
-        ballRoot.appendChild(ball);
-
         // Attach to the document viewport, not workspace.containerEl. Obsidian's
         // mobile workspace may be translated or clipped while switching tabs.
-        document.body.appendChild(ballRoot);
+        const ballRoot = document.body.createDiv({
+            cls: "ai-float-ball-root",
+            attr: { id: FLOATING_ROOT_ID },
+        });
+        const ball = ballRoot.createEl("button", {
+            cls: "ai-float-ball ai-pulse",
+            text: "OC",
+            attr: { type: "button", "aria-label": "打开 oc 对话页" },
+        });
 
         this.ballRoot = ballRoot;
         this.ball = ball;
         this.globalCleanup = () => this.destroy();
-        globalState[GLOBAL_CLEANUP_KEY] = this.globalCleanup;
+        windowState.__osycFloatingCleanup = this.globalCleanup;
         ballRoot.hidden = !this.showBall;
         ball.addEventListener("click", this.onBallClick);
         ball.addEventListener("pointerdown", this.onPointerDown);
@@ -184,11 +180,9 @@ export class AIAgentFloating {
         window.removeEventListener("resize", this.onViewportChange);
         window.visualViewport?.removeEventListener("resize", this.onViewportChange);
         this.ballRoot?.remove();
-        const globalState = globalThis as typeof globalThis & {
-            __osycFloatingCleanup?: () => void;
-        };
-        if (globalState[GLOBAL_CLEANUP_KEY] === this.globalCleanup) {
-            delete globalState[GLOBAL_CLEANUP_KEY];
+        const windowState = window as OsyCWindow;
+        if (windowState.__osycFloatingCleanup === this.globalCleanup) {
+            delete windowState.__osycFloatingCleanup;
         }
         this.globalCleanup = undefined;
         this.ballRoot = undefined;

@@ -105,7 +105,7 @@ function isAcceptableValue(key: string, value: unknown): boolean {
  * 纯函数，不碰任何全局状态，方便单测。
  */
 export function sanitizeLivesyncPatch(patch: Record<string, unknown>): SanitizeResult {
-    const applied: Record<string, unknown> = {};
+    const applied: Partial<ObsidianLiveSyncSettings> = {};
     const rejected: { key: string; reason: string }[] = [];
 
     for (const [key, value] of Object.entries(patch ?? {})) {
@@ -124,11 +124,11 @@ export function sanitizeLivesyncPatch(patch: Record<string, unknown>): SanitizeR
             rejected.push({ key, reason: "取值类型不合法" });
             continue;
         }
-        applied[key] = value;
+        (applied as Record<string, unknown>)[key] = value;
     }
 
     return {
-        applied: applied as Partial<ObsidianLiveSyncSettings>,
+        applied,
         rejected,
     };
 }
@@ -153,5 +153,5 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
     return {
         ...patch,
         isConfigured: true,
-    } as Partial<ObsidianLiveSyncSettings>;
+    };
 }

@@ -50,6 +50,16 @@ export interface ConfirmationPrompt {
     expires_at: number;
 }
 
+function asJsonRecord(value: unknown): Record<string, unknown> | null {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+        ? value as Record<string, unknown>
+        : null;
+}
+
+function isPlanType(value: unknown): value is PlanType {
+    return value === "base" || value === "member" || value === "pro";
+}
+
 /** Normalise backend Unix timestamps for JavaScript Date (milliseconds). */
 export function normaliseExpireAt(value: unknown): number | null {
     if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
@@ -846,17 +856,21 @@ export class CmdAIAgent {
             if (res.status >= 400) {
                 return { ok: false, message: this.describeError(res.status) };
             }
-            const data = await res.json;
+            const raw = (await res.json) as unknown;
+            const data = asJsonRecord(raw);
+            if (!data || typeof data.token !== "string" || !data.token) {
+                return { ok: false, message: "服务端返回格式无效，请稍后重试" };
+            }
             this.settings.token = data.token;
             this.state.set({
                 activated: true,
-                credits: data.credits ?? 0,
-                creditsYuan: data.credits_yuan ?? 0,
+                credits: typeof data.credits === "number" ? data.credits : 0,
+                creditsYuan: typeof data.credits_yuan === "number" ? data.credits_yuan : 0,
                 expireAt: normaliseExpireAt(data.expire_at),
                 modelQuota: Number(data.model_quota ?? 0),
-                model: data.model ?? "auto",
+                model: typeof data.model === "string" ? data.model : "auto",
                 powerSave: get(this.state).powerSave,
-                plan: (data.plan as PlanType) ?? "base",
+                plan: isPlanType(data.plan) ? data.plan : "base",
                 syncState: { ...DEFAULT_SYNC_STATE },
                 onboarded: get(this.state).onboarded,
                 entitlements: this.normalizeEntitlements(data.entitlements),
@@ -867,7 +881,7 @@ export class CmdAIAgent {
             // 自动配置同步：这一步省掉"用户自己配 LiveSync"这个最大的流失点。
             // 失败不阻断激活 —— 用户仍可手动配置，只是多一道手续。
             let suffix = "";
-            if (data.setup_uri && this.applySetupUri) {
+            if (typeof data.setup_uri === "string" && this.applySetupUri) {
                 try {
                     this.syncConfigured = await this.applySetupUri(data.setup_uri, cardKey);
                     suffix = this.syncConfigured ? "，同步已自动配置" : "，但同步配置失败，请手动设置";
@@ -950,13 +964,14 @@ export class CmdAIAgent {
                 throw: false,
             });
             if (res.status < 400) {
-                const data = await res.json;
-                const syncStateRaw = data && typeof data === "object" ? (data as { sync_state?: unknown }).sync_state : undefined;
+                const data = asJsonRecord((await res.json) as unknown);
+                if (!data) return;
+                const syncStateRaw = data.sync_state;
                 this.state.update((s) => ({
                     ...s,
-                    credits: data.credits ?? s.credits,
+                    credits: typeof data.credits === "number" ? data.credits : s.credits,
                     // 后端统一换算的折合金额，必须读。否则真实用户一直显示 0 元额度。
-                    creditsYuan: data.credits_yuan ?? s.creditsYuan,
+                    creditsYuan: typeof data.credits_yuan === "number" ? data.credits_yuan : s.creditsYuan,
                     expireAt: normaliseExpireAt(data.expire_at) ?? s.expireAt,
                     modelQuota: Number(data.model_quota ?? s.modelQuota),
                     syncState: syncStateRaw === undefined
@@ -990,7 +1005,7 @@ export class CmdAIAgent {
                 "backend_release_id", "hermes_adapter_version", "artifact_intent_policy_version",
                 "streaming_protocol_version", "plugin_compatibility",
             ];
-            if (fields.some((field) => typeof value[field] !== "string" || !value[field]!.trim())) {
+            if (fields.some((field) => typeof value[field] !== "string" || !value[field].trim())) {
                 osycLogger.warn("OsyC 服务端运行时指纹字段不完整");
                 return null;
             }
@@ -1049,11 +1064,16 @@ export class CmdAIAgent {
                 this.failTask(clientId, await this.describeResponseError(res, res.status), res.status);
                 return;
             }
-            const data = await res.json;
+            const data = asJsonRecord((await res.json) as unknown);
+            if (!data || typeof data.task_id !== "string" || !data.task_id) {
+                this.failTask(clientId, "服务端返回格式无效，请稍后重试");
+                return;
+            }
+            const taskId = data.task_id;
             this.tasks.update((list) => list.map((t) =>
-                t.clientId === clientId ? { ...t, taskId: data.task_id, estCost: data.est_cost } : t
+                t.clientId === clientId ? { ...t, taskId, estCost: typeof data.est_cost === "number" ? data.est_cost : undefined } : t
             ));
-            void this.pollTask(data.task_id);
+            void this.pollTask(taskId);
         } catch {
             this.failTask(clientId, this.networkErrorMessage());
         }
@@ -1298,7 +1318,9 @@ export class CmdAIAgent {
     }
 
     private async sha256(bytes: Uint8Array): Promise<string> {
-        const digest = await crypto.subtle.digest("SHA-256", new Uint8Array(bytes).buffer as ArrayBuffer);
+        const buffer = new ArrayBuffer(bytes.byteLength);
+        new Uint8Array(buffer).set(bytes);
+        const digest = await crypto.subtle.digest("SHA-256", buffer);
         return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
     }
 

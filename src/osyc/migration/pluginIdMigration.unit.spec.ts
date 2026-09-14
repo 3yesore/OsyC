@@ -15,19 +15,32 @@ describe("OsyC plugin ID migration", () => {
     });
 
     it("blocks startup when the legacy sync plugin is still enabled", () => {
-        expect(createPluginIdMigrationPlan({ legacyEnabled: true, legacyDataExists: true, currentDataExists: false })).toMatchObject({
+        expect(createPluginIdMigrationPlan({ configDir: ".obsidian", legacyEnabled: true, legacyDataExists: true, currentDataExists: false })).toMatchObject({
             action: "block-legacy-enabled",
             legacyDataPath: ".obsidian/plugins/obsidian-livesync/data.json",
             currentDataPath: ".obsidian/plugins/osyc/data.json",
             agentConfigPath: ".obsidian/livesync-aiagent.json",
         });
-        expect(createPluginIdMigrationPlan({ legacyEnabled: true, legacyDataExists: false, currentDataExists: true }).action).toBe("block-legacy-enabled");
+        expect(createPluginIdMigrationPlan({ configDir: ".obsidian", legacyEnabled: true, legacyDataExists: false, currentDataExists: true }).action).toBe("block-legacy-enabled");
     });
 
     it("requests a migration only when legacy data exists and the new data is absent", () => {
-        expect(createPluginIdMigrationPlan({ legacyEnabled: false, legacyDataExists: true, currentDataExists: false }).action).toBe("migrate");
-        expect(createPluginIdMigrationPlan({ legacyEnabled: false, legacyDataExists: true, currentDataExists: true }).action).toBe("none");
-        expect(createPluginIdMigrationPlan({ legacyEnabled: false, legacyDataExists: false, currentDataExists: false }).action).toBe("none");
+        expect(createPluginIdMigrationPlan({ configDir: ".obsidian", legacyEnabled: false, legacyDataExists: true, currentDataExists: false }).action).toBe("migrate");
+        expect(createPluginIdMigrationPlan({ configDir: ".obsidian", legacyEnabled: false, legacyDataExists: true, currentDataExists: true }).action).toBe("none");
+        expect(createPluginIdMigrationPlan({ configDir: ".obsidian", legacyEnabled: false, legacyDataExists: false, currentDataExists: false }).action).toBe("none");
+    });
+
+    it("uses the host vault config directory for migration paths", () => {
+        expect(createPluginIdMigrationPlan({
+            configDir: ".settings",
+            legacyEnabled: false,
+            legacyDataExists: true,
+            currentDataExists: false,
+        })).toMatchObject({
+            legacyDataPath: ".settings/plugins/obsidian-livesync/data.json",
+            currentDataPath: ".settings/plugins/osyc/data.json",
+            agentConfigPath: ".settings/livesync-aiagent.json",
+        });
     });
 
     it("keeps only validated OsyC state and drops unknown or sync credential fields", () => {
@@ -66,7 +79,7 @@ describe("OsyC plugin ID migration", () => {
             mkdir: async (path: string) => void directories.push(path),
         };
         const { migrateLegacyPluginData } = await import("./pluginIdMigration");
-        const result = await migrateLegacyPluginData(adapter, { legacyEnabled: false });
+        const result = await migrateLegacyPluginData(adapter, { configDir: ".obsidian", legacyEnabled: false });
         expect(result.action).toBe("migrate");
         expect(directories).toContain(".obsidian/plugins/osyc");
         expect(files.get(".obsidian/plugins/osyc/data.json")).toBe('{"couchDB_URI":"https://sync.example"}');
@@ -82,7 +95,7 @@ describe("OsyC plugin ID migration", () => {
             mkdir: async (path: string) => void directories.push(path),
         };
         const { migrateLegacyPluginData } = await import("./pluginIdMigration");
-        await expect(migrateLegacyPluginData(adapter, { legacyEnabled: false })).rejects.toThrow("not valid JSON");
+        await expect(migrateLegacyPluginData(adapter, { configDir: ".obsidian", legacyEnabled: false })).rejects.toThrow("not valid JSON");
         expect(writes).toHaveLength(0);
         expect(directories).toHaveLength(0);
     });
@@ -95,7 +108,7 @@ describe("OsyC plugin ID migration", () => {
             write: async (path: string) => void writes.push(path),
         };
         const { migrateLegacyPluginData } = await import("./pluginIdMigration");
-        const result = await migrateLegacyPluginData(adapter, { legacyEnabled: true });
+        const result = await migrateLegacyPluginData(adapter, { configDir: ".obsidian", legacyEnabled: true });
         expect(result.action).toBe("block-legacy-enabled");
         expect(writes).toHaveLength(0);
     });

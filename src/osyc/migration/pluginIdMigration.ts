@@ -1,7 +1,17 @@
 import { parseAIAgentPersisted, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
-import { AGENT_CONFIG_PATH, CURRENT_PLUGIN_ID, LEGACY_PLUGIN_ID } from "./pluginIdentity";
+import {
+    agentConfigPath,
+    CURRENT_PLUGIN_ID,
+    LEGACY_PLUGIN_ID,
+    normaliseConfigDir,
+} from "./pluginIdentity";
 
-export { AGENT_CONFIG_PATH, CURRENT_PLUGIN_ID, LEGACY_PLUGIN_ID } from "./pluginIdentity";
+export {
+    agentConfigPath,
+    CURRENT_PLUGIN_ID,
+    LEGACY_PLUGIN_ID,
+    normaliseConfigDir,
+} from "./pluginIdentity";
 
 const PERSISTED_KEYS = new Set<keyof AIAgentPersisted>([
     "version",
@@ -28,19 +38,22 @@ export interface PluginIdMigrationPlan {
 }
 
 export function createPluginIdMigrationPlan(input: {
+    configDir: string;
     legacyEnabled: boolean;
     legacyDataExists: boolean;
     currentDataExists: boolean;
 }): PluginIdMigrationPlan {
-    const legacyDataPath = `.obsidian/plugins/${LEGACY_PLUGIN_ID}/data.json`;
-    const currentDataPath = `.obsidian/plugins/${CURRENT_PLUGIN_ID}/data.json`;
+    const configDir = normaliseConfigDir(input.configDir);
+    const legacyDataPath = `${configDir}/plugins/${LEGACY_PLUGIN_ID}/data.json`;
+    const currentDataPath = `${configDir}/plugins/${CURRENT_PLUGIN_ID}/data.json`;
+    const agentPath = agentConfigPath(configDir);
     if (input.legacyEnabled) {
-        return { action: "block-legacy-enabled", legacyDataPath, currentDataPath, agentConfigPath: AGENT_CONFIG_PATH };
+        return { action: "block-legacy-enabled", legacyDataPath, currentDataPath, agentConfigPath: agentPath };
     }
     if (!input.currentDataExists && input.legacyDataExists) {
-        return { action: "migrate", legacyDataPath, currentDataPath, agentConfigPath: AGENT_CONFIG_PATH };
+        return { action: "migrate", legacyDataPath, currentDataPath, agentConfigPath: agentPath };
     }
-    return { action: "none", legacyDataPath, currentDataPath, agentConfigPath: AGENT_CONFIG_PATH };
+    return { action: "none", legacyDataPath, currentDataPath, agentConfigPath: agentPath };
 }
 
 export interface PersistedMigrationResult {
@@ -85,9 +98,11 @@ export function migratePersistedOsycData(raw: string): PersistedMigrationResult 
  */
 export async function migrateLegacyPluginData(
     adapter: MigrationDataAdapter,
-    input: { legacyEnabled: boolean }
+    input: { configDir: string; legacyEnabled: boolean }
 ): Promise<LegacyDataMigrationResult> {
+    const configDir = normaliseConfigDir(input.configDir);
     const plan = createPluginIdMigrationPlan({
+        configDir,
         legacyEnabled: input.legacyEnabled,
         legacyDataExists: await adapter.exists(`.obsidian/plugins/${LEGACY_PLUGIN_ID}/data.json`),
         currentDataExists: await adapter.exists(`.obsidian/plugins/${CURRENT_PLUGIN_ID}/data.json`),
@@ -105,7 +120,7 @@ export async function migrateLegacyPluginData(
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
         throw new Error("Legacy OsyC configuration has an invalid shape");
     }
-    const currentDirectory = `.obsidian/plugins/${CURRENT_PLUGIN_ID}`;
+    const currentDirectory = `${configDir}/plugins/${CURRENT_PLUGIN_ID}`;
     if (adapter.mkdir && !(await adapter.exists(currentDirectory))) {
         await adapter.mkdir(currentDirectory);
     }

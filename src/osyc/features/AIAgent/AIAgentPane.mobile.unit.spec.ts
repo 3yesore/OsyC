@@ -102,9 +102,9 @@ describe("AI 面板移动端底部输入区", () => {
 
     it("悬浮球只打开主 Agent 页，不再挂载独立抽屉", () => {
         expect(floatingSource).toContain("window.visualViewport");
-        expect(floatingSource).toContain("document.body.append");
+        expect(floatingSource).toContain("document.body.createDiv");
         expect(floatingSource).toContain('const FLOATING_ROOT_ID = "osyc-ai-floating-ball"');
-        expect(floatingSource).toContain("ballRoot.id = FLOATING_ROOT_ID");
+        expect(floatingSource).toContain('attr: { id: FLOATING_ROOT_ID }');
         expect(floatingSource).toContain("osycFloatingCleanup");
         expect(floatingSource).not.toContain("this.app.workspace.containerEl.append");
         expect(floatingSource).not.toContain("ai-float-sheet");
@@ -206,9 +206,9 @@ describe("AI 面板移动端底部输入区", () => {
 
     it("手机端可以从命令面板打开并复制 OsyC 自己的日志", () => {
         expect(agentUiSource).toContain('id: "open-osyc-log"');
-        expect(agentUiSource).toContain("OsyC : 打开 OsyC 日志");
+        expect(agentUiSource).toContain('name: "打开日志"');
         expect(agentUiSource).toContain('id: "copy-osyc-log"');
-        expect(paneSource).toContain("复制 OsyC 日志");
+        expect(paneSource).toContain("复制脱敏诊断");
         expect(paneViewSource).toContain("osycLogger.error");
     });
 

@@ -17,7 +17,8 @@ describe("OsyC 设置页信息架构", () => {
         expect(source).toContain('text: "笔记内容外观"');
         expect(source).toContain('text: "OC 交互"');
         expect(source).toContain('api.addRibbonIcon("bot", "OC"');
-        expect(source).toContain('name: "OC : 打开 OC 面板"');
+        expect(source).toContain('name: "打开 OC 面板"');
+        expect(source).not.toContain('name: "OC : 打开 OC 面板"');
     });
 
     it("连接分组位于笔记外观之前，交互分组位于外观之后", () => {
@@ -31,6 +32,14 @@ describe("OsyC 设置页信息架构", () => {
 
     it("不再使用不准确的模型选择升级承诺", () => {
         expect(source).not.toContain("更多模型选择");
+    });
+
+    it("不调用 Obsidian 已废弃的动态滑块提示 API", () => {
+        expect(source).not.toContain(".setDynamicTooltip()");
+    });
+
+    it("不保留未接入的当前笔记捕获闭包", () => {
+        expect(source).not.toContain("const captureCurrentNote =");
     });
 
     it("主题片段不应自动启用，也不能覆盖 appearance.json 的其它设置", () => {

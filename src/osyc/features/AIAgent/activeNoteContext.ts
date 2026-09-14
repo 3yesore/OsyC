@@ -49,9 +49,14 @@ function toHex(buffer: ArrayBuffer): string {
 }
 
 async function sha256(content: string): Promise<string | undefined> {
-    if (!globalThis.crypto?.subtle) return undefined;
+    const cryptoApi = typeof window !== "undefined" && window.crypto?.subtle
+        ? window.crypto
+        : typeof crypto !== "undefined"
+          ? crypto
+          : undefined;
+    if (!cryptoApi?.subtle) return undefined;
     const bytes = new TextEncoder().encode(content);
-    return toHex(await globalThis.crypto.subtle.digest("SHA-256", bytes));
+    return toHex(await cryptoApi.subtle.digest("SHA-256", bytes));
 }
 
 /**
