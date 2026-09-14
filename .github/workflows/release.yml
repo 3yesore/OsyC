@@ -1,0 +1,43 @@
+name: Publish selected release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish
+        required: true
+        type: string
+      prerelease:
+        description: Publish the GitHub Release as a pre-release
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate the selected release
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          node utils/release-notes.mjs validate "${TAG}"
+          TAG_SHA="$(git rev-parse "refs/tags/${TAG}^{commit}")"
+          test "${TAG_SHA}" = "$(git rev-parse HEAD)"
+      - name: Dispatch the audited asset publisher
+        env:
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: gh workflow run publish-release-assets.yml --ref "${TAG}" --field prerelease="${PRERELEASE}"

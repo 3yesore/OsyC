@@ -1,0 +1,38 @@
+name: Publish CLI container
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        required: true
+        default: true
+        type: boolean
+      force:
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve image tags
+        env:
+          VERSION: ${{ github.ref_name }}
+          IMAGE: ghcr.io/${{ github.repository }}
+          SHORT_SHA: ${{ github.sha }}
+        run: |
+          if [[ "${VERSION}" == *-* ]]; then
+            TAGS="${IMAGE}:${VERSION}-cli,${IMAGE}:${VERSION}-sha-${SHORT_SHA}-cli"
+          else
+            TAGS="${IMAGE}:${VERSION}-cli,${IMAGE}:${VERSION}-sha-${SHORT_SHA}-cli"
+          fi
+          echo "TAGS=${TAGS}" >> "${GITHUB_ENV}"
+      - name: Build and publish
+        if: ${{ !inputs.dry_run }}
+        run: echo "Publishing ${TAGS}"

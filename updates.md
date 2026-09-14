@@ -20,6 +20,12 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 - Candidate OsyC theme-rendering fix extends scoped styling to real Markdown and CodeMirror content roots, adapts Agent surfaces to OsyC preset tokens, and adds isolated background-image rendering with live font previews. Focused tests and iOS compatibility checks pass; real-device acceptance and release reservation remain pending.
 - Expanded the device-font catalog with additional Chinese, Latin, and monospace fallback stacks; added read-only source snapshots and license records for the reviewed open-source themes and layout modules.
 
+## 2.0.5
+
+14th September, 2026
+
+- OsyC `2.0.5` aligns the plug-in metadata and release assets, hardens the repeatable release workflow, and preserves the 2.0.4 compatibility and dialogue behaviour.
+
 ## 1.0.77
 
 12th September, 2026

@@ -36,10 +36,15 @@ function writeJson(directory: string, path: string, value: unknown): void {
 }
 
 function runNode(script: string, args: string[], cwd: string, env: Record<string, string> = {}) {
+    const childEnv = Object.fromEntries(
+        Object.entries({ ...process.env, ...env }).filter(([key]) =>
+            key.toLowerCase() !== "npm_package_version" || key === "npm_package_version" && env.npm_package_version !== undefined
+        )
+    );
     return spawnSync(process.execPath, [script, ...args], {
         cwd,
         encoding: "utf8",
-        env: { ...process.env, ...env },
+        env: childEnv,
     });
 }
 
@@ -48,6 +53,7 @@ function runNpm(args: string[], cwd: string) {
         cwd,
         encoding: "utf8",
         env: process.env,
+        shell: process.platform === "win32",
     });
 }
 

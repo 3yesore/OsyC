@@ -1,0 +1,70 @@
+name: Finalise release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version
+        required: true
+        type: string
+      expected_head_sha:
+        description: Exact reviewed release commit
+        required: true
+        type: string
+      prerelease:
+        description: Publish as a GitHub pre-release
+        required: true
+        default: true
+        type: boolean
+      publish_cli:
+        description: Publish the CLI image
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  finalise:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Validate staging inputs
+        env:
+          VERSION: ${{ inputs.version }}
+          EXPECTED_HEAD_SHA: ${{ inputs.expected_head_sha }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          PUBLISH_CLI: ${{ inputs.publish_cli }}
+        run: |
+          if [[ "${VERSION}" != *-* && "${PRERELEASE}" == "true" && "${PUBLISH_CLI}" == "true" ]]; then
+            echo "A stable version staged as a pre-release must use publish_cli=false so that the CLI latest and major-minor image tags do not advance before BRAT validation."
+            exit 1
+          fi
+          if [[ "${PUBLISH_CLI}" == "true" ]]; then
+            echo "CLI publication explicitly selected"
+          fi
+          test "$(git rev-parse HEAD)" = "${EXPECTED_HEAD_SHA}"
+          node utils/release-tags.mjs ensure "${VERSION}" "${EXPECTED_HEAD_SHA}" --plugin-only
+          git push --atomic origin "refs/tags/${VERSION}" "refs/tags/${VERSION}-cli"
+      - name: Publish the plugin candidate
+        env:
+          VERSION: ${{ inputs.version }}
+          PRERELEASE: ${{ inputs.prerelease }}
+        run: |
+          gh workflow run release.yml --ref main --field tag="${VERSION}" --field prerelease="${PRERELEASE}"
+      - name: Publish CLI only when explicitly selected
+        if: ${{ inputs.publish_cli }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          gh workflow run cli-docker.yml --ref "${VERSION}-cli" --field dry_run=false --field force=false
+          echo "explicitly dispatched the CLI container workflow"

@@ -1,6 +1,16 @@
-import { readFileSync, writeFileSync } from "fs";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 
-const targetVersion = process.env.npm_package_version;
+// During npm's `version` lifecycle the package.json has already been updated,
+// while a parent npm process on Windows may leak its own npm_package_version.
+// Prefer the package version whenever this script runs in a package directory;
+// direct metadata tests without package.json use npm_package_version instead.
+const packageVersion = existsSync("package.json")
+    ? JSON.parse(readFileSync("package.json", "utf8")).version
+    : undefined;
+const targetVersion = packageVersion || process.env.npm_package_version;
+if (typeof targetVersion !== "string" || !targetVersion.trim()) {
+    throw new Error("A release version is required.");
+}
 
 // read minAppVersion from manifest.json and bump version to target version
 const manifest = JSON.parse(readFileSync("manifest.json", "utf8"));
