@@ -18,6 +18,10 @@ const assistantSource = readFileSync(
     fileURLToPath(new URL("./AIAgentAssistantMessage.svelte", import.meta.url)),
     "utf8"
 );
+const toolsSource = readFileSync(
+    fileURLToPath(new URL("./AIAgentToolsModal.ts", import.meta.url)),
+    "utf8"
+);
 const agentUiSource = readFileSync(
     fileURLToPath(new URL("../../serviceFeatures/useAIAgentUI.ts", import.meta.url)),
     "utf8"
@@ -37,8 +41,7 @@ describe("AI 面板移动端底部输入区", () => {
     it("审核稿布局保留完整接口并以会话侧栏为主导航", () => {
         for (const prop of [
             "tasks", "agentState", "isMock", "onSend", "onActivate", "onClear", "onOpenFile",
-            "onOpenSettings", "onDeactivate", "onOpenAccount", "onCloudBackup", "onCloudRestore",
-            "onLoadCloudVault", "onRetryPush", "onRecharge", "onApplySettingsPatch",
+            "onDeactivate", "onOpenTools", "onLoadCloudVault", "onRetryPush", "onApplySettingsPatch",
             "onApplyThemeSnippet", "onMarkOnboarded",
         ]) expect(paneSource).toContain(`${prop}:`);
         expect(paneSource).toContain('class="ai-shell"');
@@ -48,12 +51,12 @@ describe("AI 面板移动端底部输入区", () => {
         expect(paneSource).toContain('class="ai-sidebar-actions"');
     });
 
-    it("会话侧栏承载设置、权益、充值和调试入口，顶部不再重复挂载", () => {
-        expect(paneSource).toContain('data-sidebar-action="settings"');
-        expect(paneSource).toContain('data-sidebar-action="account"');
-        expect(paneSource).toContain('data-sidebar-action="recharge"');
-        expect(paneSource).toContain('data-sidebar-action="debug"');
+    it("会话侧栏只提供统一工具中心入口，顶部保留公告和工具入口", () => {
+        expect(paneSource).toContain('data-sidebar-action="tools"');
+        expect(paneSource).toContain('aria-label="工具中心"');
         expect(paneSource).not.toContain('class="ai-status-actions"');
+        expect(paneSource).not.toContain('data-sidebar-action="recharge"');
+        expect(paneSource).not.toContain('data-sidebar-action="debug"');
     });
 
     it("不显示会话搜索或相似笔记快捷项", () => {
@@ -88,9 +91,8 @@ describe("AI 面板移动端底部输入区", () => {
     });
 
     it("基础档用户不应在主任务流里看到 Cloud-Vault，聚焦也不能滚动整页", () => {
-        expect(paneSource).toContain(
-            '{#if activated && ($agentState.plan === "member" || $agentState.plan === "pro") && $agentState.cloudVault.available}'
-        );
+        expect(paneSource).not.toContain("Cloud-Vault 私有备份");
+        expect(toolsSource).toContain("Cloud-Vault 备份");
         expect(paneSource).not.toContain("scrollIntoView({ block: \"center\"");
         expect(paneSource).not.toContain("onfocus={scrollIntoViewOnKeyboard}");
     });
@@ -126,9 +128,8 @@ describe("AI 面板移动端底部输入区", () => {
     });
 
     it("Cloud-Vault 不可用时不应占用 Agent 输入区", () => {
-        expect(paneSource).toContain(
-            '{#if activated && ($agentState.plan === "member" || $agentState.plan === "pro") && $agentState.cloudVault.available}'
-        );
+        expect(paneSource).not.toContain("onCloudBackup");
+        expect(paneSource).not.toContain("onCloudRestore");
     });
 
     it("移动端输入区只预留系统安全区，不人为制造底部工具栏空白", () => {
@@ -197,11 +198,10 @@ describe("AI 面板移动端底部输入区", () => {
         expect(themeStyles).toContain("object-fit: contain");
     });
 
-    it("提供外观与调试入口及脱敏诊断操作", () => {
-        expect(paneSource).toContain('title="外观与调试"');
-        expect(paneSource).toContain("复制脱敏诊断");
-        expect(paneSource).toContain("buildAppearanceDiagnostics");
-        expect(themeStyles).toContain(".osyc-ai-agent .ai-debug-panel");
+    it("调试与诊断操作由工具中心承载", () => {
+        expect(toolsSource).toContain("复制脱敏诊断");
+        expect(toolsSource).toContain("复制 OsyC 日志");
+        expect(themeStyles).toContain(".ai-tools-modal");
     });
 
     it("提供顶栏公告入口、未读状态和已读操作", () => {
@@ -215,7 +215,7 @@ describe("AI 面板移动端底部输入区", () => {
         expect(agentUiSource).toContain('id: "open-osyc-log"');
         expect(agentUiSource).toContain('name: "打开日志"');
         expect(agentUiSource).toContain('id: "copy-osyc-log"');
-        expect(paneSource).toContain("复制脱敏诊断");
+        expect(toolsSource).toContain("复制脱敏诊断");
         expect(paneViewSource).toContain("osycLogger.error");
     });
 

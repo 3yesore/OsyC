@@ -9,7 +9,6 @@
     import type { AISnippet, AITask, AIAgentState } from "./CmdAIAgent";
     import AIAgentAssistantMessage from "./AIAgentAssistantMessage.svelte";
     import { buildConversationMessages, shouldFollowTimeline } from "./conversationModel";
-    import { buildAppearanceDiagnostics } from "./appearanceDiagnostics";
     import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
     import type { Announcement } from "./announcements";
 
@@ -22,11 +21,8 @@
         onActivate: (cardKey: string) => Promise<{ ok: boolean; message: string }>;
         onClear: () => void;
         onOpenFile: (path: string) => void;
-        onOpenSettings: () => void;
         onDeactivate: () => void;
-        onOpenAccount: () => void;
-        onCloudBackup: () => Promise<{ ok: boolean; message: string }>;
-        onCloudRestore: (snapshotId: string, overwrite: boolean) => Promise<{ ok: boolean; message: string }>;
+        onOpenTools: () => void;
         onLoadCloudVault: () => void;
         onRetryPush: (taskId: string) => void;
         onConfirmTask: (taskId: string) => Promise<{ ok: boolean; message: string }>;
@@ -35,7 +31,6 @@
         announcements: Writable<Announcement[]>;
         onRefreshAnnouncements: () => Promise<void>;
         onMarkAnnouncementRead: (id: string) => void;
-        onRecharge: (cardKey: string) => Promise<{ ok: boolean; message: string }>;
         onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>;
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>;
         onMarkOnboarded: () => void;
@@ -43,8 +38,8 @@
 
     let {
         app, tasks, agentState, isMock, onSend, onActivate, onClear, onOpenFile,
-        onOpenSettings, onDeactivate, onOpenAccount, onCloudBackup, onCloudRestore,
-        onLoadCloudVault, onRetryPush, onConfirmTask, onCancelConfirmation, onRecharge, onApplySettingsPatch,
+        onDeactivate, onOpenTools,
+        onLoadCloudVault, onRetryPush, onConfirmTask, onCancelConfirmation, onApplySettingsPatch,
         onApplyThemeSnippet, onMarkOnboarded, onUploadDiagnostics, announcements, onRefreshAnnouncements, onMarkAnnouncementRead,
     }: Props = $props();
 
@@ -73,22 +68,15 @@
     let cardKey = $state("");
     let notice = $state("");
     let activating = $state(false);
-    let rechargeKey = $state("");
-    let recharging = $state(false);
     let confirmDeactivate = $state(false);
     let mobileSidebarOpen = $state(false);
     let selectedTaskId = $state<string | null>(null);
-    let sidebarPanel = $state<"recharge" | "debug" | "cloud" | null>(null);
-    let debugNotice = $state("");
     let announcementOpen = $state(false);
     let unreadAnnouncements = $derived($announcements.length);
-    let restoreTarget = $state<string | null>(null);
-    let restoreOverwrite = $state(false);
     let dismissedSuggestions = $state<string[]>([]);
     let dismissedSnippets = $state<string[]>([]);
     let applyingSuggestionId = $state<string | null>(null);
     let applyingSnippet = $state(false);
-    const currentPluginVersion = typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev";
 
     let activated = $derived($agentState.activated);
     let planLabel = $derived(PLAN_LABEL[$agentState.plan] ?? "基础版");
@@ -105,35 +93,12 @@
     let selectedTask = $derived(selectedTaskId ? sortedTasks.find((task) => task.taskId === selectedTaskId) : null);
     let displayedTasks = $derived(selectedTask ? [selectedTask] : sortedTasks);
     let displayedMessages = $derived(buildConversationMessages(displayedTasks));
-    let runningCount = $derived($tasks.filter((task) => task.status === "queued" || task.status === "running" || task.status === "awaiting_confirmation").length);
     let finishedCount = $derived($tasks.filter((task) => ["done", "failed", "conflict", "interrupted", "failed_zero_cost", "delivery_failed", "cancelled"].includes(task.status)).length);
     let suggestions = $derived($tasks.filter((task) => task.settingsPatch && Object.keys(task.settingsPatch).length > 0 && !dismissedSuggestions.includes(task.taskId)));
     let themeSnippet = $derived($tasks.find((task) => task.themeSnippet?.name && !dismissedSnippets.includes(task.taskId))?.themeSnippet ?? null);
     let themeSnippetTaskId = $derived($tasks.find((task) => task.themeSnippet?.name && !dismissedSnippets.includes(task.taskId))?.taskId ?? null);
 
-    function diagnosticText(): string {
-        const node = paneEl;
-        return buildAppearanceDiagnostics({
-            pluginVersion: currentPluginVersion,
-            obsidianVersion: (window as unknown as { app?: { appVersion?: string } }).app?.appVersion ?? "unknown",
-            platform: /android/i.test(navigator.userAgent) ? "android" : /iphone|ipad/i.test(navigator.userAgent) ? "ios" : "desktop",
-            viewport: { width: Math.round(window.innerWidth), height: Math.round(window.innerHeight) },
-            theme: document.body.classList.contains("theme-dark") ? "dark" : "light",
-            appearanceVersion: 1, backgroundEnabled: false, backgroundType: "theme", backgroundExists: true,
-            safeArea: { top: 0, right: 0, bottom: 0, left: 0 },
-            overflow: { taskList: !!node && node.scrollWidth > node.clientWidth, composer: false }, lastErrorCode: null,
-        });
-    }
-    async function copyDiagnostics() {
-        try { await navigator.clipboard.writeText(diagnosticText()); debugNotice = "诊断信息已复制（已脱敏）"; }
-        catch { debugNotice = "复制失败，请检查系统剪贴板权限"; }
-    }
-    async function copyOsyCLogs() {
-        try { await navigator.clipboard.writeText(osycLogger.report()); debugNotice = "OsyC 日志已复制"; }
-        catch { debugNotice = "复制失败，请从命令面板打开 OsyC 日志"; }
-    }
     function closeSidebar() { mobileSidebarOpen = false; }
-    function openPanel(panel: typeof sidebarPanel) { sidebarPanel = sidebarPanel === panel ? null : panel; }
     function chooseTask(taskId: string) { selectedTaskId = taskId; closeSidebar(); }
     function showAllTasks() { selectedTaskId = null; closeSidebar(); }
     function submit() {
@@ -151,13 +116,6 @@
         activating = true; notice = "";
         try { const result = await onActivate(key); notice = result.message; if (result.ok) { cardKey = ""; onLoadCloudVault(); } }
         finally { activating = false; }
-    }
-    async function doRecharge() {
-        const key = rechargeKey.trim();
-        if (!key) return;
-        recharging = true; notice = "";
-        try { const result = await onRecharge(key); notice = result.message; if (result.ok) rechargeKey = ""; }
-        finally { recharging = false; }
     }
     async function applySuggestion(taskId: string) {
         const task = $tasks.find((item) => item.taskId === taskId);
@@ -177,11 +135,6 @@
         try { const result = await onApplyThemeSnippet(themeSnippet); notice = result.message; }
         catch (error) { osycLogger.error("应用主题片段失败", error); notice = "应用主题片段失败"; }
         finally { applyingSnippet = false; if (themeSnippetTaskId) dismissedSnippets = [...dismissedSnippets, themeSnippetTaskId]; }
-    }
-    function beginRestore(snapshotId: string) { restoreTarget = snapshotId; restoreOverwrite = false; }
-    async function confirmRestore() {
-        if (!restoreTarget) return;
-        const snapshotId = restoreTarget; restoreTarget = null; await onCloudRestore(snapshotId, restoreOverwrite);
     }
 
     function onTimelineScroll() {
@@ -217,21 +170,16 @@
                 {#if sortedTasks.length === 0}<div class="ai-session-empty">还没有会话</div>{/if}
             </nav>
             <div class="ai-sidebar-actions">
-                <button class="ai-sidebar-action" data-sidebar-action="settings" onclick={() => { onOpenSettings(); closeSidebar(); }}><span aria-hidden="true">⚙</span><span>设置</span></button>
-                <button class="ai-sidebar-action" data-sidebar-action="account" onclick={() => { onOpenAccount(); closeSidebar(); }}><span aria-hidden="true">◇</span><span>权益</span></button>
-                {#if activated}<button class="ai-sidebar-action" data-sidebar-action="recharge" class:active={sidebarPanel === "recharge"} onclick={() => openPanel("recharge")}><span aria-hidden="true">＋</span><span>充值</span></button>{/if}
-                <button class="ai-sidebar-action" data-sidebar-action="debug" title="外观与调试" class:active={sidebarPanel === "debug"} onclick={() => openPanel("debug")}><span aria-hidden="true">⌘</span><span>调试</span></button>
-                {#if activated && ($agentState.plan === "member" || $agentState.plan === "pro") && $agentState.cloudVault.available}<button class="ai-sidebar-action" class:active={sidebarPanel === "cloud"} onclick={() => openPanel("cloud")}><span aria-hidden="true">▣</span><span>私有备份</span></button>{/if}
+                <button class="ai-sidebar-action" data-sidebar-action="tools" onclick={() => { onOpenTools(); closeSidebar(); }}><span aria-hidden="true">⋯</span><span>工具中心</span></button>
                 {#if finishedCount > 0}<button class="ai-sidebar-action" onclick={onClear}><span aria-hidden="true">⌫</span><span>清理记录</span></button>{/if}
                 {#if activated}<button class="ai-sidebar-action ai-sidebar-danger" onclick={() => (confirmDeactivate = true)}><span aria-hidden="true">⎋</span><span>退出账户</span></button>{/if}
             </div>
         </aside>
 
         <main class="ai-chat">
-            <header class="ai-chat-header"><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" onclick={() => (mobileSidebarOpen = true)}>☰</button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={() => { announcementOpen = !announcementOpen; if (announcementOpen) void onRefreshAnnouncements(); }}>{unreadAnnouncements > 0 ? "🔔" : "♢"}</button><div class="ai-account-strip" aria-label="账户状态"><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</div></header>
+            <header class="ai-chat-header"><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" onclick={() => (mobileSidebarOpen = true)}>☰</button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={() => { announcementOpen = !announcementOpen; if (announcementOpen) void onRefreshAnnouncements(); }}>{unreadAnnouncements > 0 ? "🔔" : "♢"}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => { announcementOpen = false; onOpenTools(); }}>⋯</button><div class="ai-account-strip" aria-label="账户状态"><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</div></header>
             {#if announcementOpen}<section class="ai-inline-panel" aria-label="公告"><div class="ai-panel-title">公告</div>{#if $announcements.length === 0}<div class="ai-hint">暂无公告</div>{:else}{#each $announcements as item}<article class="ai-announcement" data-level={item.level ?? "info"}><strong>{item.title}</strong><time>{new Date((item.publishedAt ?? item.updatedAt ?? 0) * 1000).toLocaleString("zh-CN")}</time><p>{item.body}</p><button class="ai-text-btn" onclick={() => onMarkAnnouncementRead(item.id)}>标记已读</button></article>{/each}{/if}</section>{/if}
             {#if isMock}<div class="ai-banner"><span class="ai-banner-dot"></span>演示模式 · 当前为本地模拟，任务与积分不会真实消耗</div>{/if}
-            {#if sidebarPanel === "recharge"}<section class="ai-inline-panel" aria-label="充值"><input class="ai-field" type="text" placeholder="输入卡密" bind:value={rechargeKey} disabled={recharging} /><div class="ai-panel-actions"><span class="ai-hint">充值后积分和有效期会同步更新</span><button class="ai-btn ai-btn-primary" disabled={recharging || !rechargeKey.trim()} onclick={doRecharge}>{recharging ? "处理中…" : "确认充值"}</button></div>{#if notice}<div class="ai-notice">{notice}</div>{/if}</section>{:else if sidebarPanel === "debug"}<section class="ai-inline-panel" aria-label="OsyC 调试信息"><div class="ai-panel-title">调试覆盖层</div><div class="ai-debug-grid"><span>viewport</span><strong>{Math.round(window.innerWidth)} × {Math.round(window.innerHeight)}</strong><span>主题</span><strong>{document.body.classList.contains("theme-dark") ? "深色" : "浅色"}</strong><span>进行中</span><strong>{runningCount}</strong></div><button class="ai-text-btn" onclick={copyDiagnostics}>复制脱敏诊断</button><button class="ai-text-btn" onclick={copyOsyCLogs}>复制 OsyC 日志</button>{#if debugNotice}<div class="ai-hint">{debugNotice}</div>{/if}</section>{:else if sidebarPanel === "cloud" && activated}<section class="ai-inline-panel" aria-label="私有备份"><div class="ai-panel-title">Cloud-Vault 私有备份</div><button class="ai-btn ai-btn-primary" disabled={$agentState.cloudVault.busy || !$agentState.cloudVault.available} onclick={() => onCloudBackup()}>{$agentState.cloudVault.busy ? "备份中…" : "立即备份"}</button>{#if !$agentState.cloudVault.available}<div class="ai-hint">{$agentState.cloudVault.reason || "当前不可用"}</div>{:else if $agentState.cloudVault.snapshots.length === 0}<div class="ai-hint">还没有备份快照</div>{:else}<div class="ai-cloud-list">{#each $agentState.cloudVault.snapshots as snapshot}<div class="ai-cloud-row"><span>{new Date(snapshot.created_at * 1000).toLocaleString("zh-CN")} · {snapshot.note_count} 篇</span><button class="ai-text-btn" disabled={$agentState.cloudVault.busy} onclick={() => beginRestore(snapshot.snapshot_id)}>恢复</button></div>{/each}</div>{/if}{#if restoreTarget}<div class="ai-confirm-panel"><strong>确认恢复快照？</strong><label><input type="checkbox" bind:checked={restoreOverwrite} /> 覆盖同名笔记</label><div class="ai-panel-actions"><button class="ai-btn" onclick={() => (restoreTarget = null)}>取消</button><button class="ai-btn ai-btn-primary" onclick={confirmRestore}>确认</button></div></div>{/if}{#if $agentState.cloudVault.message}<div class="ai-notice">{$agentState.cloudVault.message}</div>{/if}</section>{/if}
             <div class="ai-chat-timeline" bind:this={timelineEl} onscroll={onTimelineScroll}>
                 {#if !$agentState.onboarded}<section class="ai-welcome"><h1>和 OC 开始对话</h1><p>阅读、整理和归纳你的 Obsidian 笔记，并把结果交付回笔记库。</p><button class="ai-btn ai-btn-primary" onclick={onMarkOnboarded}>开始使用</button></section>{/if}
                 {#if !activated}<section class="ai-activation"><div class="ai-onboard-icon" aria-hidden="true">✦</div><h2>输入卡密，开启 OC</h2><p>激活后即可在手机上使用 OC 整理笔记。</p><input class="ai-field" type="text" placeholder="请输入卡密" bind:value={cardKey} disabled={activating} /><button class="ai-btn ai-btn-primary" disabled={activating || !cardKey.trim()} onclick={activate}>{activating ? "激活中…" : "激活"}</button>{#if notice}<div class="ai-notice">{notice}</div>{/if}</section>{:else if displayedTasks.length === 0}<section class="ai-welcome ai-welcome-empty"><div class="ai-welcome-mark" aria-hidden="true">OC</div><h1>今天想整理什么？</h1><p>选择一个起点，或直接告诉 OC 你的目标。</p><div class="ai-quick-list">{#each QUICK_COMMANDS as command}<button class="ai-quick-chip" onclick={() => useQuick(command)}>{command}</button>{/each}</div></section>{:else}{#each displayedMessages as message (message.id)}<article class="ai-conversation" data-message-id={message.id}>{#if message.role === "user"}<div class="ai-message ai-message-user"><div class="ai-message-role">你</div><div class="ai-message-body ai-rich-content">{message.text}</div></div>{:else}<div class="ai-message ai-message-assistant"><AIAgentAssistantMessage {app} task={message.task} {onOpenFile} {onRetryPush} {onConfirmTask} {onCancelConfirmation} {onUploadDiagnostics} /></div>{/if}</article>{/each}{/if}
@@ -319,8 +267,6 @@
     .ai-suggestion { flex-direction: row; align-items: center; justify-content: space-between; }
     .ai-suggestion > div { display: flex; gap: 8px; }
     .ai-panel-title { color: var(--text-normal); font-weight: 600; }
-    .ai-debug-grid { display: grid; grid-template-columns: auto 1fr; gap: 5px 12px; }
-    .ai-debug-grid strong { color: var(--text-normal); font-weight: 500; }
     .ai-text-btn, .ai-btn { min-height: 34px; border: 1px solid var(--background-modifier-border); border-radius: 6px; padding: 6px 11px; color: var(--text-normal); background: var(--background-primary); cursor: pointer; }
     .ai-text-btn { border: 0; padding-inline: 2px; color: var(--text-accent); background: transparent; }
     .ai-btn-primary { color: var(--text-on-accent); border-color: var(--interactive-accent); background: var(--interactive-accent); }

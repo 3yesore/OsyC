@@ -18,11 +18,8 @@ export const VIEW_TYPE_AI_AGENT = "livesync-ai-agent";
 export class AIAgentPaneView extends SvelteItemView {
     agent: CmdAIAgent;
     openFile: (path: string) => void;
-    openSettings: () => void;
     onDeactivate: () => void;
-    onOpenAccount: () => void;
-    onCloudBackup: () => Promise<{ ok: boolean; message: string }>;
-    onCloudRestore: (snapshotId: string, overwrite: boolean) => Promise<{ ok: boolean; message: string }>;
+    onOpenTools: () => void;
     onLoadCloudVault: () => void;
     onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>;
     onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>;
@@ -42,11 +39,8 @@ export class AIAgentPaneView extends SvelteItemView {
         leaf: WorkspaceLeaf,
         agent: CmdAIAgent,
         openFile: (path: string) => void,
-        openSettings: () => void,
         onDeactivate: () => void,
-        onOpenAccount: () => void,
-        onCloudBackup: () => Promise<{ ok: boolean; message: string }>,
-        onCloudRestore: (snapshotId: string, overwrite: boolean) => Promise<{ ok: boolean; message: string }>,
+        onOpenTools: () => void,
         onLoadCloudVault: () => void,
         onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>,
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>,
@@ -58,11 +52,8 @@ export class AIAgentPaneView extends SvelteItemView {
         super(leaf);
         this.agent = agent;
         this.openFile = openFile;
-        this.openSettings = openSettings;
         this.onDeactivate = onDeactivate;
-        this.onOpenAccount = onOpenAccount;
-        this.onCloudBackup = onCloudBackup;
-        this.onCloudRestore = onCloudRestore;
+        this.onOpenTools = onOpenTools;
         this.onLoadCloudVault = onLoadCloudVault;
         this.onApplySettingsPatch = onApplySettingsPatch;
         this.onApplyThemeSnippet = onApplyThemeSnippet;
@@ -135,11 +126,8 @@ export class AIAgentPaneView extends SvelteItemView {
                 onActivate: (cardKey: string) => this.agent.activate(cardKey),
                 onClear: () => this.agent.clearFinished(),
                 onOpenFile: (path: string) => this.openFile(path),
-                onOpenSettings: () => this.openSettings(),
                 onDeactivate: () => this.onDeactivate(),
-                onOpenAccount: () => this.onOpenAccount(),
-                onCloudBackup: () => this.agent.cloudBackup(),
-                onCloudRestore: (snapshotId: string, overwrite: boolean) => this.agent.cloudRestore(snapshotId, overwrite),
+                onOpenTools: () => this.onOpenTools(),
                 onLoadCloudVault: (): void => {
                     void this.agent.loadCloudVault();
                 },
@@ -150,7 +138,6 @@ export class AIAgentPaneView extends SvelteItemView {
                 onRetryPush: (taskId: string): void => void this.agent.retryPush(taskId),
                 onConfirmTask: (taskId: string) => this.agent.confirmTask(taskId),
                 onCancelConfirmation: (taskId: string) => this.agent.cancelConfirmation(taskId),
-                onRecharge: (cardKey: string) => this.agent.recharge(cardKey),
                 onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => this.onUploadDiagnostics(task),
                 announcements: this.announcements,
                 onRefreshAnnouncements: () => this.onRefreshAnnouncements(),

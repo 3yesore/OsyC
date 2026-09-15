@@ -3,6 +3,7 @@ import type { WorkspaceLeaf } from "@/deps";
 import { AIAgentPaneView, VIEW_TYPE_AI_AGENT } from "@/osyc/features/AIAgent/AIAgentPaneView";
 import { AIAgentFloating } from "@/osyc/features/AIAgent/AIAgentFloating";
 import { AIAgentAccountModal } from "@/osyc/features/AIAgent/AIAgentAccountModal";
+import { AIAgentToolsModal } from "@/osyc/features/AIAgent/AIAgentToolsModal";
 import { CmdAIAgent } from "@/osyc/features/AIAgent/CmdAIAgent";
 import type { AISnippet, ArtifactMetadata } from "@/osyc/features/AIAgent/CmdAIAgent";
 import { get, writable } from "svelte/store";
@@ -483,7 +484,11 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
 
     // 「我的账户」弹窗：展示后端下发的档位与权益。按需打开，复用同一个实例。
     const accountModal = new AIAgentAccountModal(app, agent);
-    const openAccount = () => accountModal.open();
+    const toolsModal = new AIAgentToolsModal(app, agent, () => accountModal.open());
+    const openTools = () => {
+        accountModal.close();
+        toolsModal.open();
+    };
 
     // 移动端三击打开 Agent 对话页的开关；按设备持久化在 livesync-aiagent.json
     let tripleTapEnabled = true;
@@ -837,6 +842,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         }
         floating.destroy();
         accountModal.close();
+        toolsModal.close();
          themeObserver?.disconnect();
         themeObserver = null;
         markdownScopeObserver?.disconnect();
@@ -861,11 +867,8 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             leaf,
             agent,
             openFile,
-            openSettings,
             () => void deactivateAccount(),
-            () => openAccount(),
-            () => agent.cloudBackup(),
-            (snapshotId: string, overwrite: boolean) => agent.cloudRestore(snapshotId, overwrite),
+            () => openTools(),
             () => void agent.loadCloudVault(),
             (patch: Record<string, unknown>) => agent.applySettingsPatch?.(patch) ?? Promise.resolve({ applied: 0, rejected: [] }),
             (snippet: AISnippet) => agent.applyThemeSnippet?.(snippet) ?? Promise.resolve({ ok: false, message: "当前不可应用主题片段" }),
