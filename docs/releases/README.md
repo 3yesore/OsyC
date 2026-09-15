@@ -2,6 +2,8 @@
 
 OsyC releases are published to `3yesore/OsyC` for BRAT installation. The source repository and the distribution repository are separate, so a release is valid only when their reviewed commits and five assets agree.
 
+The current 2.0.6 service and plug-in launch state is recorded in [`osyc-2.0.6-launch-baseline.md`](osyc-2.0.6-launch-baseline.md). It is evidence only; the release ledger remains the publication authority.
+
 ## Single release authority
 
 Read `release-ledger.json` before preparing any release. It is the only publication ledger. The release captain is the only role allowed to edit its release state, reserve a version, create a tag, or publish a GitHub Release.
