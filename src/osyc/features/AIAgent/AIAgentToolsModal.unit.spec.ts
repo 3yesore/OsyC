@@ -32,6 +32,11 @@ describe("AIAgentToolsModal", () => {
         expect(source).toContain("new Notice(result.message)");
     });
 
+    it("keeps the native settings page as the only settings route", () => {
+        expect(uiSource).not.toContain("new AIAgentSettingModal");
+        expect(uiSource).not.toContain("演示模式");
+    });
+
     it("keeps account, diagnostics, and motion behaviour within the modal", () => {
         expect(source).toContain("剩余积分");
         expect(source).toContain("权益总览");

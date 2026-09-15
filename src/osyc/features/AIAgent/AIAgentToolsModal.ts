@@ -146,7 +146,6 @@ export class AIAgentToolsModal extends Modal {
     }
 
     private renderDebug(contentEl: HTMLElement): void {
-        const state = get(this.agent.state);
         const runtime = this.agent.runtimeInfo;
         contentEl.createEl("p", { text: "此处只显示脱敏的运行状态和日志。", cls: "setting-item-description" });
         new Setting(contentEl).setName("进行中的任务").setDesc(String(get(this.agent.tasks).filter((task) => task.status === "queued" || task.status === "running").length));

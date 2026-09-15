@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting, TFile, requestUrl, type App } from "@/deps.ts";
+import { Modal, Notice, Platform, Setting, TFile, requestUrl, type App } from "@/deps.ts";
 import type { WorkspaceLeaf } from "@/deps";
 import { AIAgentPaneView, VIEW_TYPE_AI_AGENT } from "@/osyc/features/AIAgent/AIAgentPaneView";
 import { AIAgentFloating } from "@/osyc/features/AIAgent/AIAgentFloating";
@@ -109,7 +109,8 @@ function createDeviceId(): string {
  *
  * 一般用户由分发方预置地址后不会看到这里；仅自助部署与联调时需要。
  */
-class AIAgentSettingModal extends Modal {
+/** @deprecated Settings are opened through Obsidian's native settings page. */
+export class AIAgentSettingModal extends Modal {
     value: string;
     onSave: (value: string) => void;
     tripleTap: boolean;
@@ -165,7 +166,7 @@ class AIAgentSettingModal extends Modal {
         contentEl.createEl("h4", { text: "连接", cls: "osyc-ai-setting-section" });
         new Setting(contentEl)
             .setName("服务地址")
-            .setDesc("后端 API 地址，例如 https://api.example.com 。留空则进入演示模式。")
+            .setDesc("后端 API 地址，例如 https://api.example.com 。留空时不能发送任务。")
             .addText((text) =>
                 text
                     .setPlaceholder("https://api.example.com")
@@ -326,7 +327,7 @@ class AIAgentSettingModal extends Modal {
             .addDropdown((dropdown) => dropdown
                 .addOptions({ theme: "跟随主题", solid: "纯色", image: "Vault 本地图片" })
                 .setValue(this.appearance.background.mode)
-                .onChange((value) => updateAppearance({ background: { ...this.appearance.background, mode: value as AppearanceSettings["background"]["mode"] } } as Partial<AppearanceSettings>)));
+                .onChange((value) => updateAppearance({ background: { ...this.appearance.background, mode: value as AppearanceSettings["background"]["mode"] } })));
         if (this.vaultImages.length > 0) {
             new Setting(advancedContent)
                 .setName("背景图片")
@@ -340,12 +341,12 @@ class AIAgentSettingModal extends Modal {
                         mode: value ? "image" : "theme",
                         vaultPath: value || null,
                         opacity: value && this.appearance.background.opacity === 0 ? 0.24 : this.appearance.background.opacity,
-                    } } as Partial<AppearanceSettings>)));
+                    } })));
         }
         new Setting(advancedContent)
             .setName("背景透明度")
             .setDesc("拖动调整背景可见程度")
-            .addSlider((slider) => slider.setLimits(0, 1, 0.05).setValue(this.appearance.background.opacity).onChange((value) => updateAppearance({ background: { ...this.appearance.background, opacity: value } } as Partial<AppearanceSettings>)));
+            .addSlider((slider) => slider.setLimits(0, 1, 0.05).setValue(this.appearance.background.opacity).onChange((value) => updateAppearance({ background: { ...this.appearance.background, opacity: value } })));
         new Setting(advancedContent)
             .addButton((btn) => btn.setButtonText("恢复外观默认").onClick(() => {
                 this.appearance = parseAppearance(DEFAULT_APPEARANCE);
@@ -391,7 +392,8 @@ class AIAgentSettingModal extends Modal {
     }
 }
 
-class ActiveNoteConsentModal extends Modal {
+/** @deprecated Active-note consent is retained for persisted preference migrations. */
+export class ActiveNoteConsentModal extends Modal {
     private approved = false;
 
     constructor(app: App, private onDecision: (approved: boolean) => void) {
@@ -457,7 +459,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             return { ok: false, message: "结果路径无效" };
         }
         const digest = async (value: Uint8Array): Promise<string> => {
-            const hash = await crypto.subtle.digest("SHA-256", new Uint8Array(value).buffer as ArrayBuffer);
+            const hash = await crypto.subtle.digest("SHA-256", new Uint8Array(value).buffer);
             return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
         };
         const existing = app.vault.getAbstractFileByPath(path);
@@ -513,6 +515,8 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         .filter((file) => /\.(?:woff2?|ttf|otf)$/i.test(file.path))
         .map((file) => file.path)
         .sort((a, b) => a.localeCompare(b));
+    void vaultImages;
+    void vaultFonts;
     let fontResources: FontResource[] = [];
     const fontResourceUrl = (resource: FontResource): string => {
         const path = fontResourcePath(resource.id, resource.fileName);
@@ -566,6 +570,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         await persist();
         return resource;
     };
+    void importFont;
 
     const refreshAppearanceStyles = () => {
         const file = appearance.background.vaultPath
@@ -750,52 +755,6 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         void app.workspace.openLinkText(path, "/", false);
     };
 
-    const openSettings = () => {
-        new AIAgentSettingModal(
-            app,
-            agent.settings.apiBase,
-            (value) => {
-                agent.configure(value, agent.settings.token);
-                void persist();
-            },
-            tripleTapEnabled,
-            (value) => {
-                tripleTapEnabled = value;
-                floating.setTripleTap(value);
-                void persist();
-            },
-            showBallEnabled,
-            (value) => {
-                showBallEnabled = value;
-                floating.setShowBall(value);
-                void persist();
-            },
-            includeActiveNoteContext,
-            async (value) => {
-                if (!value) {
-                    includeActiveNoteContext = false;
-                    void persist();
-                    return true;
-                }
-                return new Promise((resolve) => {
-                    new ActiveNoteConsentModal(app, (approved) => {
-                        if (approved) {
-                            includeActiveNoteContext = true;
-                            void persist();
-                        }
-                        resolve(approved);
-                    }).open();
-                });
-            },
-            appearance,
-            (value) => applyAppearance(value),
-            vaultImages(),
-            vaultFonts(),
-            fontResources,
-            importFont
-        ).open();
-    };
-
     /**
      * 注销当前账户：清空凭据 + 删持久化文件 + 回到未激活状态。
      *
@@ -876,7 +835,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             , async (task) => uploadErrorReport(agent.settings.apiBase, agent.settings.token, task, {
                 pluginVersion: typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev",
                 obsidianVersion: (app as unknown as { appVersion?: string }).appVersion ?? "unknown",
-                platform: /android/i.test(window.navigator.userAgent) ? "android" : /iphone|ipad/i.test(window.navigator.userAgent) ? "ios" : "desktop",
+                platform: Platform.isAndroidApp ? "android" : Platform.isIosApp ? "ios" : "desktop",
                 runtimeInfo: agent.runtimeInfo,
                 diagnosticsLog: osycLogger.report(),
             }, {
