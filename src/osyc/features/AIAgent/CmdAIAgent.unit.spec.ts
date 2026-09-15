@@ -25,7 +25,7 @@ describe("CmdAIAgent", () => {
 
     beforeEach(() => {
         requestUrlMock.mockReset();
-        agent = new CmdAIAgent();
+        agent = new CmdAIAgent({ allowMock: true });
         agent.deviceId = "test-device";
     });
 
@@ -76,8 +76,34 @@ describe("CmdAIAgent", () => {
         expect(requestUrlMock).not.toHaveBeenCalled();
     });
 
-    it("未配置服务地址时进入 MOCK 模式", () => {
+    it("显式允许时，未配置服务地址才进入 MOCK 模式", () => {
         expect(agent.isMock).toBe(true);
+    });
+
+    it("生产默认实例未配置服务地址时如实失败，不模拟任务或扣减积分", async () => {
+        const productionAgent = new CmdAIAgent();
+        productionAgent.deviceId = "production-device";
+        const creditsBefore = get(productionAgent.state).credits;
+
+        await productionAgent.send("测试");
+
+        const task = get(productionAgent.tasks)[0];
+        expect(task.status).toBe("failed");
+        expect(task.error).toBe("尚未配置 OsyC 服务地址，请先在设置中完成配置");
+        expect(task.filesChanged).toBeUndefined();
+        expect(get(productionAgent.state).credits).toBe(creditsBefore);
+        expect(requestUrlMock).not.toHaveBeenCalled();
+        productionAgent.stop();
+    });
+
+    it("生产默认实例未配置服务地址时充值和云备份不得伪造成功", async () => {
+        const productionAgent = new CmdAIAgent();
+        const recharge = await productionAgent.recharge("card-key");
+        expect(recharge).toEqual({ ok: false, message: "尚未配置 OsyC 服务地址，请先在设置中完成配置" });
+
+        const backup = await productionAgent.cloudBackup();
+        expect(backup).toEqual({ ok: false, message: "尚未配置 OsyC 服务地址，请先在设置中完成配置" });
+        expect(requestUrlMock).not.toHaveBeenCalled();
     });
 
     it("MOCK 模式下任务会流转到完成并扣减积分", async () => {

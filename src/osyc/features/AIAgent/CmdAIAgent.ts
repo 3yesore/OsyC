@@ -254,6 +254,11 @@ export interface AIAgentSettings {
     token: string;
 }
 
+export interface CmdAIAgentOptions {
+    /** Test-only local task simulation. Production callers must leave this disabled. */
+    allowMock?: boolean;
+}
+
 export interface OsyCRuntimeInfo {
     backend_release_id: string;
     hermes_adapter_version: string;
@@ -374,7 +379,8 @@ const MAX_TRANSIENT_RETRIES = 3;
  * 负责：卡密激活、指令下发、任务轮询、积分管理。
  * 后端接口契约见 outputs/Obsidian插件开发设计文档.md
  *
- * 未配置 apiBase 时进入 MOCK 模式，便于 UI 开发与联调前演示。
+ * Mock mode is opt-in for test harnesses only. A missing service address must
+ * always be reported as a configuration error in production.
  */
 export class CmdAIAgent {
     tasks: Writable<AITask[]> = writable([]);
@@ -420,9 +426,22 @@ export class CmdAIAgent {
     private stopped = false;
     private lifecycleGeneration = 0;
     private lastSyncHandshakeStatus = 0;
+    private readonly allowMock: boolean;
+
+    constructor(options: CmdAIAgentOptions = {}) {
+        this.allowMock = options.allowMock === true;
+    }
 
     get isMock(): boolean {
-        return !this.settings.apiBase;
+        return this.allowMock && !this.settings.apiBase;
+    }
+
+    private get hasApiBase(): boolean {
+        return Boolean(this.settings.apiBase);
+    }
+
+    private configurationError(): string {
+        return "尚未配置 OsyC 服务地址，请先在设置中完成配置";
     }
 
     configure(apiBase: string, token: string) {
@@ -442,6 +461,7 @@ export class CmdAIAgent {
             this.state.update((s) => ({ ...s, credits: s.credits + 1000 }));
             return { ok: true, message: "MOCK 模式：已模拟充值 1000 积分" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         const { status, data } = await this.call("/api/recharge", "POST", { card_key: cardKey });
         if (status >= 400) {
             const msg =
@@ -496,6 +516,10 @@ export class CmdAIAgent {
             this.schedules.set([]);
             return;
         }
+        if (!this.hasApiBase) {
+            this.schedules.set([]);
+            return;
+        }
         const { status, data } = await this.call("/api/schedules", "GET");
         if (status < 400 && Array.isArray(data)) {
             this.schedules.set(data as AISchedule[]);
@@ -510,6 +534,7 @@ export class CmdAIAgent {
             ]);
             return { ok: true, message: "MOCK 模式：已模拟创建" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         const { status, data } = await this.call("/api/schedules", "POST", { schedule, message });
         if (status >= 400) return { ok: false, message: this.describeError(status) };
         this.schedules.update((l) => [data as AISchedule, ...l]);
@@ -524,6 +549,7 @@ export class CmdAIAgent {
             );
             return;
         }
+        if (!this.hasApiBase) return;
         const { status } = await this.call(`/api/schedules/${job.job_id}/${action}`, "POST");
         if (status < 400) {
             this.schedules.update((l) =>
@@ -537,6 +563,7 @@ export class CmdAIAgent {
             this.schedules.update((l) => l.filter((s) => s.job_id !== jobId));
             return;
         }
+        if (!this.hasApiBase) return;
         const { status } = await this.call(`/api/schedules/${jobId}`, "DELETE");
         if (status < 400) {
             this.schedules.update((l) => l.filter((s) => s.job_id !== jobId));
@@ -561,6 +588,13 @@ export class CmdAIAgent {
                         { snapshot_id: "mock-2", created_at: Date.now() - 3600_000, note_count: 15 },
                     ],
                 },
+            }));
+            return;
+        }
+        if (!this.hasApiBase) {
+            this.state.update((s) => ({
+                ...s,
+                cloudVault: { ...s.cloudVault, available: false, busy: false, reason: this.configurationError(), message: this.configurationError(), snapshots: [] },
             }));
             return;
         }
@@ -619,6 +653,7 @@ export class CmdAIAgent {
             }));
             return { ok: true, message: "MOCK 模式：已模拟备份" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         this.state.update((s) => ({ ...s, cloudVault: { ...s.cloudVault, busy: true, message: "" } }));
         try {
             const { status, data } = await this.call("/api/cloud/backup", "POST");
@@ -658,6 +693,7 @@ export class CmdAIAgent {
         if (this.isMock) {
             return { ok: true, message: "MOCK 模式：已模拟恢复（未真正写入本地库）" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         this.state.update((s) => ({ ...s, cloudVault: { ...s.cloudVault, busy: true, message: "" } }));
         try {
             const { status, data } = await this.call("/api/cloud/restore", "POST", {
@@ -707,6 +743,10 @@ export class CmdAIAgent {
             }));
             return;
         }
+        if (!this.hasApiBase) {
+            this.state.update((s) => ({ ...s, devices: { ...s.devices, loading: false, error: this.configurationError() } }));
+            return;
+        }
         try {
             const { status, data } = await this.call("/api/devices", "GET");
             if (status >= 400) {
@@ -737,6 +777,7 @@ export class CmdAIAgent {
             }));
             return { ok: true, message: "MOCK：已撤销该设备" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
             const { status } = await this.call("/api/devices/revoke", "POST", { device_id: deviceId });
             if (status >= 400) {
@@ -761,6 +802,7 @@ export class CmdAIAgent {
             }));
             return { ok: true, message: "MOCK：已保存自带 Key" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
             const { status } = await this.call("/api/devices/byokey", "POST", { byo_key: k });
             if (status >= 400) return { ok: false, message: this.describeError(status) };
@@ -780,6 +822,7 @@ export class CmdAIAgent {
             }));
             return { ok: true, message: "MOCK：已清空" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
             const { status } = await this.call("/api/devices/byokey", "DELETE");
             if (status >= 400) return { ok: false, message: this.describeError(status) };
@@ -845,6 +888,7 @@ export class CmdAIAgent {
             });
             return { ok: true, message: "MOCK 模式：已模拟激活" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
             const res = await requestUrl({
                 url: `${this.settings.apiBase}/api/activate`,
@@ -929,6 +973,7 @@ export class CmdAIAgent {
      * A fresh id intentionally bypasses a cached result from an older failed handshake.
      */
     async refreshSync(): Promise<{ ok: boolean; message: string }> {
+        if (!this.hasApiBase && !this.isMock) return { ok: false, message: this.configurationError() };
         if (!get(this.state).activated || !this.settings.token) {
             return { ok: false, message: "请先激活卡密" };
         }
@@ -1037,6 +1082,11 @@ export class CmdAIAgent {
 
         // 先入列，保证 UI 立即反馈
         this.tasks.update((list) => [task, ...list]);
+
+        if (!this.hasApiBase && !this.isMock) {
+            this.failTask(clientId, this.configurationError());
+            return;
+        }
 
         const compatibility = this.runtimeInfo?.plugin_compatibility;
         if (compatibility && !isRuntimeCompatible(CURRENT_PLUGIN_VERSION, compatibility)) {
@@ -1197,6 +1247,7 @@ export class CmdAIAgent {
         if (!task || task.status !== "awaiting_confirmation" || !confirmation) {
             return { ok: false, message: "没有可确认的操作" };
         }
+        if (!this.hasApiBase && !this.isMock) return { ok: false, message: this.configurationError() };
         try {
             const res = await requestUrl({
                 url: `${this.settings.apiBase}/api/task/${encodeURIComponent(taskId)}/confirm`,
@@ -1234,6 +1285,7 @@ export class CmdAIAgent {
             this.tasks.update((list) => list.map((item) => item.taskId === taskId ? { ...item, status: "cancelled", confirmation: undefined, progress: "已取消", finishedAt: Date.now() } : item));
             return { ok: true, message: "已取消" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
             const res = await requestUrl({
                 url: `${this.settings.apiBase}/api/task/${encodeURIComponent(taskId)}/cancel-confirmation`,
@@ -1405,6 +1457,7 @@ export class CmdAIAgent {
             );
             return { ok: true, message: "MOCK 模式：已模拟重试成功" };
         }
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         const existingTask = get(this.tasks).find((task) => task.taskId === taskId);
         if (existingTask?.artifacts?.length && this.artifactWriter) {
             this.setDelivery(taskId, "pending");
