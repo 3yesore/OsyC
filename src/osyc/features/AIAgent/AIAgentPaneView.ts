@@ -3,6 +3,8 @@ import { mount } from "svelte";
 import { SvelteItemView } from "@/common/SvelteItemView.ts";
 import AIAgentPaneComponent from "./AIAgentPane.svelte";
 import type { AISnippet, CmdAIAgent } from "./CmdAIAgent";
+import type { Announcement } from "./announcements";
+import type { Writable } from "svelte/store";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
 export const VIEW_TYPE_AI_AGENT = "livesync-ai-agent";
@@ -25,6 +27,10 @@ export class AIAgentPaneView extends SvelteItemView {
     onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>;
     onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>;
     onMarkOnboarded: () => void;
+    onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>;
+    announcements: Writable<Announcement[]>;
+    onRefreshAnnouncements: () => Promise<void>;
+    onMarkAnnouncementRead: (id: string) => void;
 
     override icon = "bot";
     // Agent is a first-class page in the main workspace. Keeping navigation=true
@@ -44,7 +50,9 @@ export class AIAgentPaneView extends SvelteItemView {
         onLoadCloudVault: () => void,
         onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>,
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>,
-        onMarkOnboarded: () => void
+        onMarkOnboarded: () => void,
+        onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>,
+        announcements: Writable<Announcement[]>, onRefreshAnnouncements: () => Promise<void>, onMarkAnnouncementRead: (id: string) => void
     ) {
 
         super(leaf);
@@ -59,6 +67,10 @@ export class AIAgentPaneView extends SvelteItemView {
         this.onApplySettingsPatch = onApplySettingsPatch;
         this.onApplyThemeSnippet = onApplyThemeSnippet;
         this.onMarkOnboarded = onMarkOnboarded;
+        this.onUploadDiagnostics = onUploadDiagnostics;
+        this.announcements = announcements;
+        this.onRefreshAnnouncements = onRefreshAnnouncements;
+        this.onMarkAnnouncementRead = onMarkAnnouncementRead;
     }
 
     override getIcon(): string {
@@ -139,6 +151,10 @@ export class AIAgentPaneView extends SvelteItemView {
                 onConfirmTask: (taskId: string) => this.agent.confirmTask(taskId),
                 onCancelConfirmation: (taskId: string) => this.agent.cancelConfirmation(taskId),
                 onRecharge: (cardKey: string) => this.agent.recharge(cardKey),
+                onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => this.onUploadDiagnostics(task),
+                announcements: this.announcements,
+                onRefreshAnnouncements: () => this.onRefreshAnnouncements(),
+                onMarkAnnouncementRead: (id: string) => this.onMarkAnnouncementRead(id),
             },
         });
     }

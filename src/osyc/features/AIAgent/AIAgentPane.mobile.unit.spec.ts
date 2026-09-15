@@ -204,6 +204,13 @@ describe("AI 面板移动端底部输入区", () => {
         expect(themeStyles).toContain(".osyc-ai-agent .ai-debug-panel");
     });
 
+    it("提供顶栏公告入口、未读状态和已读操作", () => {
+        expect(paneSource).toContain('aria-label="公告"');
+        expect(paneSource).toContain("onRefreshAnnouncements");
+        expect(paneSource).toContain("onMarkAnnouncementRead");
+        expect(paneSource).toContain("ai-announcement");
+    });
+
     it("手机端可以从命令面板打开并复制 OsyC 自己的日志", () => {
         expect(agentUiSource).toContain('id: "open-osyc-log"');
         expect(agentUiSource).toContain('name: "打开日志"');

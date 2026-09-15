@@ -121,6 +121,9 @@ export class AIAgentAccountModal extends Modal {
         contentEl.createEl("h4", { text: "账户激活", cls: "ai-account-section" });
         this.renderReactivation(contentEl);
 
+        contentEl.createEl("h4", { text: "邮箱登录", cls: "ai-account-section" });
+        this.renderEmailLoginTemplate(contentEl);
+
         // 升级引导
         const hint = UPGRADE_HINT[plan];
         if (hint) {
@@ -317,6 +320,32 @@ export class AIAgentAccountModal extends Modal {
             attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
         });
         input.addClass("ai-account-input");
+    }
+
+    /** Preview the next-version email flow without enabling or contacting the server. */
+    private renderEmailLoginTemplate(contentEl: HTMLElement) {
+        const box = contentEl.createDiv({ cls: "ai-account-email-login" });
+        box.createEl("p", {
+            text: "邮箱登录将在后续版本开放。当前版本不会发送邮件、保存邮箱或改变卡密登录。",
+            cls: "ai-account-hint",
+        });
+        const email = new Setting(box).setName("邮箱地址");
+        const emailInput = email.controlEl.createEl("input", {
+            type: "email",
+            placeholder: "name@example.com",
+            attr: { autocomplete: "email" },
+        });
+        emailInput.disabled = true;
+        email.addButton((button) => button.setButtonText("发送验证码").setDisabled(true));
+        const code = new Setting(box).setName("验证码");
+        const codeInput = code.controlEl.createEl("input", {
+            type: "text",
+            placeholder: "6 位验证码",
+            attr: { inputmode: "numeric", autocomplete: "one-time-code" },
+        });
+        codeInput.disabled = true;
+        code.addButton((button) => button.setButtonText("登录").setDisabled(true));
+        box.createEl("p", { text: "状态：feature_disabled · 倒计时：—", cls: "ai-account-hint" });
     }
 
     override onClose() {

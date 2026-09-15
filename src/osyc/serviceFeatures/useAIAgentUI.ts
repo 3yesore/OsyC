@@ -1,11 +1,11 @@
-import { Modal, Notice, Setting, TFile, type App } from "@/deps.ts";
+import { Modal, Notice, Setting, TFile, requestUrl, type App } from "@/deps.ts";
 import type { WorkspaceLeaf } from "@/deps";
 import { AIAgentPaneView, VIEW_TYPE_AI_AGENT } from "@/osyc/features/AIAgent/AIAgentPaneView";
 import { AIAgentFloating } from "@/osyc/features/AIAgent/AIAgentFloating";
 import { AIAgentAccountModal } from "@/osyc/features/AIAgent/AIAgentAccountModal";
 import { CmdAIAgent } from "@/osyc/features/AIAgent/CmdAIAgent";
 import type { AISnippet, ArtifactMetadata } from "@/osyc/features/AIAgent/CmdAIAgent";
-import { get } from "svelte/store";
+import { get, writable } from "svelte/store";
 import type { LiveSyncCore } from "@/main";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
@@ -18,6 +18,10 @@ import { syncMarkdownThemeScope } from "@/osyc/theme/themeScope";
 import { FONT_RESOURCE_DIR, createFontFaceDescriptor, fontResourceForSource, fontResourcePath, fontSourceForResource, type FontResource } from "@/osyc/theme/fontResources";
 import { applyThemePackScope, THEME_PACK_OPTIONS, themePackForId } from "@/osyc/theme/themePack";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
+import { uploadErrorReport } from "@/osyc/features/AIAgent/diagnosticsUpload";
+import { AnnouncementClient, type Announcement } from "@/osyc/features/AIAgent/announcements";
+
+declare const MANIFEST_VERSION: string | undefined;
 
 /** 存放在 vault 配置目录下，不参与同步，避免把凭据写进笔记库 */
 const CONFIG_FILE_NAME = "livesync-aiagent.json";
@@ -438,6 +442,13 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const configPath = `${app.vault.configDir}/${CONFIG_FILE_NAME}`;
 
     const agent = new CmdAIAgent();
+    const announcements = writable<Announcement[]>([]);
+    const announcementClient = new AnnouncementClient({ apiBase: "", token: "", request: requestUrl });
+    const refreshAnnouncements = async () => {
+        announcementClient.configure(agent.settings.apiBase, agent.settings.token);
+        announcements.set(await announcementClient.refresh());
+    };
+    announcements.set(announcementClient.cached());
 
     agent.artifactWriter = async (artifact: ArtifactMetadata, bytes: Uint8Array) => {
         const path = artifact.path.replace(/\\/g, "/");
@@ -859,6 +870,19 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             (patch: Record<string, unknown>) => agent.applySettingsPatch?.(patch) ?? Promise.resolve({ applied: 0, rejected: [] }),
             (snippet: AISnippet) => agent.applyThemeSnippet?.(snippet) ?? Promise.resolve({ ok: false, message: "当前不可应用主题片段" }),
             () => agent.markOnboarded()
+            , async (task) => uploadErrorReport(agent.settings.apiBase, agent.settings.token, task, {
+                pluginVersion: typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev",
+                obsidianVersion: (app as unknown as { appVersion?: string }).appVersion ?? "unknown",
+                platform: /android/i.test(window.navigator.userAgent) ? "android" : /iphone|ipad/i.test(window.navigator.userAgent) ? "ios" : "desktop",
+                runtimeInfo: agent.runtimeInfo,
+                diagnosticsLog: osycLogger.report(),
+            }, {
+                confirm: () => window.confirm("上传脱敏诊断？不会包含 Vault 原文、卡密或 API 密钥。"),
+                request: requestUrl,
+            }),
+            announcements,
+            refreshAnnouncements,
+            (id: string) => { announcementClient.markRead(id); announcements.set(announcementClient.unread()); }
         );
     });
 

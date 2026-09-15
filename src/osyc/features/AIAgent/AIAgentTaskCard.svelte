@@ -1,6 +1,7 @@
 <script lang="ts">
     import { isSyncFailed, type AITask } from "./CmdAIAgent";
     import { visibleProgressEvents } from "./conversationModel";
+    import { isDiagnosticEligible } from "./diagnosticsUpload";
 
     interface Props {
         task: AITask;
@@ -8,8 +9,9 @@
         onRetryPush?: (taskId: string) => void;
         onConfirmTask?: (taskId: string) => Promise<{ ok: boolean; message: string }> | void;
         onCancelConfirmation?: (taskId: string) => Promise<{ ok: boolean; message: string }> | void;
+        onUploadDiagnostics?: (task: AITask) => Promise<{ ok: boolean; message: string }>;
     }
-    let { task, onOpenFile, onRetryPush, onConfirmTask, onCancelConfirmation }: Props = $props();
+    let { task, onOpenFile, onRetryPush, onConfirmTask, onCancelConfirmation, onUploadDiagnostics }: Props = $props();
 
     const STATUS_META = {
         queued: { icon: "⏳", label: "排队中" },
@@ -32,6 +34,8 @@
     let syncFailed = $derived(isSyncFailed(task));
     let confirming = $state(false);
     let confirmationMessage = $state("");
+    let uploadingDiagnostics = $state(false);
+    let diagnosticsMessage = $state("");
     const ACTION_LABEL: Record<string, string> = {
         write_note: "写入笔记",
         delete_note: "删除笔记",
@@ -55,6 +59,12 @@
         confirming = true; confirmationMessage = "";
         try { const result = await onCancelConfirmation(task.taskId); confirmationMessage = result?.message ?? ""; }
         finally { confirming = false; }
+    }
+    async function uploadDiagnostics() {
+        if (!onUploadDiagnostics || uploadingDiagnostics) return;
+        uploadingDiagnostics = true; diagnosticsMessage = "";
+        try { diagnosticsMessage = (await onUploadDiagnostics(task)).message; }
+        finally { uploadingDiagnostics = false; }
     }
     let progressEvents = $derived(visibleProgressEvents(task.progressEvents, task.status));
     let displayProgressEvents = $derived(
@@ -155,6 +165,9 @@
     {/if}
     {#if (task.status === "conflict" || task.status === "failed_zero_cost" || task.status === "cancelled") && task.error}
         <div class="ai-task-error">{task.error}</div>
+    {/if}
+    {#if isDiagnosticEligible(task) && onUploadDiagnostics}
+        <div class="ai-task-error"><button class="ai-text-btn" disabled={uploadingDiagnostics} onclick={uploadDiagnostics}>{uploadingDiagnostics ? "上传中…" : "上传脱敏诊断"}</button>{#if diagnosticsMessage}<span>{diagnosticsMessage}</span>{/if}</div>
     {/if}
 
     {#if task.status === "done" && task.deliveryStatus === "delivered"}

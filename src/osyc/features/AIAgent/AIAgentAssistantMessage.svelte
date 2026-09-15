@@ -2,6 +2,7 @@
     import { App, Component, MarkdownRenderer } from "@/deps.ts";
     import { isSyncFailed, type AITask } from "./CmdAIAgent";
     import { mergeModelOutputEvents, visibleProgressEvents } from "./conversationModel";
+    import { isDiagnosticEligible } from "./diagnosticsUpload";
 
     interface Props {
         app: App;
@@ -10,9 +11,10 @@
         onRetryPush?: (taskId: string) => void;
         onConfirmTask?: (taskId: string) => Promise<{ ok: boolean; message: string }> | void;
         onCancelConfirmation?: (taskId: string) => Promise<{ ok: boolean; message: string }> | void;
+        onUploadDiagnostics?: (task: AITask) => Promise<{ ok: boolean; message: string }>;
     }
 
-    let { app, task, onOpenFile, onRetryPush, onConfirmTask, onCancelConfirmation }: Props = $props();
+    let { app, task, onOpenFile, onRetryPush, onConfirmTask, onCancelConfirmation, onUploadDiagnostics }: Props = $props();
 
     const STATUS_LABEL: Record<string, string> = {
         queued: "准备中", running: "生成中", done: "完成", failed: "失败",
@@ -27,6 +29,8 @@
     const FIXED_PROGRESS_MESSAGES = new Set(["正在执行整理步骤", "已完成一个整理步骤"]);
 
     let confirming = $state(false);
+    let uploadingDiagnostics = $state(false);
+    let diagnosticsMessage = $state("");
     let confirmationMessage = $state("");
     let estimated = $derived(task.status === "queued" || task.status === "running");
     let cost = $derived(estimated ? (task.estCost ?? 0) : (task.actualCost ?? 0));
@@ -98,6 +102,12 @@
         confirming = true; confirmationMessage = "";
         try { confirmationMessage = (await onCancelConfirmation(task.taskId))?.message ?? ""; }
         finally { confirming = false; }
+    }
+    async function uploadDiagnostics() {
+        if (!onUploadDiagnostics || uploadingDiagnostics) return;
+        uploadingDiagnostics = true; diagnosticsMessage = "";
+        try { diagnosticsMessage = (await onUploadDiagnostics(task)).message; }
+        finally { uploadingDiagnostics = false; }
     }
 </script>
 
@@ -175,6 +185,9 @@
     {/if}
     {#if (task.status === "failed" || task.status === "conflict" || task.status === "failed_zero_cost" || task.status === "cancelled") && task.error}
         <div class="ai-assistant-error">{task.error}</div>
+    {/if}
+    {#if isDiagnosticEligible(task) && onUploadDiagnostics}
+        <div class="ai-assistant-error"><button class="ai-text-btn" disabled={uploadingDiagnostics} onclick={uploadDiagnostics}>{uploadingDiagnostics ? "上传中…" : "上传脱敏诊断"}</button>{#if diagnosticsMessage}<span>{diagnosticsMessage}</span>{/if}</div>
     {/if}
     {#if task.status === "done" && task.deliveryStatus === "pending"}
         <div class="ai-assistant-delivery">服务器已生成，正在写入手机笔记库…</div>

@@ -60,4 +60,12 @@ describe("AI 账户移动端摘要", () => {
             modalSource.indexOf('setButtonText("关闭")')
         );
     });
+
+    it("提供下版本邮箱登录的完整禁用预览流程", () => {
+        expect(modalSource).toContain("邮箱登录将在后续版本开放");
+        expect(modalSource).toContain("邮箱地址");
+        expect(modalSource).toContain("验证码");
+        expect(modalSource).toContain("倒计时");
+        expect(modalSource).toContain("feature_disabled");
+    });
 });
