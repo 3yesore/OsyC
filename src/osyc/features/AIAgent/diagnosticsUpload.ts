@@ -79,15 +79,19 @@ export async function uploadErrorReport(
         if (!request) return { ok: false, message: "诊断上传失败" };
         const response = await request({
             url: `${apiBase.replace(/\/+$/, "")}/api/error-reports`, method: "POST",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+                "Idempotency-Key": payload.request_id,
+            },
             body: JSON.stringify(payload), throw: false,
         });
         let body: unknown = null;
         try { body = typeof response.json === "function" ? await response.json() : await response.json; } catch { /* response may be empty */ }
-        const requestId = body && typeof body === "object" && typeof (body as Record<string, unknown>).request_id === "string"
-            ? String((body as Record<string, unknown>).request_id) : undefined;
+        const reportId = body && typeof body === "object" && typeof (body as Record<string, unknown>).report_id === "string"
+            ? String((body as Record<string, unknown>).report_id) : undefined;
         return response.status < 400
-            ? { ok: true, message: "诊断已上传，感谢你的反馈", requestId }
+            ? { ok: true, message: reportId ? `诊断已上传，报告编号 ${reportId}` : "诊断已上传，感谢你的反馈", requestId: reportId }
             : { ok: false, message: "诊断上传失败" };
     } catch { return { ok: false, message: "诊断上传失败" }; }
 }
