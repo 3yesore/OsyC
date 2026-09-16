@@ -40,7 +40,7 @@ npm run svelte-check（单独）
 
 ## Remaining work
 
-1. **版本号**：已由维护者授权为 `2.0.7` 预览版下发（`2.0.6` tag 不可移动）。施工步骤见 `docs/plans/osyc-2.0.7-build-2026-09-16.md` 的 S4/S5。
+1. ~~版本号~~ **已完成**：`2.0.7` 已于 2026-09-16 作为 GitHub 预发布发布（tag @ `1fc9006`，target 同为该提交，三资产 sha256 与本地一致）。完整施工记录见 `docs/plans/osyc-2.0.7-build-2026-09-16.md`。
 2. **真机回归**（仅用户主观验收过，无截图）：
    - 侧栏折叠 → 重开 Obsidian → 是否仍折叠（持久化路径只做了单测级验证）；
    - 移动端抽屉手势、遮罩点击、安全区；
@@ -48,7 +48,8 @@ npm run svelte-check（单独）
 3. **发布准备**（在拿到版本号之后）：`npm run check` 会重建 `main.js`，需重新刷 `release-info.json`（`sourceCommit` 指向本次代码提交 `7a42e93`，本轮已刷），再按既有流程推送 `main` 触发 `publish-release-assets.yml`。
 4. **可选清理**：`AIAgentTaskCard.svelte` 仍未挂载，内含 emoji 状态图标。清理它要同时改 `brandCopy.unit.spec.ts`、`AIAgentTaskCard.unit.spec.ts`、`AIAgentPane.mobile.unit.spec.ts` 与一篇历史变更记录。
 5. **可选补文档**：本轮未先立 `docs/plans/` 设计文档，若要长期维护版式契约，建议补一篇 `docs/plans/osyc-chat-surface-2026-09-16.md`（把 `.ai-*` 契约、180px 上限、断点 720px 写进去）。
-6. **[本机缺陷提醒]** 本机 git 无法写入 `refs/heads/` 下的嵌套 ref 且静默返回 0（`codex/*` 分支命中）。本轮 `7a42e93` 提交后已复核 `git rev-parse HEAD` 与 `git show-ref --heads`，四个分支的 ref 正常；对 `codex/*` 的**每一次**提交都必须这样复核。
+6. **本机 git ref 缺陷已在 2.0.7 施工中复发并结构性规避**：本仓库的分支 ref 实际存于 `packed-refs`，其值停在 `0a7dd4d`（落后 3 个提交），新提交对象 `607bd4c` 与 reflog 都正常但 loose ref 未落盘，`HEAD` 因此回退到旧提交。已写回 loose ref 修复，并把工作分支切到**扁平名** `codex-2.0.6-stabilize`（扁平 ref 实测可写）；嵌套的 `codex/2.0.6-stabilize` 保留为归档、不再提交。今后对 `codex/*` 命名一律避免。
+7. **GitHub `latest` 指针异常（待确认）**：`GET /releases/latest` 返回 `2.0.0`，而 `2.0.4` 更新且非预发布 —— 意味着 BRAT 的稳定（非 beta）通道可能装到 `2.0.0`。需真机确认后把 latest 重新指向 `2.0.4`（需要凭据，release-captain 操作），或改为按显式版本安装。
 
 ## Do not change
 

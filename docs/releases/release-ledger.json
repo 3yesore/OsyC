@@ -5,13 +5,13 @@
     "sourceRepository": {
         "name": "obsidian-livesync",
         "branch": "codex-2.0.6-stabilize",
-        "commit": "0a7dd4d8812ba3d688d3e9ad26915a40f27f00db"
+        "commit": "1fc9006471ba4afc7d2e975b4cf5b5ec7fefde4e"
     },
     "distributionRepository": {
         "name": "3yesore/OsyC",
         "remote": "https://github.com/3yesore/OsyC.git",
         "branch": "main",
-        "commit": "0a7dd4d8812ba3d688d3e9ad26915a40f27f00db"
+        "commit": "1fc9006471ba4afc7d2e975b4cf5b5ec7fefde4e"
     },
     "currentStable": {
         "version": "2.0.4",
@@ -29,9 +29,21 @@
     },
     "candidate": {
         "version": "2.0.7",
-        "status": "reserved",
+        "status": "prerelease-published",
         "channel": "prerelease",
         "sourceBranch": "codex-2.0.6-stabilize",
+        "sourceCommit": "1fc9006471ba4afc7d2e975b4cf5b5ec7fefde4e",
+        "assetSourceCommit": "663157b25fd25af700f6da739a0620f0cca1bfb1",
+        "tag": "2.0.7",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.7",
+        "publishedAt": "2026-09-16T11:30:00Z",
+        "publishedAssets": ["main.js", "manifest.json", "styles.css"],
+        "assetSha256": {
+            "main.js": "97a4e40bf95111e4b7b7e73b9d7720c0c818f7940295cb6e1332074ed455384a",
+            "manifest.json": "a6167519db3770182cc8c988f052a1f91098f6560de060161d5c4dec153954c7",
+            "styles.css": "ff1c43208931a1063d90081cbec3cd04cd5d4e4712a49c4b9d69f03c9a090e19"
+        },
+        "bratValidation": "pending-mobile",
         "stablePromotionOwner": "release-captain"
     },
     "notes": [
@@ -40,7 +52,8 @@
         "2.0.6 was published on 2026-09-16 by fast-forwarding main to the reviewed source commit 0a7dd4d, which triggers .github/workflows/publish-release-assets.yml. The workflow created the tag and the GitHub Release and marked it as a pre-release, so the stable channel still resolves to 2.0.4.",
         "Asset naming: the five BRAT_ASSETS entries recorded here (main.js, manifest.json, manifest-beta.json, styles.css, versions.json) are the versioned repository files that must stay aligned and hashed. The GitHub Release itself carries the three files BRAT actually downloads (main.js, manifest.json, styles.css); manifest-beta.json and versions.json are consumed from the repository tree. This distinction was previously unstated and made the ledger look inconsistent with the published asset list.",
         "docs/releases/osyc-2.0.6-launch-baseline.md remains a dated snapshot of 15 September 2026 and is deliberately not rewritten. Its plug-in publication gate is now met, but its backend gates are still open: a versioned backend candidate with the diagnostics/email contracts, backend tests, health/runtime-info/zero-cost dry-run, the four low-cost acceptance samples, and desktop plus mobile UI acceptance.",
-        "2.0.7 was reserved by the maintainer on 2026-09-16 to ship the chat-surface (ChatGPT layout) and icon-unification work, which is newer than the published 2.0.6 pre-release. The 2.0.6 record moved to previousCandidate: its tag stays at 0a7dd4d and must not be moved. Until the publish workflow runs, the 2.0.7 entry intentionally carries no tag or releaseUrl so the collaboration check treats it as reserved."
+        "2.0.7 was published on 2026-09-16 by fast-forwarding main to the reviewed commit 1fc9006 (6457aaa..1fc9006), which triggered publish-release-assets.yml. The workflow created tag 2.0.7 and the GitHub Release OsyC 2.0.7 with prerelease=true and target_commitish=1fc9006; the three uploaded assets match the local release-info.json byte for byte. 2.0.4 and 2.0.6 were left untouched.",
+        "WARNING: GET /releases/latest returned 2.0.0 on 2026-09-16 (checked twice) even though 2.0.4 is newer and is not a prerelease. A BRAT stable (non-beta) install can therefore resolve to 2.0.0 rather than 2.0.4. Confirm on a device and then re-point latest to 2.0.4, or install by explicit version. This is a release-captain action and requires a credential that is not available in this environment."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",

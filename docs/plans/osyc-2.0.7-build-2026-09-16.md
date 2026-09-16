@@ -27,8 +27,8 @@
 | S2 | 图标统一 | `OsycIcon.svelte` + 6 界面改用内置图标 + 白名单门禁 | AIAgent 单测（含 `reviewHygiene`） | ✅ 完成 |
 | S3 | 门禁与指纹 | `npm run check` 全绿、`release-info.json` 刷新、文档同步 | `npm run check`、两个 `verify-osyc-*.mjs` | ✅ 完成（`7a42e93` + `27a06cc`） |
 | S4 | 2.0.7 版本化 | 四处版本号 + `main.js` 重建 + 指纹 + ledger | `node utils/verify-osyc-release.mjs` | ✅ 完成（`663157b`） |
-| S5 | 预发布下发 | 推送 `main` 触发资产上传，BRAT 可装 | `releases/expanded_assets/2.0.7` | 🔄 进行中 |
-| S6 | 发布后记录 | ledger 补 `publishedAt`/资产哈希、active-work、本文件与交接文档 | 目录一致性复核 | ⏳ 待办 |
+| S5 | 预发布下发 | 推送 `main` 触发资产上传，BRAT 可装 | `releases/expanded_assets/2.0.7` | ✅ 完成（`1fc9006`，2026-09-16T11:30:00Z） |
+| S6 | 发布后记录 | ledger 补 `publishedAt`/资产哈希、active-work、本文件与交接文档 | 目录一致性复核 | ✅ 完成（本次提交） |
 | S7 | 服务器侧推进 | 见 `docs/releases/osyc-2.0.6-launch-baseline.md` 的后端门槛 | 见该文档 | ⏳ 待办（下一阶段） |
 
 ## S4 施工步骤（2.0.7 版本化）
@@ -73,3 +73,7 @@ curl -sL https://github.com/3yesore/OsyC/releases/expanded_assets/2.0.7 | grep -
 - **2026-09-16** S4 完成：提交 `663157b`。四处版本号 + 三个 workspace + `package-lock.json` 全部到 2.0.7；`main.js` 重建后 `verify-osyc-release.mjs` 判 `aligned: 2.0.7`；`release-ledger.json` 把 2.0.7 记为 reserved、2.0.6 移入 `previousCandidate`；门禁 `npm run check` 全绿。
 - **2026-09-16** 施工中发现的**本机 git 缺陷复发**：本仓库分支 ref 实际存于 `packed-refs`，其值停在 `0a7dd4d`（落后 3 个提交），新提交对象与 reflog 正常但 loose ref 未落盘，`HEAD` 因此回退到旧提交。已写回 loose ref 修复，并把工作分支切到扁平名 `codex-2.0.6-stabilize`（扁平 ref 实测可写）从根上避开；`main.js` 的构建产物未受影响。
 - **2026-09-16** S5 开始：刷新 `release-info.json`（`sourceCommit` = `663157b`，五资产哈希）。
+- **2026-09-16** S5 完成：`1fc9006` 推送到 `main`（快进 `6457aaa..1fc9006`）触发 `publish-release-assets.yml`，11:30:00Z 创建 tag `2.0.7` 与 Release `OsyC 2.0.7`（pre-release、draft=false、target = 该提交）。三个上传资产的 sha256 与本地 `release-info.json` **逐字节一致**（`main.js 97a4e40b…` / `manifest.json a6167519…` / `styles.css ff1c4320…`）。
+- **2026-09-16** S6 完成：`release-ledger.json` 的 2.0.7 候选补齐 tag / releaseUrl / publishedAt / publishedAssets / assetSha256；active-work、变更记录、交接文档同步。
+- **2026-09-16** 发布核查中发现两个治理问题：① `GET /releases/latest` 返回 `2.0.0` 而非 `2.0.4`（BRAT 稳定通道可能装错版本，待真机确认后由 release-captain 重指）；② 本机 git 嵌套 ref 缺陷复发（已切扁平分支名规避）。两项均已记入 `docs/coordination/active-work.md` 与交接文档。
+- **2026-09-16** S7（服务器侧）待启动。

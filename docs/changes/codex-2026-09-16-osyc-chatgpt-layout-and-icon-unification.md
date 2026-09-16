@@ -5,7 +5,7 @@
 - **Branch**: `codex/2.0.6-stabilize`
 - **Related design**: `docs/plans/osyc-chat-surface-2026-09-16.md`（界面契约）, `docs/plans/osyc-2.0.7-build-2026-09-16.md`（施工与进度）
 - **Version reservation**: `2.0.7`（维护者 2026-09-16 授权作为预览版下发；`2.0.6` 已消耗为预发布且 tag 不可移动，不得复用）
-- **Status**: `ready for integration`
+- **Status**: `published as the OsyC 2.0.7 GitHub pre-release`（tag `2.0.7` @ `1fc9006`，2026-09-16T11:30:00Z）
 
 ## Intent
 
@@ -50,13 +50,17 @@ node utils/verify-osyc-release.mjs
 
 ## Known gaps
 
-- **本轮改动没有可发布的版本号**：`2.0.6` 的 tag 与 GitHub 预发布已指向 `0a7dd4d` 且不可移动，本改动（`7a42e93`）比预发布更新。要下发到用户必须由 release-captain 预留下一个补丁版本（`2.0.7`）并重建资产；本轮**未**推送 `main`、**未**新建 tag、**未**动 `2.0.4`/`2.0.6` 任何既有 Release。
+- **已按 `2.0.7` 预发布下发**：`2.0.6` 的 tag 与预发布已指向 `0a7dd4d` 且不可移动，比预发布更新的改动必须新开补丁版本号。四处版本号提到 2.0.7 后重建 `main.js`，三资产 sha256 与本地逐字节一致。
 - 侧栏折叠的持久化只做了单测级验证（`loadOsycPaneBooleanPreference` 的读写分支），真机上「折叠 → 重开 Obsidian → 仍折叠」这条路径未实测。
 - 输入框自动增高的 `COMPOSER_MAX_HEIGHT = 180` 与 CSS `max-height: 180px` 是两处硬编码，靠注释维持一致；没有断言把它们绑在一起。
 - 移动端抽屉（`<=720px`）与安全区交互在真机上只做过用户主观验收，没有截图回归。
 - `release-info.json` 指纹**已刷新**：`main.js` 与 `styles.css` 因本轮改动变化（`main.js` → `4c6215d9f406cbb8...`，`styles.css` → `ff1c43208931a106...`），`sourceCommit` 更新为 `7a42e93e4d4c0897c7b1d2c968363522f741861a`。**语义提醒**：刷新之后该文件描述的是「分支当前构建」，也**不再**等于已发布 `2.0.6` 的资产 —— 已发布资产的权威哈希记录在 `docs/releases/release-ledger.json`。在 release-captain 给出新版本号之前，谁都不应据 `release-info.json` 发布。仓库内仍**没有**生成/校验该文件的脚本（`verify-osyc-release.mjs` 与 `verify-osyc-collaboration.mjs` 都不读它），完全靠人工维护。
 - 本轮改动**未**在 `docs/plans/` 下先立设计文档，而是直接以本变更记录 + `docs/handoff/2026-09-16-osyc-chatgpt-layout-and-icon-unification.md` 作为设计说明；如需长期维护版式契约，建议补一篇 `docs/plans/osyc-chat-surface-2026-09-16.md`。
 
+## Publication
+
+`1fc9006` 已推送 `main`（快进 `6457aaa..1fc9006`）并触发 `.github/workflows/publish-release-assets.yml`：2026-09-16T11:30:00Z 创建 tag `2.0.7` 与 Release `OsyC 2.0.7`，标记 **pre-release**、target 即该提交。三个上传资产的 sha256 与本地 `release-info.json` **逐字节一致**：`main.js 97a4e40b…` / `manifest.json a6167519…` / `styles.css ff1c4320…`。`2.0.4`（稳定）与 `2.0.6` 的 tag 与 Release 未做任何改动。
+
 ## Integration request
 
-合并源码、测试与 `styles.css`/`main.js` 的重建产物，并接受 `release-info.json` 的指纹刷新。**不要**为本改动复用 `2.0.6`：该版本已发布且不可移动。下一个补丁版本号、以及是否与后端 `stable206` 门槛一起下发，均由 release-captain 决定。
+合并源码、测试与 `styles.css`/`main.js` 的重建产物，并接受 `release-info.json` 的指纹刷新。`2.0.7` 已作为预发布下发，**不得复用**该版本号；下一个版本号、以及后端门槛的先后顺序由 release-captain 决定。
