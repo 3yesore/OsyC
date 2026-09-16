@@ -5,7 +5,7 @@
 - **Branch**: `codex/2.0.6-stabilize`
 - **Related design**: `docs/plans/osyc-settings-account-ui-2026-09-11.md`, `docs/adr/2026_08_declarative_settings_adapter.md`
 - **Version reservation**: `2.0.6`（沿用已预留的候选版本，不新开版本号）
-- **Status**: `ready for integration`
+- **Status**: `committed on codex/2.0.6-stabilize`（`3c9765d` + `756327d`）；未推送、未发布
 
 ## Intent
 
@@ -43,7 +43,7 @@ npm run check
 node utils/verify-osyc-release.mjs
 ```
 
-- Result: `38 files / 292 tests passed; tsc 0 errors; lint 0 errors（仅既有 3 条 warning）; npm run check 通过含 iOS 15 兼容检查; 五资产哈希与 release-info.json 一致`
+- Result: `38 files / 292 tests passed; tsc 0 errors; lint 0 errors（9 条既有 warning）; npm run check 通过含 iOS 15 兼容检查; 五资产哈希与 release-info.json 一致`
 - Device or environment: `Windows local unit suite + production build`
 
 ## Known gaps
@@ -51,7 +51,8 @@ node utils/verify-osyc-release.mjs
 - `npm run test:unit` 会稳定地有 1 条用例失败：`utils/release-process.unit.spec.ts > runs release metadata scripts when the selected version is already the package version`，在并发负载下超过 5000 ms 超时（本轮实测 7035 ms / 10560 ms），**单独复跑该文件 21/21 通过**。这是上游既有用例的超时阈值问题，与本轮改动无关，但是发布前需要知道的一个噪声源。
 - 手机端（iOS/Android）BRAT 真机验收未做：设置页的四分组布局、折叠项展开手势、以及从账户条直连账户弹窗的触控路径需要真机确认。
 - 设置页未做 UI 截图回归；`docs/adr/2026_06_real_obsidian_e2e.md` 描述的 e2e 设置界面用例（`test:e2e:obsidian:settings-ui`）未在本次运行。
-- `release-info.json` 的 `main.js` 与 `styles.css` 指纹在提交后必须刷新；仓库内没有生成脚本。
+- `release-info.json` 指纹**已刷新**（`756327d`）：`sourceCommit` = `3c9765dc1a2445f3637912740df0562a1a063fa0`（HEAD 的父提交），五资产全部 MATCH，`verify-osyc-release.mjs` exit 0。注意仓库内没有生成脚本，`release-info.json` 靠人工维护。
+- **本机 git 无法写入 `refs/heads/` 下的嵌套 ref，且静默返回成功**（rc=0、无报错、reflog 照写，但 loose ref 文件不落盘，导致 `HEAD` 变 unborn）。本次提交时 `codex/2.0.6-stabilize` 因此一度消失，已用直接写文件的方式重建。对本分支任何后续提交都必须复核 `git rev-parse HEAD`。完整复现矩阵与规避方式见 `docs/handoff/2026-09-16-osyc-native-settings-page.md` 待办第 6 条。
 
 ## Integration request
 

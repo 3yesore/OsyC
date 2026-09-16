@@ -50,23 +50,48 @@ vitest run src/osyc src/modules/features/SettingDialogue   38 files / 292 tests 
 - 当前稳定版：`2.0.4`（2026-09-14 发布）。
 - 前一稳定版：`2.0.3`。
 - **`2.0.5` 只有 tag、没有 GitHub Release**，因此它不能作为 BRAT 可安装的回滚点；有效回滚目标是 `2.0.4`。
-- `2.0.6` 无 tag、无 Release，源码停在 `af9bc5e`，本轮的设置页改动尚未提交。
+- `2.0.6` 无 tag、无 Release。本轮改动**已提交**到 `codex/2.0.6-stabilize`（`3c9765d` 设置页 + `756327d` 指纹），分支领先 origin **12** 个提交，**尚未推送**。
 
 ## 待办
 
-1. **真机验收**：iOS/Android 上确认四分组布局、折叠项展开、账户条点击路径。
-2. **提交与推送**：把这批改动落到 `codex/2.0.6-stabilize` 并推送（`af9bc5e` 之后的工作区改动尚未提交）。
-3. **重新生成五资产指纹**：`npm run check` 会重建 `main.js`，本轮又改了 `styles.css`，因此 `release-info.json` 里这两条已经过期，必须在**提交之后**再刷新（`sourceCommit` 也要改成新提交号），然后用 `node utils/verify-osyc-release.mjs` 复核。当前工作区实测值：
+1. **真机验收（未完成）**：iOS/Android 上确认四分组布局、折叠项展开、账户条点击路径。
+2. **推送（未完成）**：两个提交已在本地，`git push` 尚未执行。执行前请先读第 6 条。
+3. ~~提交与重新生成五资产指纹~~ **已完成**：`3c9765d` 提交了 22 个文件（设置页迁移 + 文档），`756327d` 提交了 `release-info.json`（`sourceCommit` = `3c9765dc1a2445f3637912740df0562a1a063fa0`，即 HEAD 的父提交）。复核结果：
 
-   | 资产 | `release-info.json` 记录 | 工作区实测 |
-   | --- | --- | --- |
-   | `main.js` | `03c4a7ac…dae2e3` | `4d1a7c1e…4ecc3df` |
-   | `styles.css` | `a70070b9…95e4c54` | `a011369a…047969ba` |
-   | `manifest.json` / `manifest-beta.json` / `versions.json` | — | 一致，无需改动 |
+   | 资产 | 结果 |
+   | --- | --- |
+   | `main.js` | `4d1a7c1e…4ecc3df` MATCH |
+   | `styles.css` | `a011369a…047969ba` MATCH |
+   | `manifest.json` / `manifest-beta.json` / `versions.json` | MATCH |
 
-   注意：仓库内没有任何脚本会生成或校验 `release-info.json`；它靠人工维护，这也是它此前漂移的原因。
+   `node utils/verify-osyc-release.mjs` → `OsyC release contract aligned: 2.0.6`（exit 0）。
+
+   注意：仓库内没有任何脚本会生成或校验 `release-info.json`；它靠人工维护，这也是它此前漂移的原因。`npm run check` 重建 `main.js` 是**幂等**的（重建前后 SHA-256 完全一致），因此指纹在提交后仍然有效。
 4. **`docs/releases/release-ledger.json` 本次已按 GitHub API 复核结果修正**（此前停留在 1.0.75 时代）；发布动作本身仍属 release-captain。
 5. 后端 `stable206` 与 `/api/error-reports`、`/api/auth/email/*` 的门槛见 `docs/releases/osyc-2.0.6-launch-baseline.md`，本轮未触碰。
+6. **【新增·高优先级】本机 git 无法写入 `refs/heads/` 下的嵌套 ref，且静默返回成功。**
+
+   2026-09-16 提交时发现分支引用凭空消失。实测结论（可复现）：
+
+   | ref 名 | 形态 | `git update-ref` 结果 |
+   | --- | --- | --- |
+   | `refs/heads/watchprobe-flat` | 扁平 | rc=0，**文件正常落盘** |
+   | `refs/heads/aaa-nest/watchprobe` | 嵌套 | rc=0，**文件不存在** |
+   | `refs/heads/codex/watchprobe2` | 嵌套 | rc=0，**文件不存在** |
+
+   即：`git commit` / `git update-ref` 会把**新提交对象与 reflog 正常写入**（`cat-file`、`logs/refs/heads/codex/…` 均可见），但 `refs/heads/codex/<分支>` 这个 loose ref 文件**不会被创建**，命令却返回 0 且无任何报错。因此 `HEAD` 会变成 unborn（`git worktree list` 显示 `0000000`）。
+
+   排查已排除项：无 git hook（`hooks/` 只有 `.sample`）；`packed-refs` 不包含 heads；`repositoryformatversion = 0`、非 reftable；`GIT_*` 环境变量干净；OneDrive 相关目录均非 reparse point。`refs/remotes/origin/codex/*`（同为嵌套）完好，说明并非所有嵌套路径都受影响。
+
+   规避与修复：
+
+   - **规避**：改分支命名，避免 `refs/heads/<目录>/<分支>` 这种两层结构（例如改用 `codex-2.0.6-stabilize`）。
+   - **修复**：直接用文件写入重建 ref（写 40 位 SHA + 换行，即 loose ref 的标准格式），随后用 `git show-ref --heads` 验证：
+     ```text
+     C:\Users\Y2516\.workbuddy\binaries\python\versions\3.13.12\python.exe -c "import os;p=os.path.join(r'<repo>\.git','refs','heads','codex','2.0.6-stabilize');os.makedirs(os.path.dirname(p),exist_ok=True);open(p,'w').write('<sha>'+chr(10))"
+     ```
+   - **纪律**：在本机对 `codex/*` 分支做任何提交后，**必须**立即 `git rev-parse HEAD` 复核；若报 unborn，按上述方式重建 ref。
+   - **根因未定**：该机装有零信任/EDR 类安全代理，其文件系统过滤驱动是主要嫌疑；建议把仓库移出 `Documents`，并为仓库路径加安全软件排除项，再复测。
 
 ## 相关记录
 
