@@ -29,6 +29,7 @@ import { paneRemoteConfig } from "./PaneRemoteConfig.ts";
 import { paneSelector } from "./PaneSelector.ts";
 import { paneQuickSetup } from "./PaneQuickSetup.ts";
 import { paneSyncSettings } from "./PaneSyncSettings.ts";
+import { paneOsyc } from "@/osyc/features/AIAgent/osycSettingsPane.ts";
 
 /** The existing pane renderer used by the imperative settings tab and custom pages. */
 export type SettingsPaneRenderer = (
@@ -57,6 +58,10 @@ export type SettingsRootGroupEntry = {
 
 /** Root groups used only by Obsidian's declarative settings landing page. */
 const SETTINGS_ROOT_GROUP_CATALOGUE = {
+    osyc: {
+        icon: "🧠",
+        name: () => "OsyC",
+    },
     "quick-setup": {
         icon: "🧙‍♂️",
         name: () => $msg("obsidianLiveSyncSettingTab.titleQuickSetup"),
@@ -106,6 +111,15 @@ export function getSettingsRootGroupEntry(id: SettingsRootGroupId): SettingsRoot
  */
 export function createSettingsPageCatalogue(): SettingsPageEntry[] {
     return [
+        {
+            id: "osyc",
+            name: () => "OsyC",
+            icon: "🧠",
+            order: 10,
+            level: undefined,
+            content: "custom",
+            legacy: paneOsyc,
+        },
         {
             id: "change-log",
             name: () => $msg("obsidianLiveSyncSettingTab.panelChangeLog"),

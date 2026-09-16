@@ -56,9 +56,10 @@ describe("AI 账户移动端摘要", () => {
     });
 
     it("把关闭操作放在所有账户区块之后", () => {
-        expect(modalSource.indexOf("renderDeviceSection(contentEl)")).toBeLessThan(
-            modalSource.indexOf('setButtonText("关闭")')
-        );
+        const closeAt = modalSource.indexOf('setButtonText("关闭")');
+        expect(closeAt).toBeGreaterThan(-1);
+        expect(modalSource.indexOf("this.renderDeviceSection(body)")).toBeLessThan(closeAt);
+        expect(modalSource.indexOf('this.renderFold(contentEl, "账户操作"')).toBeLessThan(closeAt);
     });
 
     it("提供下版本邮箱登录的完整禁用预览流程", () => {
@@ -67,5 +68,31 @@ describe("AI 账户移动端摘要", () => {
         expect(modalSource).toContain("验证码");
         expect(modalSource).toContain("倒计时");
         expect(modalSource).toContain("feature_disabled");
+    });
+
+    // ── 版面基线：官方分组 + 折叠 ──
+    it("分组标题一律使用 Obsidian 官方 setHeading()", () => {
+        for (const title of ["权益总览", "同步状态"]) {
+            expect(modalSource).toContain(`setName("${title}").setHeading()`);
+        }
+    });
+
+    it("低频区块用原生 details 折叠而不是平铺", () => {
+        expect(modalSource).toContain('createEl("details"');
+        expect(modalSource).toContain('createEl("summary"');
+        // 设备与自带 Key、账户操作两个低频区默认收起
+        expect(modalSource).toContain('this.renderFold(contentEl, "设备与自带 Key", false');
+        expect(modalSource).toContain('this.renderFold(contentEl, "账户操作", false');
+    });
+
+    it("首屏顺序为 概览 → 权益 → 同步 → 折叠区", () => {
+        const order = [
+            'setName("剩余积分")',
+            'setName("权益总览").setHeading()',
+            'setName("同步状态").setHeading()',
+            'this.renderFold(contentEl, "设备与自带 Key"',
+        ].map((needle) => modalSource.indexOf(needle));
+        expect(order.every((idx) => idx > -1)).toBe(true);
+        expect(order).toEqual([...order].sort((a, b) => a - b));
     });
 });

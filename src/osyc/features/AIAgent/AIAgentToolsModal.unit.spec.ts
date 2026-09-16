@@ -20,7 +20,7 @@ describe("AIAgentToolsModal", () => {
         expect(source).toContain('import { Modal, Notice, Setting, type App } from "@/deps.ts"');
         expect(source).toContain("export class AIAgentToolsModal extends Modal");
         expect(source).toContain('"data-osyc-tools-tab": tab');
-        expect(source).toContain('account: "账户与权益"');
+        expect(source).toContain('account: "账户"');
         expect(source).toContain('recharge: "充值"');
         expect(source).toContain('debug: "调试"');
     });
@@ -37,9 +37,10 @@ describe("AIAgentToolsModal", () => {
         expect(uiSource).not.toContain("演示模式");
     });
 
-    it("keeps account, diagnostics, and motion behaviour within the modal", () => {
-        expect(source).toContain("剩余积分");
-        expect(source).toContain("权益总览");
+    it("keeps diagnostics and modal identity while entitlements live only in the account modal", () => {
+        // 分工：权益明细收敛到「我的账户」，工具中心不再重复展示一份
+        expect(source).not.toContain("权益总览");
+        expect(source).not.toContain("剩余积分");
         expect(source).toContain("复制脱敏诊断");
         expect(source).toContain("复制 OsyC 日志");
         expect(source).toContain("ai-tools-modal");

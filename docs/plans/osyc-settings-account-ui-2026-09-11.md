@@ -16,7 +16,7 @@
 
 ## 验证
 
-工作目录：`C:/Users/Y2516/WorkBuddy/2026-08-29-19-16-25/dev/obsidian-livesync`
+工作目录：`C:/Users/Y2516/WorkBuddy/2026-08-29-19-16-25/dev/obsidian-livesync`（已废弃，见下）
 
 ```powershell
 npm run test:unit -- src/osyc/features/AIAgent/AIAgentAccountModal.unit.spec.ts src/osyc/features/AIAgent/AIAgentPane.mobile.unit.spec.ts src/osyc/features/AIAgent/appearance.unit.spec.ts
@@ -24,3 +24,19 @@ npm run tsc-check
 npm run svelte-check
 npm run build
 ```
+
+## 后续修订（2026-09-16）
+
+第 3 步「重排设置页、保留现有控件」被取代。复核时发现 `AIAgentSettingModal` 是**死代码**：类还在，但没有任何入口实例化它，设置项在 Obsidian 里根本不可达。
+
+改为在原生设置页承载：
+
+- 设置项从自建弹窗迁到 `src/osyc/features/AIAgent/osycSettingsPane.ts`，以 `🧠 OsyC` 根分组插入 `ObsidianLiveSyncSettingTab`，位置在同步分组之后。
+- 页面内按 `连接 / 外观 / 交互 / 诊断` 四个分组呈现；外观高频项直出，颜色与背景收进「更多颜色与背景」折叠。
+- 读写经 `osycSettingsController.ts` 回到运行时，设置页不再持有第二份状态；`AIAgentSettingModal` 整体删除。
+- 账户弹窗按「官方分组 + 折叠」重排，工具中心与账户弹窗明确分工（工具中心不再重复权益展示）。
+
+完整记录见 `docs/changes/codex-2026-09-16-osyc-native-settings-page.md` 与 `docs/handoff/2026-09-16-osyc-native-settings-page.md`。
+
+另：本计划文件中记载的工作目录 `WorkBuddy/2026-08-29-19-16-25/dev/obsidian-livesync` 已非主开发环境，当前活跃仓库为 `C:/Users/Y2516/Documents/Codex/2026-09-13/jie/worktrees/osyc-review-cleanup`。
+

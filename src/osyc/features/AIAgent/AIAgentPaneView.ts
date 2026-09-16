@@ -27,6 +27,7 @@ export class AIAgentPaneView extends SvelteItemView {
     onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>;
     announcements: Writable<Announcement[]>;
     onOpenAnnouncements: () => void;
+    onOpenAccount: () => void;
 
     override icon = "bot";
     // Agent is a first-class page in the main workspace. Keeping navigation=true
@@ -46,7 +47,8 @@ export class AIAgentPaneView extends SvelteItemView {
         onMarkOnboarded: () => void,
         onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>,
         announcements: Writable<Announcement[]>,
-        onOpenAnnouncements: () => void
+        onOpenAnnouncements: () => void,
+        onOpenAccount: () => void
     ) {
 
         super(leaf);
@@ -61,6 +63,7 @@ export class AIAgentPaneView extends SvelteItemView {
         this.onUploadDiagnostics = onUploadDiagnostics;
         this.announcements = announcements;
         this.onOpenAnnouncements = onOpenAnnouncements;
+        this.onOpenAccount = onOpenAccount;
     }
 
     override getIcon(): string {
@@ -140,6 +143,7 @@ export class AIAgentPaneView extends SvelteItemView {
                 onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => this.onUploadDiagnostics(task),
                 announcements: this.announcements,
                 onOpenAnnouncements: () => this.onOpenAnnouncements(),
+                onOpenAccount: () => this.onOpenAccount(),
             },
         });
     }

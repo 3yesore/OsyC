@@ -30,6 +30,7 @@
         onUploadDiagnostics: (task: AITask) => Promise<{ ok: boolean; message: string }>;
         announcements: Writable<Announcement[]>;
         onOpenAnnouncements: () => void;
+        onOpenAccount: () => void;
         onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>;
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>;
         onMarkOnboarded: () => void;
@@ -40,6 +41,7 @@
         onDeactivate, onOpenTools,
         onLoadCloudVault, onRetryPush, onConfirmTask, onCancelConfirmation, onApplySettingsPatch,
         onApplyThemeSnippet, onMarkOnboarded, onUploadDiagnostics, announcements, onOpenAnnouncements,
+        onOpenAccount,
     }: Props = $props();
 
     const QUICK_COMMANDS = [
@@ -175,7 +177,7 @@
         </aside>
 
         <main class="ai-chat">
-            <header class="ai-chat-header"><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" onclick={() => (mobileSidebarOpen = true)}>☰</button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={onOpenAnnouncements}>{unreadAnnouncements > 0 ? "🔔" : "♢"}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => onOpenTools()}>⋯</button><div class="ai-account-strip" aria-label="账户状态"><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</div></header>
+            <header class="ai-chat-header"><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" onclick={() => (mobileSidebarOpen = true)}>☰</button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={onOpenAnnouncements}>{unreadAnnouncements > 0 ? "🔔" : "♢"}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => onOpenTools()}>⋯</button><button class="ai-account-strip" aria-label="我的账户与权益" title="我的账户与权益" onclick={onOpenAccount}><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</button></header>
             {#if isMock}<div class="ai-banner"><span class="ai-banner-dot"></span>演示模式 · 当前为本地模拟，任务与积分不会真实消耗</div>{/if}
             <div class="ai-chat-timeline" bind:this={timelineEl} onscroll={onTimelineScroll}>
                 {#if !$agentState.onboarded}<section class="ai-welcome"><h1>和 OC 开始对话</h1><p>阅读、整理和归纳你的 Obsidian 笔记，并把结果交付回笔记库。</p><button class="ai-btn ai-btn-primary" onclick={onMarkOnboarded}>开始使用</button></section>{/if}
@@ -219,7 +221,8 @@
     .ai-chat-title { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
     .ai-chat-title strong { font-family: var(--osyc-ai-heading-font-family, var(--font-interface)); font-size: var(--font-ui-medium); color: var(--text-normal); }
     .ai-chat-title span { color: var(--text-muted); font-size: var(--font-ui-smaller); }
-    .ai-account-strip { display: flex; align-items: center; gap: 12px; margin-left: auto; color: var(--text-muted); font-size: var(--font-ui-smaller); white-space: nowrap; }
+    .ai-account-strip { display: flex; align-items: center; gap: 12px; margin-left: auto; padding: 4px 10px; border: none; border-radius: 7px; background: transparent; box-shadow: none; color: var(--text-muted); font-family: inherit; font-size: var(--font-ui-smaller); white-space: nowrap; cursor: pointer; }
+    .ai-account-strip:hover { background-color: var(--background-modifier-hover); color: var(--text-normal); }
     .ai-account-strip b { color: var(--text-normal); }
     .ai-plan-badge { display: inline-flex; align-items: center; min-height: 22px; border-radius: 5px; padding: 0 7px; color: var(--text-on-accent); background: var(--text-faint); font-weight: 600; }
     .ai-plan-badge[data-plan="member"] { background: var(--interactive-accent); }

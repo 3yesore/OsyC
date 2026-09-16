@@ -17,6 +17,7 @@ vi.mock("./PaneAdvanced.ts", () => ({ paneAdvanced: vi.fn() }));
 vi.mock("./PanePowerUsers.ts", () => ({ panePowerUsers: vi.fn() }));
 vi.mock("./PanePatches.ts", () => ({ panePatches: vi.fn() }));
 vi.mock("./PaneMaintenance.ts", () => ({ paneMaintenance: vi.fn() }));
+vi.mock("@/osyc/features/AIAgent/osycSettingsPane.ts", () => ({ paneOsyc: vi.fn() }));
 
 import {
     createAdvancedSettingDefinitionGroups,
@@ -26,6 +27,7 @@ import {
 } from "./SettingsPageCatalogue.ts";
 
 const EXPECTED_ROOT_GROUPS = [
+    ["osyc", "🧠", "OsyC"],
     ["quick-setup", "🧙‍♂️", "obsidianLiveSyncSettingTab.titleQuickSetup"],
     ["synchronisation", "🔄", "obsidianLiveSyncSettingTab.titleSynchronisation"],
     ["general-settings", "⚙️", "obsidianLiveSyncSettingTab.panelGeneralSettings"],
@@ -50,6 +52,7 @@ describe("settings page catalogue", () => {
         const catalogue = createSettingsPageCatalogue();
 
         expect(catalogue.map(({ id }) => id)).toEqual([
+            "osyc",
             "change-log",
             "quick-setup",
             "general",
@@ -67,7 +70,7 @@ describe("settings page catalogue", () => {
         expect(new Set(catalogue.map(({ id }) => id)).size).toBe(catalogue.length);
         expect(new Set(catalogue.map(({ name }) => name())).size).toBe(catalogue.length);
         expect(catalogue.filter(({ content }) => content === "native").map(({ id }) => id)).toEqual(["advanced"]);
-        expect(catalogue.filter(({ content }) => content === "custom")).toHaveLength(12);
+        expect(catalogue.filter(({ content }) => content === "custom")).toHaveLength(13);
         expect(catalogue.find(({ id }) => id === "quick-setup")?.name()).toBe(
             "obsidianLiveSyncSettingTab.titleQuickSetup"
         );

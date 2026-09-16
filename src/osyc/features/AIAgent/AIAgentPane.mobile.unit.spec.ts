@@ -229,10 +229,10 @@ describe("AI 面板移动端底部输入区", () => {
 
     it("外观数值和颜色使用原生滑块/颜色选择器，不要求手机手填 CSS 值", () => {
         const settingsSource = readFileSync(
-            fileURLToPath(new URL("../../serviceFeatures/useAIAgentUI.ts", import.meta.url)),
+            fileURLToPath(new URL("osycSettingsPane.ts", import.meta.url)),
             "utf8"
         );
-        expect(settingsSource).toContain(".addSlider((slider) => slider.setLimits(13, 24, 1)");
+        expect(settingsSource).toContain(".setLimits(13, 24, 1)");
         expect(settingsSource).toContain(".addColorPicker((picker)");
         expect(settingsSource).not.toContain('setDesc("支持 #RGB/#RRGGBB；留空跟随预设")');
     });

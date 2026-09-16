@@ -12,57 +12,21 @@ import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interf
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { buildSetupPatch, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
-import { appearanceToCssVariables, DEFAULT_APPEARANCE, FONT_SOURCE_GROUPS, fontFamilyForSource, fontOptionsForSources, parseAppearance, THEME_PRESET_OPTIONS, type AppearanceSettings, type FontSource } from "@/osyc/features/AIAgent/appearance";
-import { annotateFontLabel, checkFontAvailability } from "@/osyc/theme/fontAvailability";
+import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
 import { applyThemeProfileStyles, migrateAppearanceToThemeProfile } from "@/osyc/theme/themeModel";
 import { syncMarkdownThemeScope } from "@/osyc/theme/themeScope";
-import { FONT_RESOURCE_DIR, createFontFaceDescriptor, fontResourceForSource, fontResourcePath, fontSourceForResource, type FontResource } from "@/osyc/theme/fontResources";
-import { applyThemePackScope, THEME_PACK_OPTIONS, themePackForId } from "@/osyc/theme/themePack";
+import { FONT_RESOURCE_DIR, createFontFaceDescriptor, fontResourcePath, type FontResource } from "@/osyc/theme/fontResources";
+import { applyThemePackScope, themePackForId } from "@/osyc/theme/themePack";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 import { uploadErrorReport } from "@/osyc/features/AIAgent/diagnosticsUpload";
 import { AnnouncementClient, type Announcement } from "@/osyc/features/AIAgent/announcements";
 import { AnnouncementModal } from "@/osyc/features/AIAgent/AnnouncementModal";
+import { setOsycSettingsController } from "@/osyc/features/AIAgent/osycSettingsController";
 
 declare const MANIFEST_VERSION: string | undefined;
 
 /** 存放在 vault 配置目录下，不参与同步，避免把凭据写进笔记库 */
 const CONFIG_FILE_NAME = "livesync-aiagent.json";
-
-const BODY_FONT_OPTIONS = fontOptionsForSources([
-    ...FONT_SOURCE_GROUPS.chineseSans,
-    ...FONT_SOURCE_GROUPS.chineseSerif,
-    ...FONT_SOURCE_GROUPS.chineseModern,
-    ...FONT_SOURCE_GROUPS.system,
-    ...FONT_SOURCE_GROUPS.latinSans,
-    ...FONT_SOURCE_GROUPS.latinSerif,
-]);
-const CODE_FONT_OPTIONS = fontOptionsForSources(FONT_SOURCE_GROUPS.code);
-
-function fontOptionsWithAvailability(options: Record<string, string>, resources: readonly FontResource[] = []): Record<string, string> {
-    const fonts = typeof document !== "undefined" && "fonts" in document ? document.fonts : undefined;
-    return Object.fromEntries(Object.entries(options).map(([source, label]) => {
-        if (source === "obsidian" || source === "same") return [source, label];
-        const resource = fontResourceForSource(source, resources);
-        const family = fontFamilyForSource(source as FontSource, resource?.family);
-        return [source, annotateFontLabel(label, checkFontAvailability(family, fonts))];
-    }));
-}
-
-function appendFontPreview(setting: Setting, label: string, source: FontSource, customFamily?: string, className = "osyc-font-preview"): HTMLElement {
-    const host = setting.controlEl;
-    host.classList.add("osyc-font-control");
-    host.setCssStyles({ flexWrap: "wrap" });
-    const preview = host.createDiv({ cls: className });
-    preview.createSpan({ cls: "osyc-font-preview-label", text: label });
-    const sample = preview.createSpan({ cls: "osyc-font-preview-sample", text: "中文样例 Aa 123" });
-    sample.setCssStyles({ fontFamily: `${fontFamilyForSource(source, customFamily)} !important` });
-    return preview;
-}
-
-function updateFontPreview(preview: HTMLElement | null, source: FontSource, customFamily?: string): void {
-    const sample = preview?.querySelector<HTMLElement>(".osyc-font-preview-sample");
-    if (sample) sample.setCssStyles({ fontFamily: `${fontFamilyForSource(source, customFamily)} !important` });
-}
 
 class OsyCLogModal extends Modal {
     constructor(app: App, private readonly logger = osycLogger) {
@@ -103,294 +67,6 @@ function createDeviceId(): string {
         for (let i = 0; i < bytes.length; i++) bytes[i] = Math.floor(Math.random() * 256);
     }
     return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/**
- * 服务地址配置弹窗。
- *
- * 一般用户由分发方预置地址后不会看到这里；仅自助部署与联调时需要。
- */
-/** @deprecated Settings are opened through Obsidian's native settings page. */
-export class AIAgentSettingModal extends Modal {
-    value: string;
-    onSave: (value: string) => void;
-    tripleTap: boolean;
-    onTripleTapChange: (value: boolean) => void;
-    showBall: boolean;
-    onShowBallChange: (value: boolean) => void;
-    includeActiveNoteContext: boolean;
-    onIncludeActiveNoteContextChange: (value: boolean) => Promise<boolean>;
-    appearance: AppearanceSettings;
-    onAppearanceChange: (value: AppearanceSettings) => void;
-    vaultImages: string[];
-    vaultFonts: string[];
-    fontResources: FontResource[];
-    onImportFont: (path: string) => Promise<FontResource | null>;
-    private previewEl: HTMLElement | null = null;
-    constructor(
-        app: App,
-        value: string,
-        onSave: (value: string) => void,
-        tripleTap: boolean,
-        onTripleTapChange: (value: boolean) => void,
-        showBall: boolean,
-        onShowBallChange: (value: boolean) => void,
-        includeActiveNoteContext: boolean,
-        onIncludeActiveNoteContextChange: (value: boolean) => Promise<boolean>,
-        appearance: AppearanceSettings,
-        onAppearanceChange: (value: AppearanceSettings) => void,
-        vaultImages: string[],
-        vaultFonts: string[],
-        fontResources: FontResource[],
-        onImportFont: (path: string) => Promise<FontResource | null>
-    ) {
-        super(app);
-        this.value = value;
-        this.onSave = onSave;
-        this.tripleTap = tripleTap;
-        this.onTripleTapChange = onTripleTapChange;
-        this.showBall = showBall;
-        this.onShowBallChange = onShowBallChange;
-        this.includeActiveNoteContext = includeActiveNoteContext;
-        this.onIncludeActiveNoteContextChange = onIncludeActiveNoteContextChange;
-        this.appearance = appearance;
-        this.onAppearanceChange = onAppearanceChange;
-        this.vaultImages = vaultImages;
-        this.vaultFonts = vaultFonts;
-        this.fontResources = fontResources;
-        this.onImportFont = onImportFont;
-    }
-    override onOpen() {
-        const { contentEl } = this;
-        contentEl.empty();
-        contentEl.createEl("h3", { text: "OsyC 设置" });
-        contentEl.createEl("h4", { text: "连接", cls: "osyc-ai-setting-section" });
-        new Setting(contentEl)
-            .setName("服务地址")
-            .setDesc("后端 API 地址，例如 https://api.example.com 。留空时不能发送任务。")
-            .addText((text) =>
-                text
-                    .setPlaceholder("https://api.example.com")
-                    .setValue(this.value)
-                    .onChange((v) => (this.value = v.trim()))
-            );
-        contentEl.createEl("h4", { text: "笔记内容外观", cls: "osyc-ai-setting-section" });
-        contentEl.createEl("p", {
-            text: "字体、字号、颜色和背景会作用于当前 Vault 的 Markdown 笔记。修改会立即预览并保存在本机。",
-            cls: "setting-item-description",
-        });
-        this.previewEl = contentEl.createDiv({ cls: "osyc-ai-agent osyc-ai-appearance-preview" });
-        const previewSizer = this.previewEl.createDiv({ cls: "osyc-ai-appearance-preview-content" });
-        previewSizer.createEl("h2", { text: "笔记内容预览" });
-        previewSizer.createEl("p", { text: "这是一段可读的 Markdown 正文，包含" });
-        const previewLink = previewSizer.createEl("a", { text: "链接和长文本" });
-        previewLink.href = "https://example.com/very/long/path";
-        previewSizer.createEl("blockquote", { text: "引用块也会跟随文字颜色和行高。" });
-        const previewCode = previewSizer.createEl("pre");
-        previewCode.createEl("code", { text: "const note = true;" });
-        const refreshPreview = () => {
-            if (!this.previewEl) return;
-            const themeMode = document.body.classList.contains("theme-dark") ? "dark" : "light";
-            const backgroundFile = this.appearance.background.vaultPath
-                ? this.app.vault.getAbstractFileByPath(this.appearance.background.vaultPath)
-                : null;
-            const resourceUrl = backgroundFile instanceof TFile ? this.app.vault.getResourcePath(backgroundFile) : undefined;
-            for (const [key, value] of Object.entries(appearanceToCssVariables(this.appearance, resourceUrl, themeMode, this.fontResources))) {
-                this.previewEl.setCssProps({ [key]: value });
-            }
-        };
-        refreshPreview();
-        const updateAppearance = (patch: Partial<AppearanceSettings>) => {
-            this.appearance = parseAppearance({ ...this.appearance, ...patch });
-            this.onAppearanceChange(this.appearance);
-            refreshPreview();
-        };
-        contentEl.createEl("h5", { text: "快速调整", cls: "osyc-ai-setting-subsection" });
-        new Setting(contentEl)
-            .setName("应用到笔记内容")
-            .setDesc("开启后，阅读模式、实时预览和源码编辑区都会使用下面的字体、字号、颜色与背景设置。")
-            .addToggle((toggle) => toggle
-                .setValue(this.appearance.applyToNotes)
-                .onChange((value) => updateAppearance({ applyToNotes: value })));
-        new Setting(contentEl)
-            .setName("外观预设")
-            .setDesc("内置预设参考 Minimal、Things、Border、Chinese Writing、Codex Markdown、CodeSplash 和 Image Layouts；仅使用 OsyC 自有样式实现，无远程依赖。")
-            .addDropdown((dropdown) => dropdown
-                .addOptions(THEME_PRESET_OPTIONS)
-                .setValue(this.appearance.preset)
-                .onChange((value) => updateAppearance({ preset: value as AppearanceSettings["preset"], colourPreset: value as AppearanceSettings["colourPreset"] })));
-        new Setting(contentEl)
-            .setName("原始主题包")
-            .setDesc("从插件内置资源加载原始开源主题；默认关闭，选择后可在下方指定作用范围。")
-            .addDropdown((dropdown) => dropdown
-                .addOptions(THEME_PACK_OPTIONS)
-                .setValue(this.appearance.themePackId ?? "none")
-                .onChange((value) => updateAppearance({ themePackId: value === "none" ? null : value as AppearanceSettings["themePackId"] })));
-        new Setting(contentEl)
-            .setName("原始主题作用范围")
-            .setDesc("笔记模式经过 OsyC 作用域隔离；原生工作区模式保留原主题的全局效果，可能改变 Obsidian 外壳。")
-            .addDropdown((dropdown) => dropdown
-                .addOptions({ notes: "笔记内容（安全隔离）", workspace: "原生工作区（完整效果）" })
-                .setValue(this.appearance.themePackScope)
-                .onChange((value) => updateAppearance({ themePackScope: value as AppearanceSettings["themePackScope"] })));
-        let bodyFontPreview: HTMLElement | null = null;
-        const bodyFontSetting = new Setting(contentEl)
-            .setName("正文字体")
-            .setDesc("中文无衬线、中文衬线和系统字体使用本地字体栈；设备缺失时自动回退。")
-            .addDropdown((dropdown) => dropdown
-                .addOptions(fontOptionsWithAvailability({ ...BODY_FONT_OPTIONS, ...Object.fromEntries(this.fontResources.map((resource) => [fontSourceForResource(resource.id), `本地：${resource.family}`])) }, this.fontResources))
-                .setValue(this.appearance.fontSource)
-                .onChange((value) => {
-                    updateAppearance({ fontSource: value as AppearanceSettings["fontSource"] });
-                    updateFontPreview(bodyFontPreview, value as FontSource, fontResourceForSource(value, this.fontResources)?.family);
-                    if (this.appearance.headingFontSource === "same") updateFontPreview(headingFontPreview, value as FontSource, fontResourceForSource(value, this.fontResources)?.family);
-                }));
-        bodyFontPreview = appendFontPreview(bodyFontSetting, "正文字体预览", this.appearance.fontSource, fontResourceForSource(this.appearance.fontSource, this.fontResources)?.family);
-        let headingFontPreview: HTMLElement | null = null;
-        const headingFontSetting = new Setting(contentEl)
-            .setName("标题字体")
-            .setDesc("可与正文分开选择；默认跟随正文字体。")
-            .addDropdown((dropdown) => dropdown
-                .addOptions(fontOptionsWithAvailability({ same: "跟随正文字体", ...BODY_FONT_OPTIONS, ...Object.fromEntries(this.fontResources.map((resource) => [fontSourceForResource(resource.id), `本地：${resource.family}`])) }, this.fontResources))
-                .setValue(this.appearance.headingFontSource)
-                .onChange((value) => {
-                    updateAppearance({ headingFontSource: value as AppearanceSettings["headingFontSource"] });
-                    const source = (value === "same" ? this.appearance.fontSource : value) as FontSource;
-                    updateFontPreview(headingFontPreview, source, fontResourceForSource(source, this.fontResources)?.family);
-                }));
-        headingFontPreview = appendFontPreview(headingFontSetting, "标题字体预览", this.appearance.headingFontSource === "same" ? this.appearance.fontSource : this.appearance.headingFontSource, fontResourceForSource(this.appearance.headingFontSource === "same" ? this.appearance.fontSource : this.appearance.headingFontSource, this.fontResources)?.family);
-        let codeFontPreview: HTMLElement | null = null;
-        const codeFontSetting = new Setting(contentEl)
-            .setName("代码字体")
-            .setDesc("代码块和行内代码独立使用等宽字体，默认跟随系统等宽字体。")
-            .addDropdown((dropdown) => dropdown
-                .addOptions(fontOptionsWithAvailability({ ...CODE_FONT_OPTIONS, ...Object.fromEntries(this.fontResources.map((resource) => [fontSourceForResource(resource.id), `本地：${resource.family}`])) }, this.fontResources))
-                .setValue(this.appearance.codeFontSource)
-                .onChange((value) => {
-                    updateAppearance({ codeFontSource: value as AppearanceSettings["codeFontSource"] });
-                    updateFontPreview(codeFontPreview, value as FontSource, fontResourceForSource(value, this.fontResources)?.family);
-                }));
-        codeFontPreview = appendFontPreview(codeFontSetting, "代码字体预览", this.appearance.codeFontSource, fontResourceForSource(this.appearance.codeFontSource, this.fontResources)?.family);
-        if (this.vaultFonts.length > 0) {
-            let selectedFont = this.vaultFonts[0];
-            new Setting(contentEl)
-                .setName("载入本地字体")
-                .setDesc("从 Vault 载入字体文件并保存到 OsyC 私有目录；载入后会立即应用。")
-                .addDropdown((dropdown) => dropdown
-                    .addOptions(Object.fromEntries(this.vaultFonts.map((path) => [path, path])))
-                    .setValue(selectedFont)
-                    .onChange((value) => { selectedFont = value; }))
-                .addButton((button) => button.setButtonText("载入").onClick(() => {
-                    void this.onImportFont(selectedFont).then((resource) => {
-                        if (!resource) return;
-                        this.fontResources.push(resource);
-                        updateAppearance({ fontSource: fontSourceForResource(resource.id) as AppearanceSettings["fontSource"] });
-                        new Notice(`字体“${resource.family}”已载入并应用；重新打开设置可在字体列表中选择。`);
-                    });
-                }));
-        }
-        new Setting(contentEl)
-            .setName("正文字号")
-            .setDesc("拖动调整字号")
-            .addSlider((slider) => slider.setLimits(13, 24, 1).setValue(this.appearance.fontSize ?? 16).onChange((value) => updateAppearance({ fontSize: value })))
-            .addButton((button) => button.setButtonText("跟随主题").onClick(() => updateAppearance({ fontSize: null })));
-        new Setting(contentEl)
-            .setName("行高")
-            .setDesc("拖动调整阅读舒适度")
-            .addSlider((slider) => slider.setLimits(1.3, 2.2, 0.1).setValue(this.appearance.lineHeight ?? 1.5).onChange((value) => updateAppearance({ lineHeight: Math.round(value * 10) / 10 })))
-            .addButton((button) => button.setButtonText("跟随主题").onClick(() => updateAppearance({ lineHeight: null })));
-        const advancedDetails = contentEl.createEl("details", { cls: "osyc-ai-appearance-advanced" });
-        advancedDetails.open = typeof window === "undefined" || window.innerWidth > 720;
-        advancedDetails.createEl("summary", { text: "详细调整" });
-        const advancedContent = advancedDetails.createDiv({ cls: "osyc-ai-appearance-advanced-content" });
-        new Setting(advancedContent)
-            .setName("内容密度")
-            .addDropdown((dropdown) => dropdown
-                .addOptions({ minimal: "极简", compact: "紧凑", comfortable: "舒适", spacious: "宽松" })
-                .setValue(this.appearance.density)
-                .onChange((value) => updateAppearance({ density: value as AppearanceSettings["density"] })));
-        new Setting(advancedContent)
-            .setName("文字颜色")
-            .setDesc("点击色块选择，重置后跟随预设")
-            .addColorPicker((picker) => picker.setValue(this.appearance.colourOverrides.text ?? "#ffffff").onChange((value) => {
-                updateAppearance({ colourOverrides: { ...this.appearance.colourOverrides, text: value } });
-            }))
-            .addButton((button) => button.setButtonText("跟随预设").onClick(() => updateAppearance({ colourOverrides: { ...this.appearance.colourOverrides, text: null } })));
-        new Setting(advancedContent)
-            .setName("强调色")
-            .setDesc("点击色块选择，重置后跟随预设")
-            .addColorPicker((picker) => picker.setValue(this.appearance.colourOverrides.accent ?? "#5aa9e6").onChange((value) => {
-                updateAppearance({ colourOverrides: { ...this.appearance.colourOverrides, accent: value } });
-            }))
-            .addButton((button) => button.setButtonText("跟随预设").onClick(() => updateAppearance({ colourOverrides: { ...this.appearance.colourOverrides, accent: null } })));
-        new Setting(advancedContent)
-            .setName("背景模式")
-            .addDropdown((dropdown) => dropdown
-                .addOptions({ theme: "跟随主题", solid: "纯色", image: "Vault 本地图片" })
-                .setValue(this.appearance.background.mode)
-                .onChange((value) => updateAppearance({ background: { ...this.appearance.background, mode: value as AppearanceSettings["background"]["mode"] } })));
-        if (this.vaultImages.length > 0) {
-            new Setting(advancedContent)
-                .setName("背景图片")
-                .setDesc("仅列出当前 Vault 的图片，不会上传")
-                .addDropdown((dropdown) => dropdown
-                    .addOption("", "不使用图片")
-                    .addOptions(Object.fromEntries(this.vaultImages.map((path) => [path, path])))
-                    .setValue(this.appearance.background.vaultPath ?? "")
-                    .onChange((value) => updateAppearance({ background: {
-                        ...this.appearance.background,
-                        mode: value ? "image" : "theme",
-                        vaultPath: value || null,
-                        opacity: value && this.appearance.background.opacity === 0 ? 0.24 : this.appearance.background.opacity,
-                    } })));
-        }
-        new Setting(advancedContent)
-            .setName("背景透明度")
-            .setDesc("拖动调整背景可见程度")
-            .addSlider((slider) => slider.setLimits(0, 1, 0.05).setValue(this.appearance.background.opacity).onChange((value) => updateAppearance({ background: { ...this.appearance.background, opacity: value } })));
-        new Setting(advancedContent)
-            .addButton((btn) => btn.setButtonText("恢复外观默认").onClick(() => {
-                this.appearance = parseAppearance(DEFAULT_APPEARANCE);
-                this.onAppearanceChange(this.appearance);
-                refreshPreview();
-                this.close();
-            }));
-        const interactionDetails = contentEl.createEl("details", { cls: "osyc-ai-interaction-advanced" });
-        interactionDetails.open = typeof window === "undefined" || window.innerWidth > 720;
-        interactionDetails.createEl("summary", { text: "OC 交互" });
-        const interactionContent = interactionDetails.createDiv({ cls: "osyc-ai-interaction-content" });
-        new Setting(interactionContent)
-            .setName("悬浮球常驻显示")
-            .setDesc("关闭后不再显示悬浮球，可改用 Obsidian 原生底部栏按钮或三击打开 OC 对话页。")
-            .addToggle((tg) => tg.setValue(this.showBall).onChange((v) => this.onShowBallChange(v)));
-        new Setting(interactionContent)
-            .setName("移动端三击打开 OC")
-            .setDesc("手机上连续点三下屏幕任意位置，快速打开 OC 对话页。容易误触可关闭。")
-            .addToggle((tg) => tg.setValue(this.tripleTap).onChange((v) => this.onTripleTapChange(v)));
-        new Setting(interactionContent)
-            .setName("发送时附带当前 Markdown 笔记")
-            .setDesc("仅在你点击发送时提交当前 Markdown 正文和编辑位置，不会持续上传。")
-            .addToggle((tg) =>
-                tg.setValue(this.includeActiveNoteContext).onChange(async (v) => {
-                    const applied = await this.onIncludeActiveNoteContextChange(v);
-                    if (!applied) tg.setValue(false);
-                })
-            );
-        new Setting(contentEl)
-            .addButton((btn) =>
-                btn
-                    .setButtonText("保存")
-                    .setCta()
-                    .onClick(() => {
-                        this.onSave(this.value);
-                        this.close();
-                    })
-            )
-            .addButton((btn) => btn.setButtonText("取消").onClick(() => this.close()));
-    }
-    override onClose() {
-        this.contentEl.empty();
-    }
 }
 
 /** @deprecated Active-note consent is retained for persisted preference migrations. */
@@ -502,6 +178,12 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const openTools = () => {
         accountModal.close();
         toolsModal.open();
+    };
+    // 「我的账户」直连入口：权益与设备都在这里看，操作仍走工具中心。
+    const openAccount = () => {
+        toolsModal.close();
+        announcementsModal.close();
+        accountModal.open();
     };
 
     // 移动端三击打开 Agent 对话页的开关；按设备持久化在 livesync-aiagent.json
@@ -788,6 +470,61 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         void persist();
     };
 
+    /**
+     * 把运行时偏好接到原生设置页。
+     *
+     * 设置页只渲染官方 Setting 组件，读写全部回到这里，因此不会出现第二份状态。
+     * 注册发生在服务装配期，设置页在任意时刻打开都能取到最新值。
+     */
+    setOsycSettingsController({
+        snapshot: () => ({
+            serviceUrl: agent.settings.apiBase,
+            tripleTap: tripleTapEnabled,
+            showBall: showBallEnabled,
+            includeActiveNoteContext,
+            appearance,
+            fontResources,
+        }),
+        vaultImages,
+        vaultFonts,
+        setServiceUrl: (value) => {
+            agent.configure(value, agent.settings.token);
+            void persist();
+        },
+        setTripleTap: (value) => {
+            tripleTapEnabled = value;
+            floating.setTripleTap(value);
+            void persist();
+        },
+        setShowBall: (value) => {
+            showBallEnabled = value;
+            floating.setShowBall(value);
+            void persist();
+        },
+        setIncludeActiveNoteContext: async (value) => {
+            includeActiveNoteContext = value;
+            await persist();
+            return true;
+        },
+        setAppearance: (next) => applyAppearance(next),
+        resetAppearance: () => applyAppearance(parseAppearance(DEFAULT_APPEARANCE)),
+        importFont,
+        resolveResourceUrl: (vaultPath) => {
+            const file = app.vault.getAbstractFileByPath(vaultPath);
+            return file instanceof TFile ? app.vault.getResourcePath(file) : "";
+        },
+        openLog: () => new OsyCLogModal(app).open(),
+        copyDiagnostics: async () => {
+            try {
+                await navigator.clipboard.writeText(osycLogger.report());
+                new Notice("OsyC 诊断报告已复制");
+            } catch {
+                new Notice("复制失败，请先打开 OsyC 日志窗口重试");
+            }
+        },
+        pluginVersion: () => (typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev"),
+    });
+
     floating = new AIAgentFloating(app, {
         onOpenPane: openPane,
         onPositionChange: (position) => {
@@ -807,6 +544,8 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
 
     host.services.appLifecycle.onUnload.addHandler(() => {
         agent.stop();
+        // 设置页可能仍开着，先摘掉桥，避免它继续读到已销毁的运行时。
+        setOsycSettingsController(null);
         if (saveTimer !== null) {
             window.clearTimeout(saveTimer);
             saveTimer = null;
@@ -857,6 +596,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             }),
             announcements,
             openAnnouncements,
+            openAccount,
         );
     });
 

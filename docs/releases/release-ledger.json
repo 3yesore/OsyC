@@ -1,40 +1,46 @@
 {
     "schemaVersion": 1,
-    "updatedAt": "2026-09-12",
+    "updatedAt": "2026-09-16",
     "releaseOwner": "release-captain",
     "sourceRepository": {
         "name": "obsidian-livesync",
-        "branch": "codex/osyc-1.0.67-sync-entry",
-        "commit": "8bbeedd8"
+        "branch": "codex/2.0.6-stabilize",
+        "commit": "af9bc5e4a4342906a2583531f1e76bf195cb27c3"
     },
     "distributionRepository": {
         "name": "3yesore/OsyC",
         "remote": "https://github.com/3yesore/OsyC.git",
         "branch": "main",
-        "commit": "a1f1085"
+        "commit": "bafb83926b71f5309b6e7de7743b5fdb062bc485"
     },
     "currentStable": {
-        "version": "1.0.75",
-        "tag": "1.0.75",
+        "version": "2.0.4",
+        "tag": "2.0.4",
         "status": "published",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/1.0.75",
+        "publishedAt": "2026-09-14T08:51:51Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.4",
         "assets": ["main.js", "manifest.json", "manifest-beta.json", "styles.css", "versions.json"]
     },
     "previousStable": {
-        "version": "1.0.74",
-        "tag": "1.0.74",
-        "status": "superseded"
+        "version": "2.0.3",
+        "tag": "2.0.3",
+        "status": "superseded",
+        "publishedAt": "2026-09-13T13:12:27Z"
     },
     "candidate": {
-        "version": "1.0.78",
-        "status": "published-prerelease",
-        "sourceBranch": "codex/osyc-1.0.67-sync-entry",
-        "sourceCommit": "10929a44",
-        "distributionCommit": "6f34b1e",
-        "tag": "1.0.78",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/1.0.78",
+        "version": "2.0.6",
+        "status": "local-candidate-unpublished",
+        "sourceBranch": "codex/2.0.6-stabilize",
+        "sourceCommit": "af9bc5e4a4342906a2583531f1e76bf195cb27c3",
+        "tag": null,
+        "releaseUrl": null,
         "bratValidation": "pending-mobile"
     },
+    "notes": [
+        "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
+        "This file was corrected on 2026-09-16 against the GitHub API; it had been left at the 1.0.75 era and no longer described the published state.",
+        "Source commit af9bc5e is the last commit; the OsyC native settings page work recorded in docs/changes/codex-2026-09-16-osyc-native-settings-page.md is still uncommitted on top of it."
+    ],
     "publicationRules": {
         "singleWriter": "release-captain",
         "immutableTags": true,

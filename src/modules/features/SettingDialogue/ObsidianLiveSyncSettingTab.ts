@@ -869,6 +869,8 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
             getPage("remote-configuration"),
             getPage("synchronisation"),
         ]);
+        // OsyC 自身的偏好（连接 / 外观 / 交互 / 诊断）单独成组，避免与 LiveSync 的设置项混排。
+        const osyc = this.createRootGroup("osyc", [getPage("osyc")]);
         const generalSettings = this.createGeneralSettingsGroup();
         const quickSetup = this.createQuickSetupGroup();
         const setupOtherDevices = this.createSetupOtherDevicesGroup();
@@ -900,13 +902,22 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
             return [
                 pendingInitialisation,
                 synchronisation,
+                osyc,
                 generalSettings,
                 setupOtherDevices,
                 quickSetup,
                 ...laterGroups,
             ];
         }
-        return [pendingInitialisation, quickSetup, synchronisation, generalSettings, setupOtherDevices, ...laterGroups];
+        return [
+            pendingInitialisation,
+            quickSetup,
+            synchronisation,
+            osyc,
+            generalSettings,
+            setupOtherDevices,
+            ...laterGroups,
+        ];
     }
 
     private beginRenderScope(refresh: () => void): Component {

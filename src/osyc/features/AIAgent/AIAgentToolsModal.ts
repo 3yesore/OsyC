@@ -8,7 +8,7 @@ import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 type ToolsTab = "account" | "recharge" | "debug";
 
 const TAB_LABEL: Record<ToolsTab, string> = {
-    account: "账户与权益",
+    account: "账户",
     recharge: "充值",
     debug: "调试",
 };
@@ -74,21 +74,18 @@ export class AIAgentToolsModal extends Modal {
 
     private renderAccount(contentEl: HTMLElement): void {
         const state = get(this.agent.state);
-        new Setting(contentEl).setName("当前权益").setDesc(PLAN_LABEL[state.plan] ?? state.plan);
-        new Setting(contentEl).setName("剩余积分").setDesc(`${state.credits} 分`);
-        new Setting(contentEl).setName("到期时间").setDesc(
-            state.expireAt ? new Date(state.expireAt).toLocaleDateString("zh-CN") : "—"
-        );
-        contentEl.createEl("h3", { text: "权益总览", cls: "ai-tools-section" });
-        if (state.entitlements) {
-            new Setting(contentEl).setName("OC 整理任务").setDesc(state.entitlements.aiTasks ? "已开通" : "未开通");
-            new Setting(contentEl).setName("私有同步").setDesc(state.entitlements.sync ? "已开通" : "未开通");
-            new Setting(contentEl).setName("Cloud-Vault").setDesc(
-                state.entitlements.cloudVault ? `已开通（${state.entitlements.cloudQuotaMb || 0} MB）` : "未开通"
-            );
-        } else {
-            contentEl.createEl("p", { text: "权益信息将在账户刷新后显示。", cls: "setting-item-description" });
-        }
+
+        // 分工：权益明细只在「我的账户」里展示，这里仅保留操作与跳转，
+        // 避免同一份权益在两处各排一版、口径还不一致。
+        const plan = PLAN_LABEL[state.plan] ?? state.plan;
+        new Setting(contentEl)
+            .setName("我的账户")
+            .setDesc(`当前为「${plan}」。权益明细、已绑定设备与同步状态都在账户详情中查看。`)
+            .addButton((button) => button.setButtonText("打开详情").setCta().onClick(() => {
+                this.close();
+                this.openAccountDetails();
+            }));
+
         if (state.cloudVault.available) {
             new Setting(contentEl)
                 .setName("Cloud-Vault 备份")
@@ -101,13 +98,7 @@ export class AIAgentToolsModal extends Modal {
                     if (result.ok) this.render();
                 }));
         }
-        new Setting(contentEl)
-            .setName("账户详情")
-            .setDesc("查看设备、同步状态，以及邮箱登录预览。")
-            .addButton((button) => button.setButtonText("打开详情").onClick(() => {
-                this.close();
-                this.openAccountDetails();
-            }));
+
         new Setting(contentEl)
             .setName("OsyC 设置")
             .setDesc("在 Obsidian 原生设置中配置 OsyC。")

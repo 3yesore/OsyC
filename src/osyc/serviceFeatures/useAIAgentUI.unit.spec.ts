@@ -2,40 +2,64 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-const source = readFileSync(
-    fileURLToPath(new URL("./useAIAgentUI.ts", import.meta.url)),
+const source = readFileSync(fileURLToPath(new URL("./useAIAgentUI.ts", import.meta.url)), "utf8");
+const settingsPane = readFileSync(
+    fileURLToPath(new URL("../features/AIAgent/osycSettingsPane.ts", import.meta.url)),
     "utf8"
 );
-const styles = readFileSync(
-    fileURLToPath(new URL("../../../styles.css", import.meta.url)),
+const settingsController = readFileSync(
+    fileURLToPath(new URL("../features/AIAgent/osycSettingsController.ts", import.meta.url)),
     "utf8"
 );
+const styles = readFileSync(fileURLToPath(new URL("../../../styles.css", import.meta.url)), "utf8");
 
 describe("OsyC 设置页信息架构", () => {
-    it("明确分组连接、笔记内容外观和 OC 交互", () => {
-        expect(source).toContain('text: "连接"');
-        expect(source).toContain('text: "笔记内容外观"');
-        expect(source).toContain('text: "OC 交互"');
+    it("设置页按连接、外观、交互、诊断四组呈现", () => {
+        expect(settingsPane).toContain('addPane(paneEl, "连接"');
+        expect(settingsPane).toContain('addPane(paneEl, "外观"');
+        expect(settingsPane).toContain('addPane(paneEl, "交互"');
+        expect(settingsPane).toContain('addPane(paneEl, "诊断"');
+    });
+
+    it("连接分组位于外观之前，交互与诊断依次靠后", () => {
+        const connection = settingsPane.indexOf('addPane(paneEl, "连接"');
+        const appearance = settingsPane.indexOf('addPane(paneEl, "外观"');
+        const interaction = settingsPane.indexOf('addPane(paneEl, "交互"');
+        const diagnostics = settingsPane.indexOf('addPane(paneEl, "诊断"');
+        expect(connection).toBeGreaterThan(-1);
+        expect(appearance).toBeGreaterThan(connection);
+        expect(interaction).toBeGreaterThan(appearance);
+        expect(diagnostics).toBeGreaterThan(interaction);
+    });
+
+    it("设置改为原生设置页承载，不再保留自建设置弹窗", () => {
+        expect(source).not.toContain("class AIAgentSettingModal");
+        expect(source).not.toContain("AIAgentSettingModal(");
+        expect(settingsController).toContain("setOsycSettingsController");
+        expect(settingsPane).toContain("getOsycSettingsController");
+    });
+
+    it("设置页只读快照并回写运行时，不自己保存第二份状态", () => {
+        expect(settingsPane).toContain("controller.snapshot()");
+        expect(settingsPane).toContain("controller.setAppearance");
+        expect(settingsPane).toContain("controller.importFont");
+        expect(settingsPane).not.toContain("localStorage");
+    });
+
+    it("保持底部栏入口与命令命名", () => {
         expect(source).toContain('api.addRibbonIcon("bot", "OC"');
         expect(source).toContain('name: "打开 OC 面板"');
         expect(source).not.toContain('name: "OC : 打开 OC 面板"');
     });
 
-    it("连接分组位于笔记外观之前，交互分组位于外观之后", () => {
-        const connection = source.indexOf('text: "连接"');
-        const appearance = source.indexOf('text: "笔记内容外观"');
-        const interaction = source.indexOf('text: "OC 交互"');
-        expect(connection).toBeGreaterThan(-1);
-        expect(appearance).toBeGreaterThan(connection);
-        expect(interaction).toBeGreaterThan(appearance);
-    });
-
     it("不再使用不准确的模型选择升级承诺", () => {
         expect(source).not.toContain("更多模型选择");
+        expect(settingsPane).not.toContain("更多模型选择");
     });
 
     it("不调用 Obsidian 已废弃的动态滑块提示 API", () => {
         expect(source).not.toContain(".setDynamicTooltip()");
+        expect(settingsPane).not.toContain(".setDynamicTooltip()");
     });
 
     it("不保留未接入的当前笔记捕获闭包", () => {
@@ -56,45 +80,47 @@ describe("OsyC 设置页信息架构", () => {
     });
 
     it("exposes the shared broad font catalog for body and heading controls", () => {
-        expect(source).toContain("fontOptionsForSources");
-        expect(source).toContain("FONT_SOURCE_GROUPS");
-        expect(source).toContain("headingFontSource");
-        expect(source).toContain("codeFontSource");
-        expect(source).toContain("标题字体");
-        expect(source).toContain("代码字体");
+        expect(settingsPane).toContain("fontOptionsForSources");
+        expect(settingsPane).toContain("FONT_SOURCE_GROUPS");
+        expect(settingsPane).toContain("headingFontSource");
+        expect(settingsPane).toContain("codeFontSource");
+        expect(settingsPane).toContain("标题字体");
+        expect(settingsPane).toContain("代码字体");
     });
 
-    it("将外观设置分为快速调整和可展开的详细调整", () => {
-        expect(source).toContain('text: "快速调整"');
-        expect(source).toContain('text: "详细调整"');
-        expect(source).toContain("osyc-ai-appearance-advanced");
+    it("外观高频项直接呈现，低频的颜色与背景收进可展开分组", () => {
+        expect(settingsPane).toContain('createEl("details", { cls: "osyc-ai-appearance-advanced" })');
+        expect(settingsPane).toContain('text: "更多颜色与背景"');
+        expect(settingsPane).toContain("osyc-ai-appearance-advanced-content");
     });
 
-    it("将 OC 交互设置收进独立的可展开分组", () => {
-        expect(source).toContain("osyc-ai-interaction-advanced");
-        expect(source).toContain('text: "OC 交互"');
-        expect(styles).toContain(".osyc-ai-interaction-advanced");
-        expect(styles).toContain(".osyc-ai-interaction-content");
+    it("交互分组直接呈现三个开关，不再嵌套折叠层", () => {
+        expect(settingsPane).toContain("悬浮球常驻显示");
+        expect(settingsPane).toContain("移动端三击打开 OC");
+        expect(settingsPane).toContain("发送时附带当前 Markdown 笔记");
+        expect(settingsPane).not.toContain("osyc-ai-interaction-advanced");
     });
 
     it("在三个字体选择框下方渲染实时样例，并保持预览不使用内部滚动", () => {
-        expect(source).toContain("osyc-font-preview");
-        expect(source).toContain("正文字体预览");
-        expect(source).toContain("标题字体预览");
-        expect(source).toContain("代码字体预览");
+        expect(settingsPane).toContain("osyc-font-preview");
+        expect(settingsPane).toContain("正文字体预览");
+        expect(settingsPane).toContain("标题字体预览");
+        expect(settingsPane).toContain("代码字体预览");
         expect(styles).toContain(".osyc-ai-appearance-preview");
         expect(styles).toContain("overflow: visible");
         expect(styles).toContain(".osyc-font-preview");
     });
 
     it("设置页预览解析 Vault 资源 URL，使本地背景图可以实时显示", () => {
-        expect(source).toContain("const backgroundFile = this.appearance.background.vaultPath");
-        expect(source).toContain("app.vault.getResourcePath(backgroundFile)");
-        expect(source).toContain("appearanceToCssVariables(this.appearance, resourceUrl, themeMode, this.fontResources)");
+        expect(settingsPane).toContain("controller.resolveResourceUrl(appearance.background.vaultPath)");
+        expect(settingsPane).toContain(
+            "appearanceToCssVariables(appearance, resourceUrl, themeMode, controller.snapshot().fontResources)"
+        );
+        expect(source).toContain("app.vault.getResourcePath(file)");
     });
 
     it("提供 Vault 字体载入入口并注入字体资源样式", () => {
-        expect(source).toContain("载入本地字体");
+        expect(settingsPane).toContain("载入本地字体");
         expect(source).toContain("fontResourcePath");
         expect(source).toContain("adapter.writeBinary");
         expect(source).not.toContain('createElement("style")');
@@ -109,27 +135,42 @@ describe("OsyC 设置页信息架构", () => {
     });
 
     it("按自定义字体真实 family 检测可用性，并让代码字体也能选择本地资源", () => {
-        expect(source).toContain("fontOptionsWithAvailability(options: Record<string, string>, resources: readonly FontResource[] = [])");
-        expect(source).toContain("fontFamilyForSource(source as FontSource, resource?.family)");
-        expect(source).toContain("fontOptionsWithAvailability({ ...CODE_FONT_OPTIONS");
-        expect(source).toContain("this.fontResources.map((resource) => [fontSourceForResource(resource.id)");
+        expect(settingsPane).toContain("function fontOptionsWithAvailability(");
+        expect(settingsPane).toContain("options: Record<string, string>,");
+        expect(settingsPane).toContain("resources: readonly FontResource[] = []");
+        expect(settingsPane).toContain("fontFamilyForSource(source as FontSource, resource?.family)");
+        expect(settingsPane).toContain("{ ...CODE_FONT_OPTIONS, ...localFontOptions(");
+        expect(settingsPane).toContain("localFontOptions(controller.snapshot().fontResources)");
+        expect(settingsPane).toContain("fontSourceForResource(resource.id)");
+    });
+
+    it("恢复默认后把已渲染的控件同步回新值", () => {
+        expect(settingsPane).toContain("const syncers: (() => void)[] = []");
+        expect(settingsPane).toContain("const syncAll = () => {");
+        expect(settingsPane).toContain("controller.resetAppearance()");
     });
 
     it("发布资产内置可直接使用的中文、拉丁和等宽字体资源", () => {
         expect(styles).toContain("@font-face");
-        expect(styles).toContain("font-family: \"Noto Sans SC\"");
-        expect(styles).toContain("font-family: \"Inter\"");
-        expect(styles).toContain("font-family: \"JetBrains Mono\"");
+        expect(styles).toContain('font-family: "Noto Sans SC"');
+        expect(styles).toContain('font-family: "Inter"');
+        expect(styles).toContain('font-family: "JetBrains Mono"');
         expect(styles).toContain("data:font/woff2;base64,");
     });
 
     it("设置页提供开源主题参考的内置预设", () => {
-        expect(source).toContain("Minimal");
-        expect(source).toContain("Chinese Writing");
-        expect(source).toContain("CodeSplash");
-        expect(source).toContain("Image Layouts");
-        expect(source).toContain("THEME_PRESET_OPTIONS");
-        expect(source).toContain("THEME_PACK_OPTIONS");
-        expect(source).toContain("themePackScope");
+        expect(settingsPane).toContain("Minimal");
+        expect(settingsPane).toContain("Chinese Writing");
+        expect(settingsPane).toContain("CodeSplash");
+        expect(settingsPane).toContain("Image Layouts");
+        expect(settingsPane).toContain("THEME_PRESET_OPTIONS");
+        expect(settingsPane).toContain("THEME_PACK_OPTIONS");
+        expect(settingsPane).toContain("themePackScope");
+    });
+
+    it("服务地址停止输入后才落盘，避免逐字写文件", () => {
+        expect(settingsPane).toContain("window.setTimeout(() => {");
+        expect(settingsPane).toContain("controller.setServiceUrl(value.trim())");
+        expect(source).toContain("agent.configure(value, agent.settings.token)");
     });
 });

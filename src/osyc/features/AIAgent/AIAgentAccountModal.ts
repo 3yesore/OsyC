@@ -67,6 +67,9 @@ function formatSyncTime(value: number | null): string {
  * 只展示后端下发的 plan / entitlements，不做任何权限判断 —— 权限以后端为准，
  * 本地展示被篡改也不影响实际能力（agent 执行时后端会再校验）。
  *
+ * 版面遵循 Obsidian 官方设置基线：分组一律由 `Setting.setHeading()` 生成，
+ * 低频区块用原生 `<details>` 折叠，避免所有内容平铺成一长列。
+ *
  * 升级不是真购买（当前购买走闲鱼卡密），这里只给引导文案，
  * 提示用户去购买对应档位的卡密再激活。
  */
@@ -78,16 +81,19 @@ export class AIAgentAccountModal extends Modal {
     override onOpen() {
         const { contentEl } = this;
         contentEl.empty();
+        contentEl.addClass("osyc-account-modal");
         const state = get(this.agent.state);
         const plan: PlanType = state.plan || "base";
         const ent = state.entitlements;
 
-        contentEl.createEl("h3", { text: "我的账户" });
+        contentEl.createEl("h2", { text: "我的账户" });
 
-        // 档位徽章
-        const badge = contentEl.createDiv({ cls: "ai-account-badge" });
+        // ── 概览：档位 + 账本 ──
+        const badgeRow = contentEl.createDiv({ cls: "ai-account-badge-row" });
+        const badge = badgeRow.createDiv({ cls: "ai-account-badge" });
         badge.textContent = PLAN_LABEL[plan] ?? plan;
         badge.setAttribute("data-plan", plan);
+        badgeRow.createSpan({ text: queueLabel(plan), cls: "ai-account-badge-note" });
 
         const expireText = state.expireAt
             ? new Date(state.expireAt).toLocaleDateString("zh-CN")
@@ -96,53 +102,78 @@ export class AIAgentAccountModal extends Modal {
         new Setting(contentEl).setName("剩余积分").setDesc(`${state.credits} 分`);
         new Setting(contentEl).setName("到期时间").setDesc(expireText);
 
-        contentEl.createEl("h4", { text: "权益总览", cls: "ai-account-section" });
+        // ── 权益总览 ──
+        new Setting(contentEl).setName("权益总览").setHeading();
         if (ent) {
-            new Setting(contentEl).setName("私有同步").setDesc(ent.sync ? "已开通" : "未开通");
-            new Setting(contentEl).setName("OC 整理任务").setDesc(ent.aiTasks ? "已开通" : "未开通");
-            new Setting(contentEl).setName("定时整理").setDesc(ent.schedules ? "已开通" : "未开通（会员/Pro）");
-            new Setting(contentEl).setName("Cloud-Vault 空间").setDesc(
-                ent.cloudVault ? `已开通（${ent.cloudQuotaMb || 0} MB）` : "未开通（会员/Pro）"
-            );
-            new Setting(contentEl).setName("队列优先级").setDesc(queueLabel(plan));
-            new Setting(contentEl).setName("设备数上限").setDesc(`${ent.maxDevices} 台`);
-            contentEl.createEl("h4", { text: "技能与能力", cls: "ai-account-section" });
-            this.renderSkills(contentEl, ent);
+            this.renderEntitlements(contentEl, ent, plan);
         } else {
             contentEl.createEl("p", { text: "权益信息加载中…", cls: "ai-account-hint" });
         }
 
-        // 设备管理 + 自带 Key（账户级，进入弹窗时懒加载）
-        this.renderDeviceSection(contentEl);
-
-        contentEl.createEl("h4", { text: "LiveSync 状态", cls: "ai-account-section" });
+        // ── 同步状态 ──
+        new Setting(contentEl).setName("同步状态").setHeading();
         this.renderSyncState(contentEl, state.syncState);
 
-        contentEl.createEl("h4", { text: "账户激活", cls: "ai-account-section" });
-        this.renderReactivation(contentEl);
+        // ── 设备与自带 Key（折叠，中低频）──
+        this.renderFold(contentEl, "设备与自带 Key", false, (body) => {
+            this.renderDeviceSection(body);
+        });
 
-        contentEl.createEl("h4", { text: "邮箱登录", cls: "ai-account-section" });
-        this.renderEmailLoginTemplate(contentEl);
-
-        // 升级引导
-        const hint = UPGRADE_HINT[plan];
-        if (hint) {
-            contentEl.createEl("h4", { text: "升级解锁更多", cls: "ai-account-section" });
-            contentEl.createEl("p", { text: hint, cls: "ai-account-hint" });
-            contentEl.createEl("p", {
-                text: "购买对应档位的卡密后，回到激活页输入即可升级。",
-                cls: "ai-account-hint",
-            });
-        }
+        // ── 账户操作（折叠，低频）──
+        this.renderFold(contentEl, "账户操作", false, (body) => {
+            this.renderReactivation(body);
+            this.renderEmailLoginTemplate(body);
+            this.renderUpgradeHint(body, plan);
+        });
 
         new Setting(contentEl).addButton((btn) =>
             btn.setButtonText("关闭").setCta().onClick(() => this.close())
         );
     }
 
+    /**
+     * 官方分组基线：标题用 `setHeading()`，正文放进原生 `<details>` 折叠体。
+     * 默认收起低频区块，保持首屏只有概览 / 权益 / 同步三段。
+     */
+    private renderFold(
+        container: HTMLElement,
+        title: string,
+        open: boolean,
+        render: (body: HTMLElement) => void
+    ): void {
+        const details = container.createEl("details", { cls: "ai-account-fold" });
+        if (open) details.setAttribute("open", "open");
+        details.createEl("summary", { text: title, cls: "ai-account-fold-summary" });
+        const body = details.createDiv({ cls: "ai-account-fold-body" });
+        render(body);
+    }
+
+    /** 权益条目：顺序固定为 同步 / 任务 / 定时 / 云空间 / 队列 / 设备。 */
+    private renderEntitlements(contentEl: HTMLElement, ent: AIEntitlements, plan: PlanType) {
+        new Setting(contentEl).setName("私有同步").setDesc(ent.sync ? "已开通" : "未开通");
+        new Setting(contentEl).setName("OC 整理任务").setDesc(ent.aiTasks ? "已开通" : "未开通");
+        new Setting(contentEl).setName("定时整理").setDesc(ent.schedules ? "已开通" : "未开通（会员/Pro）");
+        new Setting(contentEl).setName("Cloud-Vault 空间").setDesc(
+            ent.cloudVault ? `已开通（${ent.cloudQuotaMb || 0} MB）` : "未开通（会员/Pro）"
+        );
+        new Setting(contentEl).setName("队列优先级").setDesc(queueLabel(plan));
+        new Setting(contentEl).setName("设备数上限").setDesc(`${ent.maxDevices} 台`);
+        this.renderSkills(contentEl, ent);
+    }
+
+    private renderUpgradeHint(contentEl: HTMLElement, plan: PlanType) {
+        const hint = UPGRADE_HINT[plan];
+        if (!hint) return;
+        new Setting(contentEl).setName("升级解锁更多").setHeading();
+        contentEl.createEl("p", { text: hint, cls: "ai-account-hint" });
+        contentEl.createEl("p", {
+            text: "购买对应档位的卡密后，回到激活页输入即可升级。",
+            cls: "ai-account-hint",
+        });
+    }
+
     /** 设备与自带 Key 区块。未激活时给提示；已激活则异步拉取并渲染。 */
     private renderDeviceSection(contentEl: HTMLElement) {
-        contentEl.createEl("h4", { text: "设备与自带 Key", cls: "ai-account-section" });
         const box = contentEl.createDiv();
         if (!get(this.agent.state).activated) {
             box.createEl("p", { text: "激活账户后可管理设备与自带 Key。", cls: "ai-account-hint" });
@@ -233,7 +264,7 @@ export class AIAgentAccountModal extends Modal {
         const title = box.createDiv({ cls: "ai-account-sync-title" });
         title.createSpan({ text: "同步状态" });
         const pill = title.createSpan({ cls: "ai-account-sync-pill" });
-        const enabledLabel = syncState.enabled ? SYNC_STATUS_LABEL[syncState.status] ?? "未知" : "未启用";
+        const enabledLabel = SYNC_STATUS_LABEL[syncState.status] ?? "未知";
         pill.textContent = syncState.enabled ? enabledLabel : "未启用";
         pill.setAttribute("data-sync-status", syncState.enabled ? syncState.status : "unknown");
 
@@ -350,5 +381,6 @@ export class AIAgentAccountModal extends Modal {
 
     override onClose() {
         this.contentEl.empty();
+        this.contentEl.removeClass("osyc-account-modal");
     }
 }

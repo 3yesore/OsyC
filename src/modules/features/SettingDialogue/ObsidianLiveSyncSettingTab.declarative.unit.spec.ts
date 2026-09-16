@@ -218,9 +218,11 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         tab.editingSettings.isConfigured = false;
         const definitions = tab.getSettingDefinitions().filter(isGroup);
 
-        expect(definitions.slice(0, 3).map(itemLabel)).toEqual([
+        // OsyC 自身的设置排在同步之后，既不抢首次配置的引导位，也不落到帮助之后。
+        expect(definitions.slice(0, 4).map(itemLabel)).toEqual([
             "🧙‍♂️ Quick Setup",
             "🔄 Synchronisation",
+            "🧠 OsyC",
             "⚙️ General Settings",
         ]);
     });
@@ -230,8 +232,9 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         tab.editingSettings.isConfigured = true;
         const definitions = tab.getSettingDefinitions().filter(isGroup);
 
-        expect(definitions.slice(0, 4).map(itemLabel)).toEqual([
+        expect(definitions.slice(0, 5).map(itemLabel)).toEqual([
             "🔄 Synchronisation",
+            "🧠 OsyC",
             "⚙️ General Settings",
             "📲 Set up other devices",
             "🧙‍♂️ Quick Setup",
@@ -275,6 +278,7 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         expect(groups.map(({ heading }) => heading)).toEqual([
             "🧙‍♂️ Quick Setup",
             "🔄 Synchronisation",
+            "🧠 OsyC",
             "⚙️ General Settings",
             "📲 Set up other devices",
             "🛠️ Maintenance and recovery",
@@ -282,6 +286,12 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
             "🔧 Advanced settings",
             "ℹ️ Help and information",
         ]);
+        expect(
+            groups
+                .find(({ heading }) => heading === "🧠 OsyC")
+                ?.items?.filter(isPage)
+                .map(({ name }) => name)
+        ).toEqual(["🧠 OsyC"]);
         expect(
             groups
                 .find(({ heading }) => heading === "🛠️ Maintenance and recovery")
@@ -347,7 +357,7 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         const tab = createSettingsTab();
         const pages = collectPages(tab.getSettingDefinitions());
 
-        expect(pages).toHaveLength(14);
+        expect(pages).toHaveLength(15);
         expect(pages.map(({ name }) => name)).toEqual(
             expect.arrayContaining(
                 createSettingsPageCatalogue()
@@ -363,7 +373,7 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
             1
         );
         expect(advanced?.page).toBeUndefined();
-        expect(pages.filter(({ page }) => page !== undefined)).toHaveLength(10);
+        expect(pages.filter(({ page }) => page !== undefined)).toHaveLength(11);
     });
 
     it("keeps simple setup actions on the landing page without a second Setup destination", () => {
