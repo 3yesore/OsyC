@@ -26,8 +26,8 @@
 | S1 | 版式施工 | `sessionList.ts` / `osycPanePreferences.ts` / `AIAgentPane.svelte` 重写 | `npm run test:unit -- src/osyc/features/AIAgent` | ✅ 完成 |
 | S2 | 图标统一 | `OsycIcon.svelte` + 6 界面改用内置图标 + 白名单门禁 | AIAgent 单测（含 `reviewHygiene`） | ✅ 完成 |
 | S3 | 门禁与指纹 | `npm run check` 全绿、`release-info.json` 刷新、文档同步 | `npm run check`、两个 `verify-osyc-*.mjs` | ✅ 完成（`7a42e93` + `27a06cc`） |
-| S4 | 2.0.7 版本化 | 四处版本号 + `main.js` 重建 + 指纹 + ledger | `node utils/verify-osyc-release.mjs` | 🔄 进行中 |
-| S5 | 预发布下发 | 推送 `main` 触发资产上传，BRAT 可装 | `releases/expanded_assets/2.0.7` | ⏳ 待办 |
+| S4 | 2.0.7 版本化 | 四处版本号 + `main.js` 重建 + 指纹 + ledger | `node utils/verify-osyc-release.mjs` | ✅ 完成（`663157b`） |
+| S5 | 预发布下发 | 推送 `main` 触发资产上传，BRAT 可装 | `releases/expanded_assets/2.0.7` | 🔄 进行中 |
 | S6 | 发布后记录 | ledger 补 `publishedAt`/资产哈希、active-work、本文件与交接文档 | 目录一致性复核 | ⏳ 待办 |
 | S7 | 服务器侧推进 | 见 `docs/releases/osyc-2.0.6-launch-baseline.md` 的后端门槛 | 见该文档 | ⏳ 待办（下一阶段） |
 
@@ -70,4 +70,6 @@ curl -sL https://github.com/3yesore/OsyC/releases/expanded_assets/2.0.7 | grep -
 - **2026-09-16** S1+S2 完成：提交 `7a42e93`（代码/测试/`styles.css`/重建 `main.js`）。新增 3 个文件、改写 1 个、修掉 2 个静默样式缺陷。
 - **2026-09-16** S3 完成：提交 `27a06cc`（文档 + 指纹）。门禁：AIAgent 196 用例通过；`npm run check` 全绿（svelte-check 0 错 0 警）；两个 `verify-osyc-*.mjs`（含 `--check-refs`）exit 0。
 - **2026-09-16** 用户授权把这批改动作为 **2.0.7 预览版**下发；同时要求补齐细颗粒度设计文档与施工文档（本文件与 `osyc-chat-surface-2026-09-16.md`）。
-- **2026-09-16** S4 开始。
+- **2026-09-16** S4 完成：提交 `663157b`。四处版本号 + 三个 workspace + `package-lock.json` 全部到 2.0.7；`main.js` 重建后 `verify-osyc-release.mjs` 判 `aligned: 2.0.7`；`release-ledger.json` 把 2.0.7 记为 reserved、2.0.6 移入 `previousCandidate`；门禁 `npm run check` 全绿。
+- **2026-09-16** 施工中发现的**本机 git 缺陷复发**：本仓库分支 ref 实际存于 `packed-refs`，其值停在 `0a7dd4d`（落后 3 个提交），新提交对象与 reflog 正常但 loose ref 未落盘，`HEAD` 因此回退到旧提交。已写回 loose ref 修复，并把工作分支切到扁平名 `codex-2.0.6-stabilize`（扁平 ref 实测可写）从根上避开；`main.js` 的构建产物未受影响。
+- **2026-09-16** S5 开始：刷新 `release-info.json`（`sourceCommit` = `663157b`，五资产哈希）。
