@@ -206,9 +206,12 @@ describe("AI 面板移动端底部输入区", () => {
 
     it("提供顶栏公告入口、未读状态和已读操作", () => {
         expect(paneSource).toContain('aria-label="公告"');
-        expect(paneSource).toContain("onRefreshAnnouncements");
-        expect(paneSource).toContain("onMarkAnnouncementRead");
-        expect(paneSource).toContain("ai-announcement");
+        expect(paneSource).toContain("onOpenAnnouncements");
+        expect(paneSource).not.toContain("onRefreshAnnouncements");
+        expect(paneSource).not.toContain("onMarkAnnouncementRead");
+        expect(paneSource).not.toContain("ai-inline-panel");
+        expect(paneViewSource).toContain("onOpenAnnouncements");
+        expect(agentUiSource).toContain("AnnouncementModal");
     });
 
     it("手机端可以从命令面板打开并复制 OsyC 自己的日志", () => {

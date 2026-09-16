@@ -84,8 +84,8 @@ export class AnnouncementClient {
         this.store = new AnnouncementStore(storage);
     }
 
-    cached(): Announcement[] { return this.store.unread(this.store.load()); }
-    unread(): Announcement[] { return this.store.unread(this.cached()); }
+    cached(): Announcement[] { return this.store.load(); }
+    unread(): Announcement[] { return this.store.unread(this.store.load()); }
     markRead(id: string): void { this.store.markRead(id); }
 
     configure(apiBase: string, token: string): void {
@@ -104,7 +104,8 @@ export class AnnouncementClient {
         if (response.status >= 400) return this.cached();
         let data: unknown;
         try { data = typeof response.json === "function" ? await response.json() : await response.json; } catch { return this.cached(); }
-        const items = parseAnnouncements(data);
+        const envelope = record(data) && Array.isArray(data.items) ? data.items : data;
+        const items = parseAnnouncements(envelope);
         this.store.save(items);
         return this.store.unread(items);
     }

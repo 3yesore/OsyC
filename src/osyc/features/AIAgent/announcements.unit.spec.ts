@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+    AnnouncementClient,
     AnnouncementStore,
     type Announcement,
     parseAnnouncements,
@@ -25,5 +26,18 @@ describe("OsyC announcements", () => {
         expect(store.unread([announcement])).toEqual([announcement]);
         store.markRead(announcement.id);
         expect(store.unread([announcement])).toEqual([]);
+    });
+
+    it("parses the backend items envelope and exposes unread announcements", async () => {
+        const client = new AnnouncementClient({
+            apiBase: "https://example.test",
+            token: "token",
+            storage: new Map<string, string>(),
+            request: async () => ({ status: 200, json: { items: [announcement] } }),
+        });
+        await expect(client.refresh()).resolves.toEqual([announcement]);
+        expect(client.unread()).toEqual([announcement]);
+        client.markRead(announcement.id);
+        expect(client.unread()).toEqual([]);
     });
 });

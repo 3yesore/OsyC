@@ -21,6 +21,7 @@ import { applyThemePackScope, THEME_PACK_OPTIONS, themePackForId } from "@/osyc/
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 import { uploadErrorReport } from "@/osyc/features/AIAgent/diagnosticsUpload";
 import { AnnouncementClient, type Announcement } from "@/osyc/features/AIAgent/announcements";
+import { AnnouncementModal } from "@/osyc/features/AIAgent/AnnouncementModal";
 
 declare const MANIFEST_VERSION: string | undefined;
 
@@ -487,6 +488,17 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     // 「我的账户」弹窗：展示后端下发的档位与权益。按需打开，复用同一个实例。
     const accountModal = new AIAgentAccountModal(app, agent);
     const toolsModal = new AIAgentToolsModal(app, agent, () => accountModal.open());
+    const announcementsModal = new AnnouncementModal(
+        app,
+        announcements,
+        refreshAnnouncements,
+        (id: string) => { announcementClient.markRead(id); announcements.set(announcementClient.unread()); },
+    );
+    const openAnnouncements = () => {
+        toolsModal.close();
+        accountModal.close();
+        announcementsModal.open();
+    };
     const openTools = () => {
         accountModal.close();
         toolsModal.open();
@@ -802,13 +814,14 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         floating.destroy();
         accountModal.close();
         toolsModal.close();
-         themeObserver?.disconnect();
+        announcementsModal.close();
+        themeObserver?.disconnect();
         themeObserver = null;
         markdownScopeObserver?.disconnect();
         markdownScopeObserver = null;
-         syncMarkdownThemeScope(app.workspace, false);
-         removeThemePack?.();
-         removeThemePack = null;
+        syncMarkdownThemeScope(app.workspace, false);
+        removeThemePack?.();
+        removeThemePack = null;
         app.workspace.off("layout-change", syncNoteThemeScopes);
         app.workspace.off("active-leaf-change", syncNoteThemeScopes);
         if (typeof document !== "undefined" && "fonts" in document) {
@@ -831,8 +844,8 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             () => void agent.loadCloudVault(),
             (patch: Record<string, unknown>) => agent.applySettingsPatch?.(patch) ?? Promise.resolve({ applied: 0, rejected: [] }),
             (snippet: AISnippet) => agent.applyThemeSnippet?.(snippet) ?? Promise.resolve({ ok: false, message: "当前不可应用主题片段" }),
-            () => agent.markOnboarded()
-            , async (task) => uploadErrorReport(agent.settings.apiBase, agent.settings.token, task, {
+            () => agent.markOnboarded(),
+            async (task) => uploadErrorReport(agent.settings.apiBase, agent.settings.token, task, {
                 pluginVersion: typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev",
                 obsidianVersion: (app as unknown as { appVersion?: string }).appVersion ?? "unknown",
                 platform: Platform.isAndroidApp ? "android" : Platform.isIosApp ? "ios" : "desktop",
@@ -843,8 +856,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                 request: requestUrl,
             }),
             announcements,
-            refreshAnnouncements,
-            (id: string) => { announcementClient.markRead(id); announcements.set(announcementClient.unread()); }
+            openAnnouncements,
         );
     });
 

@@ -12,6 +12,14 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.6
+
+16th September, 2026
+
+- OsyC `2.0.6` moves announcements into an Obsidian-native modal with cached unread state, adds explicit tool-center navigation, and keeps floating panels mutually exclusive.
+- OsyC `2.0.6` adds user-confirmed, tenant-bound diagnostic upload with field allowlisting, redaction checks, idempotency, encrypted short-term retention, and no Vault content upload.
+- OsyC `2.0.6` keeps the existing response delta and artifact intent contracts; email login remains disabled for a later release.
+
 - Candidate OsyC `2.0.0` introduces the standalone plugin ID `osyc` for Community Plugins distribution. It includes a guarded migration path from the legacy `obsidian-livesync` directory, preserves the shared Agent configuration file, blocks dual sync instances, and keeps the existing MIT licensing and LiveSync attribution. This release must remain prerelease until migration and mobile network acceptance pass.
 
 - Candidate OsyC `1.0.78` restores the `/api/sync/handshake` contract and sync snapshot in the backend, keeps a fresh handshake from being overwritten by stale status data, aligns bundled font family names with shipped assets, and bridges original theme typography variables to OsyC note fonts. Focused tests pass; server deployment and mobile BRAT acceptance remain pending.

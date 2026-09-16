@@ -26,8 +26,7 @@ export class AIAgentPaneView extends SvelteItemView {
     onMarkOnboarded: () => void;
     onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>;
     announcements: Writable<Announcement[]>;
-    onRefreshAnnouncements: () => Promise<void>;
-    onMarkAnnouncementRead: (id: string) => void;
+    onOpenAnnouncements: () => void;
 
     override icon = "bot";
     // Agent is a first-class page in the main workspace. Keeping navigation=true
@@ -46,7 +45,8 @@ export class AIAgentPaneView extends SvelteItemView {
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>,
         onMarkOnboarded: () => void,
         onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>,
-        announcements: Writable<Announcement[]>, onRefreshAnnouncements: () => Promise<void>, onMarkAnnouncementRead: (id: string) => void
+        announcements: Writable<Announcement[]>,
+        onOpenAnnouncements: () => void
     ) {
 
         super(leaf);
@@ -60,8 +60,7 @@ export class AIAgentPaneView extends SvelteItemView {
         this.onMarkOnboarded = onMarkOnboarded;
         this.onUploadDiagnostics = onUploadDiagnostics;
         this.announcements = announcements;
-        this.onRefreshAnnouncements = onRefreshAnnouncements;
-        this.onMarkAnnouncementRead = onMarkAnnouncementRead;
+        this.onOpenAnnouncements = onOpenAnnouncements;
     }
 
     override getIcon(): string {
@@ -140,8 +139,7 @@ export class AIAgentPaneView extends SvelteItemView {
                 onCancelConfirmation: (taskId: string) => this.agent.cancelConfirmation(taskId),
                 onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => this.onUploadDiagnostics(task),
                 announcements: this.announcements,
-                onRefreshAnnouncements: () => this.onRefreshAnnouncements(),
-                onMarkAnnouncementRead: (id: string) => this.onMarkAnnouncementRead(id),
+                onOpenAnnouncements: () => this.onOpenAnnouncements(),
             },
         });
     }

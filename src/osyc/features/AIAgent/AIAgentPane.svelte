@@ -29,8 +29,7 @@
         onCancelConfirmation: (taskId: string) => Promise<{ ok: boolean; message: string }>;
         onUploadDiagnostics: (task: AITask) => Promise<{ ok: boolean; message: string }>;
         announcements: Writable<Announcement[]>;
-        onRefreshAnnouncements: () => Promise<void>;
-        onMarkAnnouncementRead: (id: string) => void;
+        onOpenAnnouncements: () => void;
         onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>;
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>;
         onMarkOnboarded: () => void;
@@ -40,7 +39,7 @@
         app, tasks, agentState, isMock, onSend, onActivate, onClear, onOpenFile,
         onDeactivate, onOpenTools,
         onLoadCloudVault, onRetryPush, onConfirmTask, onCancelConfirmation, onApplySettingsPatch,
-        onApplyThemeSnippet, onMarkOnboarded, onUploadDiagnostics, announcements, onRefreshAnnouncements, onMarkAnnouncementRead,
+        onApplyThemeSnippet, onMarkOnboarded, onUploadDiagnostics, announcements, onOpenAnnouncements,
     }: Props = $props();
 
     const QUICK_COMMANDS = [
@@ -71,7 +70,6 @@
     let confirmDeactivate = $state(false);
     let mobileSidebarOpen = $state(false);
     let selectedTaskId = $state<string | null>(null);
-    let announcementOpen = $state(false);
     let unreadAnnouncements = $derived($announcements.length);
     let dismissedSuggestions = $state<string[]>([]);
     let dismissedSnippets = $state<string[]>([]);
@@ -177,8 +175,7 @@
         </aside>
 
         <main class="ai-chat">
-            <header class="ai-chat-header"><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" onclick={() => (mobileSidebarOpen = true)}>☰</button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={() => { announcementOpen = !announcementOpen; if (announcementOpen) void onRefreshAnnouncements(); }}>{unreadAnnouncements > 0 ? "🔔" : "♢"}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => { announcementOpen = false; onOpenTools(); }}>⋯</button><div class="ai-account-strip" aria-label="账户状态"><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</div></header>
-            {#if announcementOpen}<section class="ai-inline-panel" aria-label="公告"><div class="ai-panel-title">公告</div>{#if $announcements.length === 0}<div class="ai-hint">暂无公告</div>{:else}{#each $announcements as item}<article class="ai-announcement" data-level={item.level ?? "info"}><strong>{item.title}</strong><time>{new Date((item.publishedAt ?? item.updatedAt ?? 0) * 1000).toLocaleString("zh-CN")}</time><p>{item.body}</p><button class="ai-text-btn" onclick={() => onMarkAnnouncementRead(item.id)}>标记已读</button></article>{/each}{/if}</section>{/if}
+            <header class="ai-chat-header"><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" onclick={() => (mobileSidebarOpen = true)}>☰</button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={onOpenAnnouncements}>{unreadAnnouncements > 0 ? "🔔" : "♢"}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => onOpenTools()}>⋯</button><div class="ai-account-strip" aria-label="账户状态"><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</div></header>
             {#if isMock}<div class="ai-banner"><span class="ai-banner-dot"></span>演示模式 · 当前为本地模拟，任务与积分不会真实消耗</div>{/if}
             <div class="ai-chat-timeline" bind:this={timelineEl} onscroll={onTimelineScroll}>
                 {#if !$agentState.onboarded}<section class="ai-welcome"><h1>和 OC 开始对话</h1><p>阅读、整理和归纳你的 Obsidian 笔记，并把结果交付回笔记库。</p><button class="ai-btn ai-btn-primary" onclick={onMarkOnboarded}>开始使用</button></section>{/if}
@@ -260,10 +257,10 @@
     .ai-icon-btn { flex: 0 0 auto; color: var(--text-muted); background: transparent; }
     .ai-mobile-menu, .ai-mobile-close { display: none; }
     .ai-hint, .ai-notice { color: var(--text-muted); font-size: var(--font-ui-smaller); }
-    .ai-banner, .ai-suggestion, .ai-inline-panel { max-width: 800px; margin: 8px auto; }
+    .ai-banner, .ai-suggestion { max-width: 800px; margin: 8px auto; }
     .ai-banner { display: flex; align-items: center; gap: 7px; padding: 7px 12px; color: var(--text-normal); background: var(--background-modifier-warning); font-size: var(--font-ui-smaller); }
     .ai-banner-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--text-warning); }
-    .ai-suggestion, .ai-inline-panel { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--background-modifier-border); border-radius: 8px; color: var(--text-muted); background: var(--background-secondary); font-size: var(--font-ui-smaller); }
+    .ai-suggestion { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border: 1px solid var(--background-modifier-border); border-radius: 8px; color: var(--text-muted); background: var(--background-secondary); font-size: var(--font-ui-smaller); }
     .ai-suggestion { flex-direction: row; align-items: center; justify-content: space-between; }
     .ai-suggestion > div { display: flex; gap: 8px; }
     .ai-panel-title { color: var(--text-normal); font-weight: 600; }
@@ -290,6 +287,6 @@
         .ai-chat-timeline { padding: 18px 12px; }
         .ai-composer { padding-inline: 12px; }
         .ai-message-user .ai-message-body { max-width: 84%; }
-        .ai-banner, .ai-suggestion, .ai-inline-panel { margin-inline: 12px; }
+        .ai-banner, .ai-suggestion { margin-inline: 12px; }
     }
 </style>
