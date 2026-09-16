@@ -1,6 +1,6 @@
 {
   "version": "2.0.6",
-  "channel": "prerelease-candidate",
+  "channel": "prerelease",
   "pluginId": "osyc",
   "sourceCommit": "3c9765dc1a2445f3637912740df0562a1a063fa0",
   "assets": {
