@@ -40,3 +40,11 @@ npm run build
 
 另：本计划文件中记载的工作目录 `WorkBuddy/2026-08-29-19-16-25/dev/obsidian-livesync` 已非主开发环境，当前活跃仓库为 `C:/Users/Y2516/Documents/Codex/2026-09-13/jie/worktrees/osyc-review-cleanup`。
 
+## 结果（2026-09-16）
+
+本计划的 UI 部分已随 `2.0.6` **GitHub 预发布**交付，供移动端 BRAT 真机验收；稳定版提升与后端推进按下述门槛另行处理：
+
+- 已审核发布提交 `0a7dd4d`，tag `2.0.6`，Release 标记 pre-release，稳定通道仍为 `2.0.4`。
+- 发布事实、资产哈希与验收待办见 `docs/releases/release-ledger.json` 与 `docs/handoff/2026-09-16-osyc-native-settings-page.md`。
+- 后端门槛（诊断/邮件契约、运行时 release id、后端测试、health/dry-run、四个验收样例）见 `docs/releases/osyc-2.0.6-launch-baseline.md`，均未开始。
+

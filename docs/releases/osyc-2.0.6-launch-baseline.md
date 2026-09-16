@@ -2,6 +2,8 @@
 
 This document is a read-only launch baseline for the OsyC 2.0.6 candidate. It records the state observed on 15 September 2026 and does not authorise deployment or stable publication.
 
+> **Annotation, 2026-09-16.** This snapshot is deliberately left as observed on 15 September. One statement in it is now superseded: after the native settings page work landed, the plug-in candidate **was** pushed and published as the `2.0.6` GitHub pre-release, for mobile UI validation only. Launch gate 6 (assets rebuilt from the reviewed source state and staged as a prerelease) is therefore met. Gates 1–5 are untouched and still open. For live state read `docs/releases/release-ledger.json`.
+
 ## Version state
 
 | Area | Observed state | Decision |

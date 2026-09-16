@@ -30,14 +30,14 @@ export function validateCollaborationState(input) {
     const errors = [];
     const ledger = input.ledger;
     const current = ledger?.currentStable;
-    const version = current?.version;
+    const stableVersion = current?.version;
 
     if (ledger?.schemaVersion !== 1) errors.push("release ledger schemaVersion must be 1");
-    if (!version || typeof version !== "string") {
+    if (!stableVersion || typeof stableVersion !== "string") {
         errors.push("release ledger current stable version is missing");
         return errors;
     }
-    if (current.tag !== version) errors.push("release ledger stable tag mismatch");
+    if (current.tag !== stableVersion) errors.push("release ledger stable tag mismatch");
     if (current.status !== "published") errors.push("release ledger current stable release is not published");
     if (!Array.isArray(current.assets) || current.assets.join("|") !== BRAT_ASSETS.join("|")) {
         errors.push("release ledger BRAT asset list mismatch");
@@ -46,6 +46,26 @@ export function validateCollaborationState(input) {
     if (ledger.publicationRules?.singleWriter !== "release-captain") {
         errors.push("release ledger singleWriter must be release-captain");
     }
+
+    // A reserved candidate line legitimately sits ahead of the stable release,
+    // so the reviewed working tree carries the candidate version rather than
+    // the stable one. Accept either, but never a version the ledger does not
+    // record: a tree that matches both the stable and the candidate version
+    // still resolves to the stable line.
+    const candidate = ledger.candidate;
+    const candidateVersion = candidate?.version;
+    if (typeof candidateVersion === "string" && candidate.tag != null) {
+        if (candidate.tag !== candidateVersion) errors.push("release ledger candidate tag mismatch");
+        if (typeof candidate.releaseUrl !== "string" || candidate.releaseUrl === "") {
+            errors.push("release ledger tagged candidate has no release URL");
+        }
+    }
+    const treeVersion = (input.source ?? input).manifest?.version;
+    const version =
+        typeof candidateVersion === "string" && candidateVersion !== stableVersion && treeVersion === candidateVersion
+            ? candidateVersion
+            : stableVersion;
+
     checkPackage(input.source ?? input, version, errors);
     if (input.distribution) checkDistribution(input.distribution, version, errors);
 

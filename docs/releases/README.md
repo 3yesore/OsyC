@@ -17,6 +17,25 @@ Read `release-ledger.json` before preparing any release. It is the only publicat
 - GitHub Release state (`draft`, `prerelease`, or stable);
 - BRAT mobile validation status and known gaps.
 
+## How a publication is actually triggered
+
+The plug-in is published by the repository's own automation, not by a local `gh` command:
+
+- `.github/workflows/publish-release-assets.yml` runs on **every push to `main`**.
+- It reads `manifest.json` at the pushed commit, creates or refreshes the GitHub Release for that version, and uploads `main.js`, `manifest.json`, and `styles.css` **from that same commit**.
+- On a push event a newly created Release defaults to **pre-release**. A later ordinary push refreshes the assets without changing the channel of an existing stable Release, so a stable release is never silently demoted.
+- A plain fast-forward push of `main` to the reviewed commit is therefore the publication action, and `main` always points at the published commit. This is how `2.0.4` (stable) and `2.0.6` (pre-release) were published.
+- `release.yml` and `finalise-release.yml` are a stricter, tag-first alternative. `finalise-release.yml` pushes `refs/tags/<version>` and `refs/tags/<version>-cli` atomically, and no `-cli` tag has ever been created in this repository, so that path would fail at its own tag push. Do not treat it as the working procedure without first creating the CLI tag.
+
+The version's own tag (`2.0.6` for version `2.0.6`) is created by that workflow and must never be moved afterwards.
+
+## Asset naming
+
+Two different sets are both called "assets" in these documents, and conflating them has caused confusion:
+
+- **Repository assets** — `main.js`, `manifest.json`, `manifest-beta.json`, `styles.css`, `versions.json`. These are versioned files that must stay aligned and are hashed in `release-info.json`. `utils/verify-osyc-collaboration.mjs` exports this exact list as `BRAT_ASSETS`, which is why the ledger's `currentStable.assets` contains all five.
+- **Release assets** — `main.js`, `manifest.json`, `styles.css`. These are what the workflow uploads and what BRAT actually downloads; `manifest-beta.json` and `versions.json` are read from the repository tree.
+
 ## Release sequence
 
 1. Feature agents submit change records and update `## Unreleased` only for user-facing changes.

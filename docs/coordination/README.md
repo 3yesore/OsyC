@@ -25,7 +25,7 @@ The release captain role is currently represented by the stable identifier `rele
 
 ## Version and release guardrails
 
-- `docs/releases/release-ledger.json` is the single publication authority. It records the current stable release, the previous stable release, any reserved candidate, the canonical commits, and the five BRAT assets.
+- `docs/releases/release-ledger.json` is the single publication authority. It records the current stable release, the previous stable release, any reserved candidate (including whether that candidate has been published as a pre-release), the canonical source and distribution commits, and the five versioned repository assets. See `docs/releases/README.md` for the difference between repository assets and the three files actually uploaded to a GitHub Release.
 - Stable release fields remain release-captain-only. A feature agent may update the candidate reservation and test-package evidence for its own reserved version; it must not edit `currentStable` or any published release entry.
 - Every release version is reserved once. Never reuse a version, move an existing tag, or force-push a tag.
 - A release is immutable after publication. Corrections use the next patch or pre-release version.

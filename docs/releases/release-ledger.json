@@ -5,13 +5,13 @@
     "sourceRepository": {
         "name": "obsidian-livesync",
         "branch": "codex/2.0.6-stabilize",
-        "commit": "af9bc5e4a4342906a2583531f1e76bf195cb27c3"
+        "commit": "0a7dd4d8812ba3d688d3e9ad26915a40f27f00db"
     },
     "distributionRepository": {
         "name": "3yesore/OsyC",
         "remote": "https://github.com/3yesore/OsyC.git",
         "branch": "main",
-        "commit": "bafb83926b71f5309b6e7de7743b5fdb062bc485"
+        "commit": "0a7dd4d8812ba3d688d3e9ad26915a40f27f00db"
     },
     "currentStable": {
         "version": "2.0.4",
@@ -29,17 +29,29 @@
     },
     "candidate": {
         "version": "2.0.6",
-        "status": "local-candidate-unpublished",
+        "status": "prerelease-published",
+        "channel": "prerelease",
         "sourceBranch": "codex/2.0.6-stabilize",
-        "sourceCommit": "af9bc5e4a4342906a2583531f1e76bf195cb27c3",
-        "tag": null,
-        "releaseUrl": null,
-        "bratValidation": "pending-mobile"
+        "sourceCommit": "0a7dd4d8812ba3d688d3e9ad26915a40f27f00db",
+        "assetSourceCommit": "3c9765dc1a2445f3637912740df0562a1a063fa0",
+        "tag": "2.0.6",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.6",
+        "publishedAt": "2026-09-16T10:18:50Z",
+        "publishedAssets": ["main.js", "manifest.json", "styles.css"],
+        "assetSha256": {
+            "main.js": "4d1a7c1ec4a11788d77897d22d14c8e46403ae14b9dd8a0e2b883c4d64ecc3df",
+            "manifest.json": "9ba5f9f68b9e972bdca9330f272b681733f36244c268cf4fbde57c2532f65317",
+            "styles.css": "a011369a645c62707ab7c0629271c8582297f66b9aff18722b68bee4047969ba"
+        },
+        "bratValidation": "pending-mobile",
+        "stablePromotionOwner": "release-captain"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
         "This file was corrected on 2026-09-16 against the GitHub API; it had been left at the 1.0.75 era and no longer described the published state.",
-        "Source commit af9bc5e is the last commit; the OsyC native settings page work recorded in docs/changes/codex-2026-09-16-osyc-native-settings-page.md is still uncommitted on top of it."
+        "2.0.6 was published on 2026-09-16 by fast-forwarding main to the reviewed source commit 0a7dd4d, which triggers .github/workflows/publish-release-assets.yml. The workflow created the tag and the GitHub Release and marked it as a pre-release, so the stable channel still resolves to 2.0.4.",
+        "Asset naming: the five BRAT_ASSETS entries recorded here (main.js, manifest.json, manifest-beta.json, styles.css, versions.json) are the versioned repository files that must stay aligned and hashed. The GitHub Release itself carries the three files BRAT actually downloads (main.js, manifest.json, styles.css); manifest-beta.json and versions.json are consumed from the repository tree. This distinction was previously unstated and made the ledger look inconsistent with the published asset list.",
+        "docs/releases/osyc-2.0.6-launch-baseline.md remains a dated snapshot of 15 September 2026 and is deliberately not rewritten. Its plug-in publication gate is now met, but its backend gates are still open: a versioned backend candidate with the diagnostics/email contracts, backend tests, health/runtime-info/zero-cost dry-run, the four low-cost acceptance samples, and desktop plus mobile UI acceptance."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
