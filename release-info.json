@@ -2,12 +2,12 @@
   "version": "2.0.6",
   "channel": "prerelease-candidate",
   "pluginId": "osyc",
-  "sourceCommit": "4833ad3f6cf0ac89bc007000c6fbdd59ecec65e9",
+  "sourceCommit": "3c9765dc1a2445f3637912740df0562a1a063fa0",
   "assets": {
-    "main.js": "663b24562d25d29ca86a6459246403c9cf0bef86e2383294ca83fb0a4f7a4086",
+    "main.js": "4d1a7c1ec4a11788d77897d22d14c8e46403ae14b9dd8a0e2b883c4d64ecc3df",
     "manifest.json": "9ba5f9f68b9e972bdca9330f272b681733f36244c268cf4fbde57c2532f65317",
     "manifest-beta.json": "7b84110aae0f12010ce32a8d2cb7766f33a33f9347eafde76f288fab3a486ea2",
-    "styles.css": "a70070b90dc721d252ce15166397378fccbfa873ef7d37dd9e27cf0e395e4c54",
+    "styles.css": "a011369a645c62707ab7c0629271c8582297f66b9aff18722b68bee4047969ba",
     "versions.json": "dba3f0febbc61e3eefce8136b2c590efbe7fe82e1fa9e946cca86dd58f881bbb"
   }
 }
