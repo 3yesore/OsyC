@@ -4,7 +4,7 @@
     "releaseOwner": "release-captain",
     "sourceRepository": {
         "name": "obsidian-livesync",
-        "branch": "codex/2.0.6-stabilize",
+        "branch": "codex-2.0.6-stabilize",
         "commit": "0a7dd4d8812ba3d688d3e9ad26915a40f27f00db"
     },
     "distributionRepository": {
@@ -28,6 +28,35 @@
         "publishedAt": "2026-09-13T13:12:27Z"
     },
     "candidate": {
+        "version": "2.0.7",
+        "status": "reserved",
+        "channel": "prerelease",
+        "sourceBranch": "codex-2.0.6-stabilize",
+        "stablePromotionOwner": "release-captain"
+    },
+    "notes": [
+        "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
+        "This file was corrected on 2026-09-16 against the GitHub API; it had been left at the 1.0.75 era and no longer described the published state.",
+        "2.0.6 was published on 2026-09-16 by fast-forwarding main to the reviewed source commit 0a7dd4d, which triggers .github/workflows/publish-release-assets.yml. The workflow created the tag and the GitHub Release and marked it as a pre-release, so the stable channel still resolves to 2.0.4.",
+        "Asset naming: the five BRAT_ASSETS entries recorded here (main.js, manifest.json, manifest-beta.json, styles.css, versions.json) are the versioned repository files that must stay aligned and hashed. The GitHub Release itself carries the three files BRAT actually downloads (main.js, manifest.json, styles.css); manifest-beta.json and versions.json are consumed from the repository tree. This distinction was previously unstated and made the ledger look inconsistent with the published asset list.",
+        "docs/releases/osyc-2.0.6-launch-baseline.md remains a dated snapshot of 15 September 2026 and is deliberately not rewritten. Its plug-in publication gate is now met, but its backend gates are still open: a versioned backend candidate with the diagnostics/email contracts, backend tests, health/runtime-info/zero-cost dry-run, the four low-cost acceptance samples, and desktop plus mobile UI acceptance.",
+        "2.0.7 was reserved by the maintainer on 2026-09-16 to ship the chat-surface (ChatGPT layout) and icon-unification work, which is newer than the published 2.0.6 pre-release. The 2.0.6 record moved to previousCandidate: its tag stays at 0a7dd4d and must not be moved. Until the publish workflow runs, the 2.0.7 entry intentionally carries no tag or releaseUrl so the collaboration check treats it as reserved."
+    ],
+    "publicationRules": {
+        "singleWriter": "release-captain",
+        "immutableTags": true,
+        "forcePush": false,
+        "featureAgentsMayPublish": false,
+        "featureAgentsMayPublishTestPackages": true,
+        "testPackage": {
+            "mustBePrerelease": true,
+            "requiresReservedVersion": true,
+            "requiresExactFiveAssets": true,
+            "stablePromotionOwner": "release-captain"
+        },
+        "bratStableValidationRequired": true
+    },
+    "previousCandidate": {
         "version": "2.0.6",
         "status": "prerelease-published",
         "channel": "prerelease",
@@ -45,26 +74,5 @@
         },
         "bratValidation": "pending-mobile",
         "stablePromotionOwner": "release-captain"
-    },
-    "notes": [
-        "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
-        "This file was corrected on 2026-09-16 against the GitHub API; it had been left at the 1.0.75 era and no longer described the published state.",
-        "2.0.6 was published on 2026-09-16 by fast-forwarding main to the reviewed source commit 0a7dd4d, which triggers .github/workflows/publish-release-assets.yml. The workflow created the tag and the GitHub Release and marked it as a pre-release, so the stable channel still resolves to 2.0.4.",
-        "Asset naming: the five BRAT_ASSETS entries recorded here (main.js, manifest.json, manifest-beta.json, styles.css, versions.json) are the versioned repository files that must stay aligned and hashed. The GitHub Release itself carries the three files BRAT actually downloads (main.js, manifest.json, styles.css); manifest-beta.json and versions.json are consumed from the repository tree. This distinction was previously unstated and made the ledger look inconsistent with the published asset list.",
-        "docs/releases/osyc-2.0.6-launch-baseline.md remains a dated snapshot of 15 September 2026 and is deliberately not rewritten. Its plug-in publication gate is now met, but its backend gates are still open: a versioned backend candidate with the diagnostics/email contracts, backend tests, health/runtime-info/zero-cost dry-run, the four low-cost acceptance samples, and desktop plus mobile UI acceptance."
-    ],
-    "publicationRules": {
-        "singleWriter": "release-captain",
-        "immutableTags": true,
-        "forcePush": false,
-        "featureAgentsMayPublish": false,
-        "featureAgentsMayPublishTestPackages": true,
-        "testPackage": {
-            "mustBePrerelease": true,
-            "requiresReservedVersion": true,
-            "requiresExactFiveAssets": true,
-            "stablePromotionOwner": "release-captain"
-        },
-        "bratStableValidationRequired": true
     }
 }
