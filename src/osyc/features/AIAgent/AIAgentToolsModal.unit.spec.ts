@@ -17,12 +17,20 @@ const uiSource = readFileSync(
 
 describe("AIAgentToolsModal", () => {
     it("uses Obsidian native controls for the unified tools centre", () => {
-        expect(source).toContain('import { Modal, Notice, Setting, type App } from "@/deps.ts"');
+        expect(source).toContain('import { Modal, Notice, Setting, setIcon, type App } from "@/deps.ts"');
         expect(source).toContain("export class AIAgentToolsModal extends Modal");
         expect(source).toContain('"data-osyc-tools-tab": tab');
         expect(source).toContain('account: "账户"');
         expect(source).toContain('recharge: "充值"');
         expect(source).toContain('debug: "调试"');
+    });
+
+    it("renders tab and action icons from the Obsidian icon set", () => {
+        expect(source).toContain("TAB_ICON");
+        expect(source).toContain('setIcon(button.createSpan({ cls: "ai-tools-tab-icon" }), TAB_ICON[tab])');
+        expect(source).toContain('button.createSpan({ cls: "ai-tools-tab-label", text: TAB_LABEL[tab] })');
+        // Buttons carry their icon through the native control, not a glyph.
+        expect(source).toContain('.setIcon("copy")');
     });
 
     it("keeps settings in Obsidian and makes recharge state explicit", () => {

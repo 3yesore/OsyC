@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting, type App } from "@/deps.ts";
+import { Modal, Notice, Setting, setIcon, type App } from "@/deps.ts";
 import { get } from "svelte/store";
 import { openObsidianSettings } from "@/common/obsidianSettings.ts";
 import { CURRENT_PLUGIN_ID } from "@/osyc/migration/pluginIdentity";
@@ -11,6 +11,13 @@ const TAB_LABEL: Record<ToolsTab, string> = {
     account: "账户",
     recharge: "充值",
     debug: "调试",
+};
+
+/** Obsidian built-in icons, so the tabs do not depend on emoji fonts. */
+const TAB_ICON: Record<ToolsTab, string> = {
+    account: "user",
+    recharge: "credit-card",
+    debug: "bug",
 };
 
 const PLAN_LABEL: Record<string, string> = {
@@ -51,7 +58,6 @@ export class AIAgentToolsModal extends Modal {
         for (const tab of Object.keys(TAB_LABEL) as ToolsTab[]) {
             const button = tabs.createEl("button", {
                 cls: "ai-tools-tab",
-                text: TAB_LABEL[tab],
                 attr: {
                     type: "button",
                     role: "tab",
@@ -60,6 +66,8 @@ export class AIAgentToolsModal extends Modal {
                 },
             });
             button.toggleClass("is-active", this.tab === tab);
+            setIcon(button.createSpan({ cls: "ai-tools-tab-icon" }), TAB_ICON[tab]);
+            button.createSpan({ cls: "ai-tools-tab-label", text: TAB_LABEL[tab] });
             button.onclick = () => {
                 this.tab = tab;
                 this.render();
@@ -81,7 +89,7 @@ export class AIAgentToolsModal extends Modal {
         new Setting(contentEl)
             .setName("我的账户")
             .setDesc(`当前为「${plan}」。权益明细、已绑定设备与同步状态都在账户详情中查看。`)
-            .addButton((button) => button.setButtonText("打开详情").setCta().onClick(() => {
+            .addButton((button) => button.setButtonText("打开详情").setIcon("user").setCta().onClick(() => {
                 this.close();
                 this.openAccountDetails();
             }));
@@ -90,7 +98,7 @@ export class AIAgentToolsModal extends Modal {
             new Setting(contentEl)
                 .setName("Cloud-Vault 备份")
                 .setDesc(state.cloudVault.snapshots.length > 0 ? `已有 ${state.cloudVault.snapshots.length} 个快照` : "尚无备份快照")
-                .addButton((button) => button.setButtonText("立即备份").onClick(async () => {
+                .addButton((button) => button.setButtonText("立即备份").setIcon("database").onClick(async () => {
                     button.setDisabled(true);
                     const result = await this.agent.cloudBackup();
                     button.setDisabled(false);
@@ -102,7 +110,7 @@ export class AIAgentToolsModal extends Modal {
         new Setting(contentEl)
             .setName("OsyC 设置")
             .setDesc("在 Obsidian 原生设置中配置 OsyC。")
-            .addButton((button) => button.setButtonText("打开设置").setCta().onClick(() => {
+            .addButton((button) => button.setButtonText("打开设置").setIcon("settings").setCta().onClick(() => {
                 try {
                     openObsidianSettings(this.app, CURRENT_PLUGIN_ID);
                     this.close();
@@ -123,7 +131,7 @@ export class AIAgentToolsModal extends Modal {
             attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
         });
         input.addClass("ai-tools-recharge-input");
-        setting.addButton((button) => button.setButtonText(this.recharging ? "处理中…" : "确认充值").setCta().setDisabled(this.recharging).onClick(async () => {
+        setting.addButton((button) => button.setButtonText(this.recharging ? "处理中…" : "确认充值").setIcon("credit-card").setCta().setDisabled(this.recharging).onClick(async () => {
             const cardKey = input.value.trim();
             if (!cardKey || this.recharging) return;
             this.recharging = true;
@@ -145,11 +153,11 @@ export class AIAgentToolsModal extends Modal {
         new Setting(contentEl)
             .setName("复制脱敏诊断")
             .setDesc("包含版本、平台和安全运行状态，不包含 Vault 原文、卡密或 API 密钥。")
-            .addButton((button) => button.setButtonText("复制").onClick(() => void this.copyDiagnostics()));
+            .addButton((button) => button.setButtonText("复制").setIcon("copy").onClick(() => void this.copyDiagnostics()));
         new Setting(contentEl)
             .setName("复制 OsyC 日志")
             .setDesc("用于在问题反馈中附上已脱敏的 OsyC 日志。")
-            .addButton((button) => button.setButtonText("复制").onClick(() => void this.copyLogs()));
+            .addButton((button) => button.setButtonText("复制").setIcon("copy").onClick(() => void this.copyLogs()));
     }
 
     private async copyDiagnostics(): Promise<void> {

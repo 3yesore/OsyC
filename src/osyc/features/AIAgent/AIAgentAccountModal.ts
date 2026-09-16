@@ -127,7 +127,7 @@ export class AIAgentAccountModal extends Modal {
         });
 
         new Setting(contentEl).addButton((btn) =>
-            btn.setButtonText("关闭").setCta().onClick(() => this.close())
+            btn.setButtonText("关闭").setIcon("x").setCta().onClick(() => this.close())
         );
     }
 
@@ -204,7 +204,7 @@ export class AIAgentAccountModal extends Modal {
             setting.setDesc(dev.has_byo_key ? "已配自带 Key" : "走 OsyC 额度");
             if (!dev.is_current) {
                 setting.addButton((btn) =>
-                    btn.setButtonText("撤销").onClick(async () => {
+                    btn.setButtonText("撤销").setIcon("trash-2").onClick(async () => {
                         const res = await this.agent.revokeDevice(dev.device_id);
                         if (res.ok) {
                             await this.refreshDevices(box);
@@ -226,7 +226,7 @@ export class AIAgentAccountModal extends Modal {
             placeholder: "sk-...",
         });
         byo.addButton((btn) =>
-            btn.setButtonText("保存").setCta().onClick(async () => {
+            btn.setButtonText("保存").setIcon("check").setCta().onClick(async () => {
                 const res = await this.agent.saveByoKey(input.value);
                 if (res.ok) {
                     input.value = "";
@@ -239,7 +239,7 @@ export class AIAgentAccountModal extends Modal {
         const cur = d.devices.find((x) => x.is_current);
         if (cur?.has_byo_key) {
             byo.addButton((btn) =>
-                btn.setButtonText("清空").onClick(async () => {
+                btn.setButtonText("清空").setIcon("x").onClick(async () => {
                     await this.agent.clearByoKey();
                     await this.refreshDevices(box);
                 })
@@ -302,7 +302,7 @@ export class AIAgentAccountModal extends Modal {
             .setName("同步设置")
             .setDesc("打开 LiveSync 的 Synchronisation 页面，查看和调整同步配置。")
             .addButton((btn) =>
-                btn.setButtonText("打开").setCta().onClick(() => {
+                btn.setButtonText("打开").setIcon("settings").setCta().onClick(() => {
                     try {
                         openObsidianSettings(this.app, "synchronisation");
                     } catch (error) {
@@ -315,7 +315,7 @@ export class AIAgentAccountModal extends Modal {
             .setName("重新同步")
             .setDesc("重新执行一次服务器握手并刷新同步覆盖率，不调用模型、不扣积分。")
             .addButton((btn) =>
-                btn.setButtonText("刷新").setCta().onClick(async () => {
+                btn.setButtonText("刷新").setIcon("refresh-cw").setCta().onClick(async () => {
                     btn.setDisabled(true);
                     const result = await this.agent.refreshSync();
                     btn.setDisabled(false);
@@ -330,7 +330,7 @@ export class AIAgentAccountModal extends Modal {
             .setName("重新激活卡密")
             .setDesc("用于更换卡密、恢复同步配置或在新设备重新绑定。不会显示或保存卡密原文。")
             .addButton((btn) =>
-                btn.setButtonText("重新激活").setCta().onClick(async () => {
+                btn.setButtonText("重新激活").setIcon("key").setCta().onClick(async () => {
                     const input = setting.controlEl.querySelector<HTMLInputElement>("input");
                     const cardKey = input?.value.trim() ?? "";
                     if (!cardKey) {

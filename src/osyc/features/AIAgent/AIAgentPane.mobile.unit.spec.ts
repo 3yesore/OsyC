@@ -30,6 +30,10 @@ const pluginStyles = readFileSync(
     fileURLToPath(new URL("../../../../styles.css", import.meta.url)),
     "utf8"
 );
+const appearanceSource = readFileSync(
+    fileURLToPath(new URL("./appearance.ts", import.meta.url)),
+    "utf8"
+);
 const themeStyles = pluginStyles.slice(pluginStyles.indexOf("/* OsyC AI theme tokens */"));
 
 describe("AI 面板移动端底部输入区", () => {
@@ -98,7 +102,11 @@ describe("AI 面板移动端底部输入区", () => {
     });
 
     it("多个发送中的临时任务不会共享 keyed each 的空 taskId", () => {
-        expect(paneSource).toContain("{#each $tasks as task}");
+        // The list now iterates the recency-grouped read model rather than the
+        // raw store, but the guarantee is unchanged: no taskId-keyed each,
+        // because several in-flight tasks can share an empty taskId.
+        expect(paneSource).toContain("{#each group.tasks as task}");
+        expect(paneSource).not.toContain("{#each group.tasks as task (task.taskId)}");
         expect(paneSource).not.toContain("{#each $tasks as task (task.taskId)}");
     });
 
@@ -235,5 +243,68 @@ describe("AI 面板移动端底部输入区", () => {
         expect(settingsSource).toContain(".setLimits(13, 24, 1)");
         expect(settingsSource).toContain(".addColorPicker((picker)");
         expect(settingsSource).not.toContain('setDesc("支持 #RGB/#RRGGBB；留空跟随预设")');
+    });
+});
+
+describe("OsyC 对话页 ChatGPT 版式", () => {
+    it("会话侧栏可折叠，折叠状态按 Vault 记住而不是写进同步设置", () => {
+        expect(paneSource).toContain("class:ai-sidebar-collapsed={sidebarCollapsed}");
+        expect(paneSource).toContain("loadOsycPaneBooleanPreference");
+        expect(paneSource).toContain("saveOsycPaneBooleanPreference");
+        expect(paneSource).toContain("OSYC_PANE_PREFERENCE_KEYS.sidebarCollapsed");
+        expect(paneSource).not.toContain("localStorage.setItem");
+    });
+
+    it("桌面折叠成图标窄栏，手机端抽屉不受影响", () => {
+        expect(paneSource).toContain("@media (min-width: 721px)");
+        expect(paneSource).toContain(".ai-shell.ai-sidebar-collapsed { grid-template-columns: 56px minmax(0, 1fr); }");
+        expect(paneSource).toContain(".ai-shell.ai-sidebar-collapsed .ai-session-list { display: none; }");
+        expect(paneSource).toContain("@media (max-width: 720px)");
+    });
+
+    it("折叠后仍可从窄栏触达工具中心、清理记录与退出账户", () => {
+        for (const action of ["工具中心", "清理记录", "退出账户"]) {
+            expect(paneSource).toContain(action);
+        }
+        expect(paneSource).toContain("ai-control-label");
+        expect(paneSource).not.toContain(".ai-new-chat span {");
+    });
+
+    it("会话记录按今天、昨天、前 7 天、更早分组，不再逐条重复日期", () => {
+        expect(paneSource).toContain("{#each sessionGroups as group}");
+        expect(paneSource).toContain("groupSessionsByRecency($tasks)");
+        expect(paneSource).not.toContain("ai-session-time");
+    });
+
+    it("手机端抽屉支持点遮罩关闭", () => {
+        expect(paneSource).toContain("ai-sidebar-scrim");
+        expect(paneSource).toContain("background: var(--background-modifier-cover)");
+    });
+
+    it("用户消息是与聊天区仅差一档的中性气泡，不再是强调色块", () => {
+        const bubble = appearanceSource.slice(
+            appearanceSource.indexOf(".osyc-ai-agent .ai-message-user .ai-message-body {")
+        );
+        expect(bubble.length).toBeGreaterThan(0);
+        expect(bubble.slice(0, 400)).toContain("background: var(--osyc-ai-surface-alt) !important;");
+        expect(bubble.slice(0, 400)).not.toContain("var(--osyc-ai-accent)");
+        expect(paneSource).not.toContain("ai-message-role");
+        expect(appearanceSource).not.toContain(".ai-message-role");
+    });
+
+    it("侧栏与聊天区使用不同层级的面板色，折叠后仍能分辨边界", () => {
+        const surfaceGroup = appearanceSource.slice(
+            appearanceSource.indexOf(".osyc-ai-agent .ai-sidebar,"),
+            appearanceSource.indexOf(".osyc-ai-agent .ai-session-item,")
+        );
+        expect(surfaceGroup).toContain("background: var(--osyc-ai-surface-alt) !important;");
+        expect(surfaceGroup).not.toContain("var(--osyc-ai-surface) !important");
+    });
+
+    it("输入区是可随草稿增高的药丸式输入框", () => {
+        expect(paneSource).toContain("ai-composer-box");
+        expect(paneSource).toContain("COMPOSER_MAX_HEIGHT");
+        expect(paneSource).toContain("element.style.height = `${Math.min(element.scrollHeight, COMPOSER_MAX_HEIGHT)}px`");
+        expect(paneSource).toContain(".ai-composer-input");
     });
 });

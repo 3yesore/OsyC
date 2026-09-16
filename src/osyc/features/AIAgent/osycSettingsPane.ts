@@ -338,15 +338,18 @@ function renderAppearance(el: HTMLElement, controller: OsycSettingsController): 
                     })
             )
             .addButton((button) =>
-                button.setButtonText("载入").onClick(() => {
-                    void controller.importFont(selectedFont).then((resource) => {
-                        if (!resource) return;
-                        updateAppearance({
-                            fontSource: fontSourceForResource(resource.id) as AppearanceSettings["fontSource"],
+                button
+                    .setButtonText("载入")
+                    .setIcon("download")
+                    .onClick(() => {
+                        void controller.importFont(selectedFont).then((resource) => {
+                            if (!resource) return;
+                            updateAppearance({
+                                fontSource: fontSourceForResource(resource.id) as AppearanceSettings["fontSource"],
+                            });
+                            new Notice(`字体“${resource.family}”已载入并应用；重新打开设置可在此选择。`);
                         });
-                        new Notice(`字体“${resource.family}”已载入并应用；重新打开设置可在此选择。`);
-                    });
-                })
+                    })
             );
     }
 
@@ -360,10 +363,13 @@ function renderAppearance(el: HTMLElement, controller: OsycSettingsController): 
                 .onChange((value) => updateAppearance({ fontSize: value }))
         )
         .addButton((button) =>
-            button.setButtonText("跟随主题").onClick(() => {
-                updateAppearance({ fontSize: null });
-                syncAll();
-            })
+            button
+                .setButtonText("跟随主题")
+                .setIcon("rotate-ccw")
+                .onClick(() => {
+                    updateAppearance({ fontSize: null });
+                    syncAll();
+                })
         );
 
     new Setting(el)
@@ -376,10 +382,13 @@ function renderAppearance(el: HTMLElement, controller: OsycSettingsController): 
                 .onChange((value) => updateAppearance({ lineHeight: Math.round(value * 10) / 10 }))
         )
         .addButton((button) =>
-            button.setButtonText("跟随主题").onClick(() => {
-                updateAppearance({ lineHeight: null });
-                syncAll();
-            })
+            button
+                .setButtonText("跟随主题")
+                .setIcon("rotate-ccw")
+                .onClick(() => {
+                    updateAppearance({ lineHeight: null });
+                    syncAll();
+                })
         );
 
     const advanced = el.createEl("details", { cls: "osyc-ai-appearance-advanced" });
@@ -411,10 +420,15 @@ function renderAppearance(el: HTMLElement, controller: OsycSettingsController): 
             });
         })
         .addButton((button) =>
-            button.setButtonText("跟随预设").onClick(() => {
-                updateAppearance({ colourOverrides: { ...currentAppearance(controller).colourOverrides, text: null } });
-                syncAll();
-            })
+            button
+                .setButtonText("跟随预设")
+                .setIcon("rotate-ccw")
+                .onClick(() => {
+                    updateAppearance({
+                        colourOverrides: { ...currentAppearance(controller).colourOverrides, text: null },
+                    });
+                    syncAll();
+                })
         );
 
     new Setting(advancedContent)
@@ -431,12 +445,15 @@ function renderAppearance(el: HTMLElement, controller: OsycSettingsController): 
             });
         })
         .addButton((button) =>
-            button.setButtonText("跟随预设").onClick(() => {
-                updateAppearance({
-                    colourOverrides: { ...currentAppearance(controller).colourOverrides, accent: null },
-                });
-                syncAll();
-            })
+            button
+                .setButtonText("跟随预设")
+                .setIcon("rotate-ccw")
+                .onClick(() => {
+                    updateAppearance({
+                        colourOverrides: { ...currentAppearance(controller).colourOverrides, accent: null },
+                    });
+                    syncAll();
+                })
         );
 
     new Setting(advancedContent).setName("背景模式").addDropdown((dropdown) => {
@@ -503,6 +520,7 @@ function renderAppearance(el: HTMLElement, controller: OsycSettingsController): 
         .addButton((button) =>
             button
                 .setButtonText("恢复默认")
+                .setIcon("rotate-ccw")
                 .setWarning()
                 .onClick(() => {
                     controller.resetAppearance();
@@ -552,15 +570,23 @@ function renderDiagnostics(el: HTMLElement, controller: OsycSettingsController):
     new Setting(el)
         .setName("运行日志")
         .setDesc("仅保留最近 200 条运行日志，内容已自动脱敏，不会写入笔记库。")
-        .addButton((button) => button.setButtonText("打开日志").onClick(() => controller.openLog()));
+        .addButton((button) =>
+            button
+                .setButtonText("打开日志")
+                .setIcon("file-text")
+                .onClick(() => controller.openLog())
+        );
 
     new Setting(el)
         .setName("脱敏诊断报告")
         .setDesc("复制当前运行环境与日志，便于反馈问题时一并提交。")
         .addButton((button) =>
-            button.setButtonText("复制报告").onClick(() => {
-                void controller.copyDiagnostics();
-            })
+            button
+                .setButtonText("复制报告")
+                .setIcon("copy")
+                .onClick(() => {
+                    void controller.copyDiagnostics();
+                })
         );
 }
 

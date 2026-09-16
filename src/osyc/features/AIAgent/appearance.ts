@@ -518,7 +518,6 @@ export function appearanceToCssText(
     background: var(--osyc-ai-surface-alt) !important;
     color: var(--osyc-ai-text) !important;
 }
-.osyc-ai-agent .ai-sidebar,
 .osyc-ai-agent .ai-chat,
 .osyc-ai-agent .ai-chat-header,
 .osyc-ai-agent .ai-composer {
@@ -527,7 +526,9 @@ export function appearanceToCssText(
     color: var(--osyc-ai-text) !important;
     border-color: var(--osyc-ai-border) !important;
 }
+.osyc-ai-agent .ai-sidebar,
 .osyc-ai-agent .ai-new-chat,
+.osyc-ai-agent .ai-composer-box,
 .osyc-ai-agent .ai-quick-chip,
 .osyc-ai-agent .ai-field,
 .osyc-ai-agent .ai-suggestion,
@@ -540,9 +541,8 @@ export function appearanceToCssText(
 }
 .osyc-ai-agent .ai-session-item,
 .osyc-ai-agent .ai-sidebar-action,
-.osyc-ai-agent .ai-hint,
-.osyc-ai-agent .ai-session-time,
-.osyc-ai-agent .ai-message-role {
+.osyc-ai-agent .ai-session-group,
+.osyc-ai-agent .ai-hint {
     color: var(--osyc-ai-text-muted) !important;
 }
 .osyc-ai-agent .ai-session-item.active,
@@ -559,9 +559,13 @@ export function appearanceToCssText(
     background: var(--osyc-ai-accent) !important;
     border-color: var(--osyc-ai-accent) !important;
 }
+/* The ChatGPT reading model: the user turn is a neutral bubble that differs
+ * from the chat surface by one step, not an accent-filled block, so long
+ * conversations do not turn into a wall of saturated colour. */
 .osyc-ai-agent .ai-message-user .ai-message-body {
-    background: var(--osyc-ai-accent) !important;
-    color: var(--text-on-accent, #fff) !important;
+    background: var(--osyc-ai-surface-alt) !important;
+    border-color: var(--osyc-ai-border) !important;
+    color: var(--osyc-ai-text) !important;
 }
 .osyc-ai-agent .ai-assistant-content,
 .osyc-ai-agent .ai-message-assistant,

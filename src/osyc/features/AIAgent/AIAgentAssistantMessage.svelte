@@ -3,6 +3,7 @@
     import { isSyncFailed, type AITask } from "./CmdAIAgent";
     import { mergeModelOutputEvents, visibleProgressEvents } from "./conversationModel";
     import { isDiagnosticEligible } from "./diagnosticsUpload";
+    import OsycIcon from "./OsycIcon.svelte";
 
     interface Props {
         app: App;
@@ -168,7 +169,7 @@
         <div class="ai-assistant-artifact" aria-label="生成的文件">
             <span class="ai-assistant-artifact-label">已生成</span>
             {#each task.filesChanged as file}
-                <button class="ai-assistant-file" onclick={() => onOpenFile?.(file)}><span aria-hidden="true">📄</span>{file}</button>
+                <button class="ai-assistant-file" onclick={() => onOpenFile?.(file)}><OsycIcon name="file-text" size={14} /><span>{file}</span></button>
             {/each}
         </div>
     {/if}
@@ -181,22 +182,22 @@
     {/if}
 
     {#if syncFailed}
-        <div class="ai-assistant-error"><span>笔记已生成，但未能写入手机笔记库</span><button class="ai-text-btn" onclick={() => onRetryPush?.(task.taskId)}>重试交付</button></div>
+        <div class="ai-assistant-error"><OsycIcon name="alert-triangle" size={14} /><span>笔记已生成，但未能写入手机笔记库</span><button class="ai-text-btn" onclick={() => onRetryPush?.(task.taskId)}>重试交付</button></div>
     {/if}
     {#if (task.status === "failed" || task.status === "conflict" || task.status === "failed_zero_cost" || task.status === "cancelled") && task.error}
-        <div class="ai-assistant-error">{task.error}</div>
+        <div class="ai-assistant-error"><OsycIcon name="alert-triangle" size={14} /><span>{task.error}</span></div>
     {/if}
     {#if isDiagnosticEligible(task) && onUploadDiagnostics}
         <div class="ai-assistant-error"><button class="ai-text-btn" disabled={uploadingDiagnostics} onclick={uploadDiagnostics}>{uploadingDiagnostics ? "上传中…" : "上传脱敏诊断"}</button>{#if diagnosticsMessage}<span>{diagnosticsMessage}</span>{/if}</div>
     {/if}
     {#if task.status === "done" && task.deliveryStatus === "pending"}
-        <div class="ai-assistant-delivery">服务器已生成，正在写入手机笔记库…</div>
+        <div class="ai-assistant-delivery"><OsycIcon name="clock" size={13} /><span>服务器已生成，正在写入手机笔记库…</span></div>
     {:else if task.status === "done" && task.deliveryStatus === "delivered"}
-        <div class="ai-assistant-delivery ai-assistant-delivery-success">已写入笔记库</div>
+        <div class="ai-assistant-delivery ai-assistant-delivery-success"><OsycIcon name="check" size={13} /><span>已写入笔记库</span></div>
     {:else if task.status === "done" && task.deliveryStatus === "failed"}
-        <div class="ai-assistant-delivery ai-assistant-delivery-error">服务器已生成，但手机写入失败，请重试交付。</div>
+        <div class="ai-assistant-delivery ai-assistant-delivery-error"><OsycIcon name="alert-triangle" size={13} /><span>服务器已生成，但手机写入失败，请重试交付。</span></div>
     {:else if task.status === "done" && task.deliveryStatus === "conflict"}
-        <div class="ai-assistant-delivery ai-assistant-delivery-error">手机存在同名不同内容，未覆盖原文件。</div>
+        <div class="ai-assistant-delivery ai-assistant-delivery-error"><OsycIcon name="alert-triangle" size={13} /><span>手机存在同名不同内容，未覆盖原文件。</span></div>
     {/if}
 </div>
 
@@ -230,7 +231,7 @@
     .ai-assistant-actions { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
     .ai-assistant-artifact { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 9px; margin: 12px 0 0 30px; padding-top: 9px; border-top: 1px solid var(--background-modifier-border); font-size: var(--font-ui-smaller); }
     .ai-assistant-artifact-label { color: var(--text-faint); }
-    .ai-assistant-file { min-height: 32px; border: 0; padding: 2px 0; color: var(--text-accent); background: transparent; cursor: pointer; font: inherit; }
+    .ai-assistant-file { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; border: 0; padding: 2px 0; color: var(--text-accent); background: transparent; cursor: pointer; font: inherit; }
     .ai-assistant-file:hover { text-decoration: underline; }
     .ai-assistant-meta { display: flex; justify-content: space-between; gap: 10px; margin: 12px 0 0 30px; padding-top: 8px; border-top: 1px solid var(--background-modifier-border); color: var(--text-faint); font-size: var(--font-ui-smaller); }
     .ai-assistant-error, .ai-assistant-delivery { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 0 30px; color: var(--text-muted); font-size: var(--font-ui-smaller); }

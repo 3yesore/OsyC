@@ -35,7 +35,7 @@ export class AnnouncementModal extends Modal {
         new Setting(contentEl)
             .setName("服务公告")
             .setDesc("公告按账户权益显示，网络不可用时保留本地缓存。")
-            .addButton((button) => button.setButtonText("刷新").onClick(async () => {
+            .addButton((button) => button.setButtonText("刷新").setIcon("refresh-cw").onClick(async () => {
                 button.setDisabled(true);
                 try {
                     await this.refreshAnnouncements();
@@ -57,7 +57,7 @@ export class AnnouncementModal extends Modal {
                 .setName(item.title)
                 .setDesc(`${new Date((item.publishedAt ?? item.updatedAt ?? 0) * 1000).toLocaleString("zh-CN")}\n${item.body}`);
             if (item.level === "critical") setting.setClass("osyc-announcement-critical");
-            setting.addButton((button) => button.setButtonText("标记已读").onClick(() => {
+            setting.addButton((button) => button.setButtonText("标记已读").setIcon("check").onClick(() => {
                 this.markRead(item.id);
                 new Notice("已标记为已读。");
             }));
