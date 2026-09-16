@@ -5,7 +5,8 @@
 - **Date**: `2026-09-16`
 - **Branch and commit**: `codex/2.0.6-stabilize` @ `7a42e93e4d4c0897c7b1d2c968363522f741861a`（本轮代码提交；文档与指纹提交紧随其后）
 - **Change record**: `docs/changes/codex-2026-09-16-osyc-chatgpt-layout-and-icon-unification.md`
-- **Version reservation**: `None` —— 需要 release-captain 为这批改动预留下一个补丁版本（建议 `2.0.7`）
+- **Version reservation**: `2.0.7` —— 维护者 2026-09-16 授权作为预览版下发（`2.0.6` 已消耗，tag 不可移动）
+- **Related design**: `docs/plans/osyc-chat-surface-2026-09-16.md`（界面契约）、`docs/plans/osyc-2.0.7-build-2026-09-16.md`（施工与进度）
 
 ## Completed
 
@@ -39,7 +40,7 @@ npm run svelte-check（单独）
 
 ## Remaining work
 
-1. **版本号**：`2.0.6` 已消耗（tag 不可移动）。这批改动比预发布更新，必须有新版本号才能下发；请 release-captain 预留并决定是否等后端门槛。
+1. **版本号**：已由维护者授权为 `2.0.7` 预览版下发（`2.0.6` tag 不可移动）。施工步骤见 `docs/plans/osyc-2.0.7-build-2026-09-16.md` 的 S4/S5。
 2. **真机回归**（仅用户主观验收过，无截图）：
    - 侧栏折叠 → 重开 Obsidian → 是否仍折叠（持久化路径只做了单测级验证）；
    - 移动端抽屉手势、遮罩点击、安全区；

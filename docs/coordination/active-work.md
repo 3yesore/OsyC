@@ -21,7 +21,7 @@ This register prevents two agents from implementing or publishing the same line 
 | OsyC OC brand and entitlement copy | `codex` | `codex/osyc-1.0.67-sync-entry` | `1.0.77` | Published test pre-release; awaiting mobile validation | `docs/handoff/2026-09-12-oc-brand-and-entitlement-copy.md` |
 | OsyC sync/font/theme rendering fix | `codex` | `codex/osyc-1.0.67-sync-entry` | `1.0.78` | Published test pre-release; backend deployment and mobile validation pending | `docs/handoff/2026-09-12-sync-font-theme-fix.md` |
 | OsyC native settings page and account UI | `codex` | `codex/2.0.6-stabilize` | `2.0.6` (consumed by the pre-release) | Published as GitHub pre-release `2.0.6`; UI validation confirmed by the maintainer 2026-09-16; stable promotion still gated on the backend launch baseline | `docs/handoff/2026-09-16-osyc-native-settings-page.md` |
-| OsyC chat surface (ChatGPT layout) and icon unification | `codex` | `codex/2.0.6-stabilize` | `None` — needs a new patch reservation (the `2.0.6` tag is immutable) | Code, tests and fingerprints committed at `7a42e93`; unpushed and unpublished, awaiting a version number | `docs/handoff/2026-09-16-osyc-chatgpt-layout-and-icon-unification.md` |
+| OsyC chat surface (ChatGPT layout) and icon unification | `codex` | `codex/2.0.6-stabilize` | `2.0.7` (maintainer-authorised preview, 2026-09-16) | Code/tests committed at `7a42e93` and docs at `27a06cc`; version bump and pre-release in progress (S4/S5 of `docs/plans/osyc-2.0.7-build-2026-09-16.md`) | `docs/handoff/2026-09-16-osyc-chatgpt-layout-and-icon-unification.md` |
 
 Rules:
 
@@ -35,6 +35,6 @@ Rules:
 - Name the maintainer who will own the release-captain role.
 - ~~Decide whether the next release is a stable patch or a BRAT pre-release after the current mobile review.~~ Decided 2026-09-16: the next release is the `2.0.6` BRAT pre-release, now published. The follow-up decision is whether `2.0.6` is promoted to stable once mobile UI validation passes, or superseded by a patch.
 - ~~Is the `2.0.6` pre-release validated?~~ Answered 2026-09-16: the maintainer reported the UI validation as passed. The chat-surface and icon work that followed is committed at `7a42e93` and is **newer than the `2.0.6` pre-release**, so it cannot ship under that version.
-- Reserved version for the chat-surface / icon work: **none yet**. Pick the next patch (for example `2.0.7`) before rebuilding assets and pushing `main`; the `2.0.6` tag must stay at `0a7dd4d`.
+- Reserved version for the chat-surface / icon work: **`2.0.7`**, authorised by the maintainer on 2026-09-16 as a preview release. The `2.0.6` tag must stay at `0a7dd4d`; `2.0.4` stays the stable rollback target.
 - Keep the current `2.0.4` Release immutable while those decisions are made.
 - Decide whether the unusable `2.0.5` tag should get a GitHub Release retroactively or be documented as a dead tag; it is currently the only rollback gap.

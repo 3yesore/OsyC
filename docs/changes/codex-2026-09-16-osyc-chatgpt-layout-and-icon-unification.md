@@ -3,8 +3,8 @@
 - **Agent**: `codex`
 - **Date**: `2026-09-16`
 - **Branch**: `codex/2.0.6-stabilize`
-- **Related design**: `docs/plans/osyc-settings-account-ui-2026-09-11.md`, `docs/changes/codex-2026-09-16-osyc-native-settings-page.md`
-- **Version reservation**: `None`（`2.0.6` 已消耗为预发布且 tag 不可移动，本改动不得复用该版本号；下一个补丁版本号待 release-captain 预留）
+- **Related design**: `docs/plans/osyc-chat-surface-2026-09-16.md`（界面契约）, `docs/plans/osyc-2.0.7-build-2026-09-16.md`（施工与进度）
+- **Version reservation**: `2.0.7`（维护者 2026-09-16 授权作为预览版下发；`2.0.6` 已消耗为预发布且 tag 不可移动，不得复用）
 - **Status**: `ready for integration`
 
 ## Intent
