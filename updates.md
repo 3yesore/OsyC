@@ -12,6 +12,27 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.9
+
+17th September, 2026
+
+- OsyC `2.0.9` replaces the in-plugin settings entry itself: the tools centre, the account modal and the request-open-settings event now open a native Obsidian `Modal` that renders the same OsyC pane, because `openTabById` can only reach this plugin's settings page and that page opens on a group list rather than on the settings. The LiveSync-only remote configuration stays reachable from an explicitly labelled footer entry.
+- OsyC `2.0.9` promotes the `OsyC` root group to the first position on the native settings landing page.
+
+## 2.0.8
+
+17th September, 2026
+
+- OsyC `2.0.8` fixes the settings jump: `openObsidianSettings()` opened the settings window before selecting a tab, and the account modal passed a LiveSync settings *group* identifier where Obsidian expects a tab identifier (those group objects carry no id at all).
+- OsyC `2.0.8` fixes the appearance baseline: `toAppearance()` wrote `preset` into `colourPreset`, so any non-theme typography preset silently applied that preset's hard-coded palette and the chat surface stopped following the Obsidian theme.
+- OsyC `2.0.8` stops reporting a hard failure for a first activation: `POST /api/activate` provisions the sync target asynchronously, so it returns an empty `setup_uri` with `provisioning_status = "pending"`. The plugin now reads the provisioning status and retries instead of reporting "configuration failed".
+
+## 2.0.7
+
+16th September, 2026
+
+- OsyC `2.0.7` aligns the assistant layout with the intended desktop chat composition and unifies the icon set across the assistant surfaces. Released as a preview build for device acceptance.
+
 ## 2.0.6
 
 16th September, 2026

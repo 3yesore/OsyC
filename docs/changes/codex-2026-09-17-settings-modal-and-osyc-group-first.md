@@ -5,7 +5,7 @@
 - **Branch**: `codex-2.0.6-stabilize`
 - **Related design**: `docs/changes/codex-2026-09-16-osyc-native-settings-page.md`, `docs/changes/codex-2026-09-17-settings-jump-and-colour-preset.md`（后者修好了 `openTabById` 的调用方式，但用户真机验收仍认为「设置跳转还是有问题」）
 - **Version reservation**: `2.0.9`
-- **Status**: `published as the OsyC 2.0.9 GitHub pre-release`（2026-09-17；真机验收待用户确认）
+- **Status**: `published as the OsyC 2.0.9 GitHub pre-release, then promoted to stable`（2026-09-17；正式化由维护者提供的凭据经 Release API 执行；真机验收待用户确认）
 
 ## Intent
 
