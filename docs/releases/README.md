@@ -23,11 +23,22 @@ The plug-in is published by the repository's own automation, not by a local `gh`
 
 - `.github/workflows/publish-release-assets.yml` runs on **every push to `main`**.
 - It reads `manifest.json` at the pushed commit, creates or refreshes the GitHub Release for that version, and uploads `main.js`, `manifest.json`, and `styles.css` **from that same commit**.
-- On a push event a newly created Release defaults to **pre-release**. A later ordinary push refreshes the assets without changing the channel of an existing stable Release, so a stable release is never silently demoted.
+- On a push event a newly created Release is a **published release** (`prerelease: false`). A later ordinary push refreshes the assets without changing the channel of an existing release, so a release is never silently demoted. Creating a pre-release for the default branch's manifest version is refused outright; see *Directory contract* below.
 - A plain fast-forward push of `main` to the reviewed commit is therefore the publication action, and `main` always points at the published commit. This is how `2.0.4` (stable) and `2.0.6` (pre-release) were published.
 - `release.yml` and `finalise-release.yml` are a stricter, tag-first alternative. `finalise-release.yml` pushes `refs/tags/<version>` and `refs/tags/<version>-cli` atomically, and no `-cli` tag has ever been created in this repository, so that path would fail at its own tag push. Do not treat it as the working procedure without first creating the CLI tag.
 
 The version's own tag (`2.0.6` for version `2.0.6`) is created by that workflow and must never be moved afterwards.
+
+## Directory contract (Obsidian Community directory)
+
+The Obsidian Community directory reads `manifest.json` at the **default branch HEAD** and matches only a **published** (non-prerelease) GitHub release whose tag equals that version. If the manifest names a version whose only release is a pre-release, the directory removes the plug-in until the release is promoted. This happened on 2026-09-17: `2.0.9` was published as a pre-release at 06:04Z while `main`'s manifest already said `2.0.9`, the directory scan at 06:43Z found no matching published release, and the mirror commit `b6b66a2c` dropped `osyc` from `community-plugins.json`.
+
+Therefore:
+
+- never leave `manifest.json` on `main` pointing at a version whose only release is a pre-release;
+- candidates that must stay pre-release keep their version in `manifest-beta.json` and are published from a branch, not from `main`;
+- `publish-release-assets.yml` refuses to create a pre-release from the default branch;
+- `verify-release-channel.yml` checks the invariant hourly and fails loudly before the directory scanner sees it.
 
 ## Asset naming
 

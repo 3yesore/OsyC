@@ -1,0 +1,62 @@
+name: Verify the release channel against the default branch manifest
+
+# The Obsidian Community directory reads `manifest.json` at the default branch
+# HEAD and only matches a *published* (non-prerelease) GitHub release whose tag
+# equals that version. A mismatch removes the plug-in from the directory (this
+# happened on 2026-09-17 with 2.0.9, which was a pre-release during the scan).
+# This watchdog notices the mismatch before the directory scanner does.
+
+on:
+  schedule:
+    # Hourly, offset so it does not compete with the directory mirror.
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compare manifest.json with the published releases
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const response = await fetch(
+              `https://raw.githubusercontent.com/${context.repo.owner}/${context.repo.repo}/main/manifest.json`,
+            );
+            if (!response.ok) {
+              core.setFailed(`Could not read manifest.json from main: ${response.status}`);
+              return;
+            }
+            const manifest = JSON.parse(await response.text());
+            const version = manifest.version;
+
+            let release;
+            try {
+              ({ data: release } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: version,
+              }));
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              core.setFailed(
+                `manifest.json on main points at ${version}, but no GitHub release uses that tag. ` +
+                'The Obsidian Community directory removes the plug-in until a matching published release exists.',
+              );
+              return;
+            }
+            if (release.draft) {
+              core.setFailed(`Release ${version} is a draft; the directory cannot distribute a draft.`);
+              return;
+            }
+            if (release.prerelease) {
+              core.setFailed(
+                `The only release for ${version} is a pre-release, but manifest.json on main points at it. ` +
+                'The directory matches published releases only. Promote the release, or keep the candidate in manifest-beta.json.',
+              );
+              return;
+            }
+            core.info(`manifest.json on main (${version}) matches the published release.`);

@@ -7,10 +7,10 @@ on:
   workflow_dispatch:
     inputs:
       prerelease:
-        description: Mark the release as a pre-release (required for unvalidated candidates)
+        description: Mark the release as a pre-release. Only allowed outside the default branch; a pre-release for the default-branch manifest version de-lists the plug-in from the Obsidian Community directory.
         required: false
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -47,8 +47,24 @@ jobs:
             }
 
             const requestedPrerelease = context.eventName === 'workflow_dispatch'
-              ? String(context.payload.inputs?.prerelease ?? 'true') === 'true'
+              ? String(context.payload.inputs?.prerelease ?? 'false') === 'true'
               : null;
+            // The Obsidian Community directory reads `manifest.json` at the
+            // default branch HEAD and matches only a *published* release for
+            // that version. A pre-release for the default branch's version
+            // therefore removes the plug-in from the directory until someone
+            // promotes it (the 2026-09-17 de-listing). Refuse that state up
+            // front, before any release or asset is touched.
+            const defaultBranch = context.payload.repository?.default_branch ?? 'main';
+            const onDefaultBranch = context.ref === `refs/heads/${defaultBranch}`;
+            if ((requestedPrerelease ?? false) && onDefaultBranch) {
+              core.setFailed(
+                `Refusing to publish a pre-release for ${version} from ${defaultBranch}: the Obsidian Community ` +
+                'directory matches published releases only, so this would de-list the plug-in. ' +
+                'Publish it as a normal release, or keep the candidate in manifest-beta.json and publish it from a branch.',
+              );
+              return;
+            }
             let release;
             try {
               release = await github.rest.repos.getReleaseByTag({
@@ -66,7 +82,9 @@ jobs:
                 body: `Auditable OsyC client release ${version}. See the repository source and README for build, privacy, and attribution details.`,
                 target_commitish: context.sha,
                 draft: false,
-                prerelease: requestedPrerelease ?? true,
+                // Pushes publish directly. The directory needs a published
+                // release for the default branch's manifest version.
+                prerelease: requestedPrerelease ?? false,
               });
             }
             // A normal push refreshes assets without changing an existing
