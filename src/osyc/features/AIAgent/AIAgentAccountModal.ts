@@ -1,6 +1,7 @@
 import { Modal, Notice, Setting, type App } from "@/deps.ts";
 import { get } from "svelte/store";
 import { openObsidianSettings } from "@/common/obsidianSettings.ts";
+import { CURRENT_PLUGIN_ID } from "@/osyc/migration/pluginIdentity";
 import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState } from "./CmdAIAgent";
 
 const PLAN_LABEL: Record<PlanType, string> = {
@@ -300,11 +301,11 @@ export class AIAgentAccountModal extends Modal {
 
         new Setting(contentEl)
             .setName("同步设置")
-            .setDesc("打开 LiveSync 的 Synchronisation 页面，查看和调整同步配置。")
+            .setDesc("打开 Obsidian 设置里的 OsyC 页面，在 Synchronisation 分组中查看和调整同步配置。")
             .addButton((btn) =>
                 btn.setButtonText("打开").setIcon("settings").setCta().onClick(() => {
                     try {
-                        openObsidianSettings(this.app, "synchronisation");
+                        openObsidianSettings(this.app, CURRENT_PLUGIN_ID);
                     } catch (error) {
                         console.error("打开同步设置失败", error);
                     }

@@ -16,7 +16,10 @@ describe("AI 账户移动端摘要", () => {
 
     it("提供直达同步设置的入口", () => {
         expect(modalSource).toContain('setName("同步设置")');
-        expect(modalSource).toContain('openObsidianSettings(this.app, "synchronisation")');
+        // 必须传 Obsidian tab id：LiveSync 的 "synchronisation" 只是设置页内的
+        // 分组标题，openTabById 匹配不到，会把用户留在原生设置页。
+        expect(modalSource).toContain("openObsidianSettings(this.app, CURRENT_PLUGIN_ID)");
+        expect(modalSource).not.toContain('openObsidianSettings(this.app, "synchronisation")');
     });
 
     it("已激活账户提供重新同步和重新激活卡密入口", () => {

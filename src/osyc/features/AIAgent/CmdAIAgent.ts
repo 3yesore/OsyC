@@ -924,14 +924,28 @@ export class CmdAIAgent {
 
             // 自动配置同步：这一步省掉"用户自己配 LiveSync"这个最大的流失点。
             // 失败不阻断激活 —— 用户仍可手动配置，只是多一道手续。
+            //
+            // 服务器侧的同步目标（CouchDB 库与账号）是**异步** provision 的：卡密
+            // 首次激活时 `setup_uri` 还是空串、`provisioning_status` 为 pending。
+            // 旧代码只判 `typeof setup_uri === "string"` —— 空串也是 string —— 于是
+            // 拿空 URI 去解码必然失败，用户看到"同步配置失败，请手动设置"，而真实
+            // 情况是等几十秒就会好。这里按状态分支处理，不再谎报失败。
+            const provisioningStatus = typeof data.provisioning_status === "string" ? data.provisioning_status : "";
+            const setupUri = typeof data.setup_uri === "string" ? data.setup_uri : "";
             let suffix = "";
-            if (typeof data.setup_uri === "string" && this.applySetupUri) {
+            if (setupUri) {
                 try {
-                    this.syncConfigured = await this.applySetupUri(data.setup_uri, cardKey);
+                    this.syncConfigured = (await this.applySetupUri?.(setupUri, cardKey)) ?? false;
                     suffix = this.syncConfigured ? "，同步已自动配置" : "，但同步配置失败，请手动设置";
                 } catch {
                     suffix = "，但同步配置失败，请手动设置";
                 }
+            } else if (provisioningStatus === "pending") {
+                // 服务器仍在 provision 同步目标。后端会在激活请求里等它，所以
+                // 重新激活一次通常就成了 —— 这里不再做插件侧轮询：setup_uri 只
+                // 能凭卡密取回（插件不落盘卡密），而同步凭据不会被挂在
+                // token 认证的读接口上。
+                suffix = "，同步正在服务器配置中，请稍后重新激活卡密完成同步";
             }
             // 配置写入后再做一次服务端握手，避免使用激活前的旧同步配置。
             const handshake = await this.runSyncHandshake(this.newSyncActivationId());

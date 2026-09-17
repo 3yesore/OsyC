@@ -66,6 +66,42 @@ describe("OsyC theme profile", () => {
         expect(css).not.toContain('.markdown-reading-view .osyc-theme-notes .markdown-preview-sizer');
     });
 
+    it("keeps the colour preset independent from the typography preset", () => {
+        // Regression: toAppearance() wrote `preset` into `colourPreset`, so picking
+        // a typography preset (chinese-writing, codex, …) silently applied that
+        // preset's hard-coded palette and the chat surface stopped following the
+        // Obsidian theme — the "different UI baseline" users reported.
+        const typographyOnly = migrateAppearanceToThemeProfile({
+            ...DEFAULT_APPEARANCE,
+            preset: "chinese-writing",
+            colourPreset: "theme",
+        });
+        expect(typographyOnly.colourPreset).toBe("theme");
+        // No palette override is emitted, so the chat surface keeps the theme colours.
+        expect(themeProfileToCssVariables(typographyOnly)["--osyc-ai-text"]).toBeUndefined();
+
+        const coloured = migrateAppearanceToThemeProfile({
+            ...DEFAULT_APPEARANCE,
+            preset: "chinese-writing",
+            colourPreset: "chinese-writing",
+        });
+        expect(coloured.colourPreset).toBe("chinese-writing");
+        expect(themeProfileToCssVariables(coloured)["--osyc-ai-text"]).toBe("#332c27");
+    });
+
+    it("keeps the palette of profiles written before the colour split", () => {
+        // v2 profiles carry no `colourPreset`; they must keep resolving colours
+        // from `preset` so an existing user's appearance does not change.
+        const legacy = parseThemeProfile({
+            version: 2,
+            preset: "graphite",
+            typography: {},
+            layout: {},
+            colours: {},
+        });
+        expect(themeProfileToCssVariables(legacy)["--osyc-ai-surface"]).toBe("#202326");
+    });
+
     it("bridges original theme typography variables to the active OsyC font", () => {
         const profile = migrateAppearanceToThemeProfile({
             ...DEFAULT_APPEARANCE,

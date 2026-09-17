@@ -33,6 +33,13 @@ export interface ThemeProfile {
     version: typeof THEME_PROFILE_VERSION;
     applyToNotes: boolean;
     preset: AppearanceSettings["preset"];
+    /**
+     * Kept separate from the typography `preset` on purpose: the palette is
+     * resolved from this field alone, while `preset` also drives fonts and
+     * rhythm. Optional because profiles written before the split fall back to
+     * `preset` — see {@link toAppearance}.
+     */
+    colourPreset?: AppearanceSettings["colourPreset"];
     typography: ThemeTypography;
     layout: ThemeLayout;
     colours: Record<string, string>;
@@ -63,6 +70,7 @@ function profileFromAppearance(appearance: AppearanceSettings): ThemeProfile {
         version: THEME_PROFILE_VERSION,
         applyToNotes: appearance.applyToNotes,
         preset: appearance.preset,
+        colourPreset: appearance.colourPreset,
         typography: {
             fontSource: appearance.fontSource,
             headingFontSource: appearance.headingFontSource,
@@ -110,7 +118,7 @@ function toAppearance(profile: ThemeProfile): AppearanceSettings {
         density: profile.layout.density,
         contentWidth: profile.layout.contentWidth,
         longTextStrategy: profile.layout.longTextStrategy,
-        colourPreset: profile.preset,
+        colourPreset: profile.colourPreset ?? profile.preset,
         colourOverrides: profile.colours,
         background: profile.background,
         reducedMotion: profile.reducedMotion,
@@ -130,6 +138,10 @@ export function parseThemeProfile(value: unknown): ThemeProfile {
         ...fallback,
         applyToNotes: value.applyToNotes,
         preset: value.preset,
+        // Absent on profiles written before the split: keep the historical
+        // behaviour (palette followed `preset`) instead of resetting to
+        // "theme" and silently changing an existing user's colours.
+        colourPreset: value.colourPreset ?? value.preset,
         fontSource: typography.fontSource,
         headingFontSource: typography.headingFontSource,
         codeFontSource: typography.codeFontSource,
