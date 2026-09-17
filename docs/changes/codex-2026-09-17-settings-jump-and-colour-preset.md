@@ -5,7 +5,7 @@
 - **Branch**: `codex-2.0.6-stabilize`
 - **Related design**: `docs/changes/codex-2026-09-16-osyc-native-settings-page.md`, `docs/changes/codex-2026-09-12-sync-font-theme-fix.md`
 - **Version reservation**: `2.0.8`（2.0.7 已作为预发布发出，本轮修复走下一个补丁版本）
-- **Status**: `fixed locally, awaiting device acceptance`（单元测试通过；真机验收待用户在 Obsidian 上确认）
+- **Status**: `published as the OsyC 2.0.8 GitHub pre-release`（2026-09-17；真机验收待用户确认）
 
 ## Intent
 

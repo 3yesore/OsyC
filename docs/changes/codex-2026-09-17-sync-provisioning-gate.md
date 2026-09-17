@@ -5,7 +5,7 @@
 - **Branch**: `codex-2.0.6-stabilize`
 - **Backend**: `osyc-backend-fix-20260916`（`app/api/routes.py`）
 - **Version reservation**: `2.0.8`（与设置跳转 / 配色修复同批）
-- **Status**: `fixed locally, backend not yet deployed`
+- **Status**: `plugin published as the OsyC 2.0.8 GitHub pre-release; backend change not yet deployed`
 
 ## Intent
 
@@ -57,7 +57,7 @@ assert "setup_uri" not in status          # ← 明文约束
 
 | 改动 | 文件 | 内容 |
 |---|---|---|
-| ① 后端同步等待 | `app/api/routes.py` | 新增 `ACTIVATE_PROVISION_WAIT_SECONDS = 45`、`_tenant_sync_ready()`、`_wait_for_tenant_sync_ready()`；`activate()` 在 `enqueue_tenant_provisioning()` 之后调用它，再据此填 `provisioning_status`。`activate` 是同步 `def`，FastAPI 在线程池里跑，所以这里的 `time.sleep` 不阻塞事件循环 |
+| ① 后端同步等待 | `app/api/routes.py` | 新增 `_tenant_sync_ready()`、`_wait_for_tenant_sync_ready()` 与轮询间隔常量 `ACTIVATE_PROVISION_POLL_SECONDS`；`activate()` 在 `enqueue_tenant_provisioning()` 之后调用它，再据此填 `provisioning_status`。**等待预算来自新配置项 `settings.activate_provision_wait_seconds`（默认 0）**：`db.ensure_tenant_identity` 建 tenant 时把 `remote_type` 写成 `"pending"`（`app/db.py:1120`），所以默认打开等待会让测试环境（没有 provisioner）每个新卡空等满预算 —— 实测让 `tests/test_flow.py` 从 23 秒涨到 9 分钟未完。生产部署通过 `ACTIVATE_PROVISION_WAIT_SECONDS=45` 显式启用。`activate` 是同步 `def`，FastAPI 在线程池里跑，所以这里的 `time.sleep` 不阻塞事件循环 |
 | ② 后端状态透出 | `app/api/routes.py` | `StatusResponse` 新增 `provisioning_status: Literal["pending","ready","degraded"] = "pending"`；`status()` 用 `db.get_tenant()` + `remote_type` 判定（口径与 `/api/activate` 一致）。**只加状态字符串，不加 `setup_uri`** |
 | ③ 插件按状态分支 | `src/osyc/features/AIAgent/CmdAIAgent.ts` | 分开读 `provisioning_status` 与 `setup_uri`；`setup_uri` 非空才调 `applySetupUri`；为空且 `pending` 时提示「同步正在服务器配置中，请稍后重新激活卡密完成同步」 |
 
@@ -66,8 +66,8 @@ assert "setup_uri" not in status          # ← 明文约束
 
 ## Verification
 
-- **插件**：`vitest run --config vitest.config.unit.ts src` —— 119 个文件通过（含 `CmdAIAgent` 46 条）。
-- **后端**：`pytest tests/test_flow.py` —— 通过（`test_sync_state_is_exposed_without_leaking_setup_uri` 恢复绿）。
+- **插件**：`vitest run --config vitest.config.unit.ts src` —— 119 个文件通过（含 `CmdAIAgent` 46 条）；`npm run check` 全绿（tsc 0 错 / eslint 0 错 9 条既有警告 / svelte-check 0 错 0 警 / iOS 15 兼容通过）。
+- **后端**：`pytest --ignore=tests/test_provisioning_queue.py` —— **416 条，0 失败 0 错误 3 跳过**；其中 `tests/test_flow.py` 24 条全过（`test_sync_state_is_exposed_without_leaking_setup_uri` 恢复绿）。
 - **已知既有问题（非本次引入）**：`tests/test_provisioning_queue.py` 因
   `ImportError: cannot import name '_provision_livesync_runtime'` 收集失败，会中断整轮
   pytest 收集 —— 该函数在 `scripts/provisioning_worker.py` 已不存在。跑测试时需
