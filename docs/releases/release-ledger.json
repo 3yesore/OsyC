@@ -35,10 +35,26 @@
     },
     "candidate": {
         "version": "2.0.9",
-        "status": "reserved",
+        "status": "prerelease-published",
         "channel": "prerelease",
         "sourceBranch": "codex-2.0.6-stabilize",
-        "stablePromotionOwner": "release-captain"
+        "stablePromotionOwner": "release-captain",
+        "sourceCommit": "354de0232468b77aa62df2d81f42e62bf2485bbf",
+        "assetSourceCommit": "c4c6efd3c959ec139544b1f9799b6be69eac7c34",
+        "tag": "2.0.9",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.9",
+        "publishedAt": "2026-09-17T06:04:59Z",
+        "publishedAssets": [
+            "main.js",
+            "manifest.json",
+            "styles.css"
+        ],
+        "assetSha256": {
+            "main.js": "b1ca7056c15681470e8a6541e9bfecd2b5e18f96e6a34ef68ef00a2eff349188",
+            "manifest.json": "7f2c4fe4c07e0d14415838686ae47130a583491924b6562adaa659dec2044f81",
+            "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121"
+        },
+        "bratValidation": "pending-mobile"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -50,7 +66,8 @@
         "WARNING: GET /releases/latest returned 2.0.0 on 2026-09-16 (checked twice) even though 2.0.4 is newer and is not a prerelease. A BRAT stable (non-beta) install can therefore resolve to 2.0.0 rather than 2.0.4. Confirm on a device and then re-point latest to 2.0.4, or install by explicit version. This is a release-captain action and requires a credential that is not available in this environment.",
         "2.0.8 carries three fixes: the settings jump (openObsidianSettings() called open() before openTabById(), and the account modal passed a LiveSync settings *group* id where Obsidian expects a tab id — the group objects carry no id at all); the colour preset (toAppearance() wrote `preset` into `colourPreset`, so any non-theme typography preset silently applied that preset's hard-coded palette and the chat surface stopped following the Obsidian theme); and the sync provisioning gate (a first activation returned an empty setup_uri while provisioning was still pending, which the plugin reported as a hard failure).",
         "2.0.8 was published on 2026-09-17 by fast-forwarding main to the reviewed commit 141ce77 (d780536..141ce77), which triggered publish-release-assets.yml. The workflow created the tag and the GitHub Release as a pre-release, so the stable channel still resolves to 2.0.4. All three release assets matched the locally recorded sha256 values byte-for-byte.",
-        "2.0.9 replaces the settings entry itself: every in-plugin settings button (the tools centre, the account modal and the request-open-settings event) now opens a native Obsidian Modal that renders the same OsyC pane. openTabById can only reach this plugin's settings page, and that page opens on a group list rather than on the settings themselves, so the modal is the only route that shows the settings directly. The LiveSync-only remote configuration stays reachable from an explicitly labelled footer entry. The same release promotes the OsyC root group to the first position on the native settings landing page."
+        "2.0.9 replaces the settings entry itself: every in-plugin settings button (the tools centre, the account modal and the request-open-settings event) now opens a native Obsidian Modal that renders the same OsyC pane. openTabById can only reach this plugin's settings page, and that page opens on a group list rather than on the settings themselves, so the modal is the only route that shows the settings directly. The LiveSync-only remote configuration stays reachable from an explicitly labelled footer entry. The same release promotes the OsyC root group to the first position on the native settings landing page.",
+        "2.0.9 was published on 2026-09-17 by fast-forwarding main to the reviewed commit 354de02 (5329939..354de02), which triggered publish-release-assets.yml. The workflow created tag 2.0.9 and the GitHub Release with the Pre-release badge, so the stable channel was not changed (it is still intended to be 2.0.4; see the existing warning that GET /releases/latest returns 2.0.0). All three release assets matched the locally recorded sha256 values byte-for-byte."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
