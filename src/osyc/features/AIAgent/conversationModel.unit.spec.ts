@@ -97,6 +97,39 @@ describe("Conversation-first 消息读模型", () => {
         expect(visibleProgressEvents(events, "done")).toEqual([]);
     });
 
+    it("终态隐藏后端新增的每一个过程阶段，不再依赖阶段白名单", () => {
+        // Regression: only four phases were listed as "ephemeral", so the heartbeat
+        // and every phase the backend added later survived into a finished reply
+        // (six stacked "模型正在思考（已 N 秒）" rows on a done task).
+        const events = [
+            { phase: "waiting", message: "模型正在思考（已 32 秒，暂无新输出）", at: 100 },
+            { phase: "preparing", message: "准备中", at: 110 },
+            { phase: "dialogue", message: "正在生成 OC 回复", at: 120 },
+            { phase: "generating", message: "正在生成 Markdown 整理结果", at: 130 },
+            { phase: "retrying", message: "模型服务暂时繁忙，正在重试（第 2/3 次）", at: 140 },
+            { phase: "verifying", message: "已校验整理结果", at: 150 },
+        ];
+        for (const status of ["done", "failed", "cancelled", "interrupted", "failed_zero_cost"] as const) {
+            expect(visibleProgressEvents(events, status)).toEqual([]);
+        }
+        expect(visibleProgressEvents(events, "running")).toHaveLength(events.length);
+    });
+
+    it("心跳只保留最新一跳，不随运行时长为每一跳堆积事件", () => {
+        const first = [
+            { phase: "waiting", message: "模型正在思考（已 8 秒，暂无新输出）", at: 100 },
+            { phase: "analyzing", message: "模型正在分析", at: 110 },
+        ];
+        const second = [
+            { phase: "waiting", message: "模型正在思考（已 16 秒，暂无新输出）", at: 200 },
+            { phase: "waiting", message: "模型正在思考（已 24 秒，暂无新输出）", at: 210 },
+        ];
+        expect(mergeProgressEvents(first, second)).toEqual([
+            { phase: "analyzing", message: "模型正在分析", at: 110 },
+            { phase: "waiting", message: "模型正在思考（已 24 秒，暂无新输出）", at: 210 },
+        ]);
+    });
+
     it("兼容旧服务时合并累计与增量模型预览，不只显示最后一条", () => {
         expect(mergeModelOutputEvents([
             { phase: "model_output", message: "模型输出片段：第一段", at: 1 },

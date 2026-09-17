@@ -85,6 +85,9 @@ export function buildConversationMessages(tasks: AITask[]): ConversationMessage[
     });
 }
 
+/** Liveness pings whose only value is the newest one; superseded ticks drop out. */
+const HEARTBEAT_PROGRESS_PHASES = new Set(["waiting"]);
+
 function progressEventKey(event: AgentProgressEvent): string {
     return `${event.phase}\u0000${event.message}\u0000${event.count ?? ""}`;
 }
@@ -96,6 +99,7 @@ export function mergeProgressEvents(
 ): AgentProgressEvent[] {
     const merged: AgentProgressEvent[] = [];
     const seen = new Set<string>();
+    let heartbeatIndex = -1;
     for (const event of [...(existing ?? []), ...(incoming ?? [])]) {
         if (!event || typeof event.phase !== "string" || typeof event.message !== "string") continue;
         const normalized: AgentProgressEvent = {
@@ -107,6 +111,15 @@ export function mergeProgressEvents(
         const key = progressEventKey(normalized);
         if (seen.has(key)) continue;
         seen.add(key);
+        // Heartbeats embed elapsed seconds ("已 N 秒"), so every tick is a
+        // unique key and would otherwise pile up one row per 8 seconds for the
+        // whole run. Only the newest tick is meaningful.
+        if (HEARTBEAT_PROGRESS_PHASES.has(normalized.phase)) {
+            if (heartbeatIndex >= 0) merged.splice(heartbeatIndex, 1);
+            merged.push(normalized);
+            heartbeatIndex = merged.length - 1;
+            continue;
+        }
         merged.push(normalized);
     }
     return merged;
@@ -141,16 +154,20 @@ const TERMINAL_TASK_STATUSES = new Set<AITaskStatus>([
     "done", "failed", "conflict", "interrupted", "failed_zero_cost", "delivery_failed", "cancelled",
 ]);
 
-export const EPHEMERAL_PROGRESS_MESSAGES = new Set(["analyzing", "model_output", "model_activity", "reading"]);
-
-/** Runtime model/tool events are useful while a task is active only. */
-export function isEphemeralProgressEvent(event: AgentProgressEvent): boolean {
-    return EPHEMERAL_PROGRESS_MESSAGES.has(event.phase);
-}
-
-/** Hide all transient model/tool markers once a task has a terminal result. */
+/**
+ * Progress rows are live-only. Once a task reaches a terminal status the reply
+ * itself is the record, so every interim marker is dropped.
+ *
+ * This is deliberately default-deny. The previous allowlist of "ephemeral"
+ * phases only named the four the UI happened to know about, so every phase the
+ * backend added afterwards (waiting / preparing / dialogue / generating /
+ * retrying / verifying) kept rendering on finished tasks. The stacked
+ * "模型正在思考（已 N 秒）" rows in a completed reply were that leak.
+ */
 export function visibleProgressEvents(events: AgentProgressEvent[] | undefined, status: AITaskStatus): AgentProgressEvent[] {
-    return (events ?? []).filter((event) => !(TERMINAL_TASK_STATUSES.has(status) && isEphemeralProgressEvent(event)));
+    const all = events ?? [];
+    if (!TERMINAL_TASK_STATUSES.has(status)) return all;
+    return [];
 }
 
 /** Merge visible preview events for old gateways that do not stream response_text. */

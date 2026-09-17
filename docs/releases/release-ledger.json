@@ -20,7 +20,7 @@
         "publishedAt": "2026-09-17T06:04:59Z",
         "promotedAt": "2026-09-17T11:12:00Z",
         "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.9",
-        "assets": ["main.js", "manifest.json", "styles.css"],
+        "assets": ["main.js", "manifest.json", "manifest-beta.json", "styles.css", "versions.json"],
         "assetSha256": {
             "main.js": "b1ca7056c15681470e8a6541e9bfecd2b5e18f96e6a34ef68ef00a2eff349188",
             "manifest.json": "7f2c4fe4c07e0d14415838686ae47130a583491924b6562adaa659dec2044f81",
@@ -34,25 +34,12 @@
         "publishedAt": "2026-09-14T08:51:51Z"
     },
     "candidate": {
-        "version": "2.0.9",
-        "status": "stable-published",
+        "version": "2.0.10",
+        "status": "reserved",
         "channel": "stable",
         "sourceBranch": "codex-2.0.6-stabilize",
         "stablePromotionOwner": "release-captain",
-        "sourceCommit": "354de0232468b77aa62df2d81f42e62bf2485bbf",
-        "assetSourceCommit": "c4c6efd3c959ec139544b1f9799b6be69eac7c34",
-        "tag": "2.0.9",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.9",
-        "publishedAt": "2026-09-17T06:04:59Z",
-        "promotedAt": "2026-09-17T11:12:00Z",
-        "promotionMethod": "GitHub Releases API PATCH /repos/3yesore/OsyC/releases/{id} with prerelease=false and make_latest=true",
-        "deviceAcceptance": "pending-mobile",
-        "publishedAssets": ["main.js", "manifest.json", "styles.css"],
-        "assetSha256": {
-            "main.js": "b1ca7056c15681470e8a6541e9bfecd2b5e18f96e6a34ef68ef00a2eff349188",
-            "manifest.json": "7f2c4fe4c07e0d14415838686ae47130a583491924b6562adaa659dec2044f81",
-            "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121"
-        }
+        "deviceAcceptance": "pending-mobile"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -69,7 +56,9 @@
         "2.0.9 was promoted to stable on 2026-09-17 by a GitHub Releases API PATCH (prerelease=false, make_latest=true) using a maintainer-supplied credential. GET /releases/latest now resolves to 2.0.9 instead of 2.0.0, which closes the long-standing warning recorded on 2026-09-16.",
         "The promotion was first attempted with .github/workflows/release.yml (Publish selected release, tag=2.0.9, prerelease=false). Run #1 failed in 'Validate the selected release' with `Could not find '## 2.0.9' in updates.md.` The tag cannot be moved, so that route was unavailable for 2.0.9; release notes were added for 2.0.7/2.0.8/2.0.9 afterwards so the repository tool works from 2.0.10 onwards.",
         "Correction to earlier notes: \"the stable channel still resolves to 2.0.4\" described the Obsidian community directory listing, not what an installed client can receive. Obsidian determines the latest version from `manifest.json` in the repository default branch (and consults `versions.json` for compatibility), then downloads the assets of the GitHub release whose tag matches that version; the GitHub pre-release badge does not gate client updates. The badge only affects which releases the community directory ingests, which is why its listing page showed 2.0.4 while clients could already update past it.",
-        "The Obsidian community directory has its own ingest cadence. The 2.0.9 release became non-prerelease on 2026-09-17, but the directory listing (Current version / Review scan target) still showed 2.0.4 immediately afterwards and is expected to catch up on its next scan."
+        "The Obsidian community directory has its own ingest cadence. The 2.0.9 release became non-prerelease on 2026-09-17, but the directory listing (Current version / Review scan target) still showed 2.0.4 immediately afterwards and is expected to catch up on its next scan.",
+        "2.0.9 was REMOVED from the Obsidian community directory on 2026-09-17. The mirror commit b6b66a2c (06:43Z) dropped osyc from community-plugins.json because manifest.json on the default branch already named 2.0.9 while the only 2.0.9 release was still a pre-release, and the directory matches published releases only. The release was promoted at 11:12Z, and the listing is restored by the directory scan (the developer dashboard showed the review as pending on 2.0.9).",
+        "2.0.10 is reserved to publish with a normal (non-prerelease) release, which is what the directory requires. It carries the terminal progress cleanup (terminal status hides every progress phase, and the heartbeat merge keeps only its newest tick) and the release-channel guard: publish-release-assets.yml now creates a published release on a push and refuses to create a pre-release from the default branch, and verify-release-channel.yml checks the manifest/release invariant hourly."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",

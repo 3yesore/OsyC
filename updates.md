@@ -12,6 +12,13 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.10
+
+17th September, 2026
+
+- OsyC `2.0.10` stops a finished task from leaving liveness heartbeats in the conversation. The terminal filter now hides every progress phase instead of four of them, and the heartbeat merge keeps only its newest tick, so a long run no longer accumulates one persisted row every eight seconds.
+- OsyC `2.0.10` publishes directly as a normal release. A push to the default branch no longer creates a pre-release, because the Obsidian Community directory matches published releases only, and `verify-release-channel.yml` checks that invariant hourly.
+
 ## 2.0.9
 
 17th September, 2026
