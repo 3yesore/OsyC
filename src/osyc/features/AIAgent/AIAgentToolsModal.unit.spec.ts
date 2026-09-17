@@ -33,14 +33,15 @@ describe("AIAgentToolsModal", () => {
         expect(source).toContain('.setIcon("copy")');
     });
 
-    it("keeps settings in Obsidian and makes recharge state explicit", () => {
-        expect(source).toContain('openObsidianSettings(this.app, CURRENT_PLUGIN_ID)');
+    it("opens the shared OsyC settings modal and makes recharge state explicit", () => {
+        expect(source).toContain("openOsycSettings(this.app)");
         expect(source).toContain("this.recharging");
         expect(source).toContain("await this.agent.recharge");
         expect(source).toContain("new Notice(result.message)");
     });
 
-    it("keeps the native settings page as the only settings route", () => {
+    it("keeps one settings route and never revives the removed settings modal", () => {
+        expect(source).not.toContain("openObsidianSettings");
         expect(uiSource).not.toContain("new AIAgentSettingModal");
         expect(uiSource).not.toContain("演示模式");
     });

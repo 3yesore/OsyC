@@ -1,7 +1,6 @@
 import { Modal, Notice, Setting, setIcon, type App } from "@/deps.ts";
 import { get } from "svelte/store";
-import { openObsidianSettings } from "@/common/obsidianSettings.ts";
-import { CURRENT_PLUGIN_ID } from "@/osyc/migration/pluginIdentity";
+import { openOsycSettings } from "./OsycSettingsModal";
 import type { CmdAIAgent } from "./CmdAIAgent";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
@@ -109,11 +108,12 @@ export class AIAgentToolsModal extends Modal {
 
         new Setting(contentEl)
             .setName("OsyC 设置")
-            .setDesc("在 Obsidian 原生设置中配置 OsyC。")
+            .setDesc("打开 OsyC 设置弹窗，调整连接、外观、交互与诊断。")
             .addButton((button) => button.setButtonText("打开设置").setIcon("settings").setCta().onClick(() => {
+                // 先收起工具中心再开设置弹窗，避免两个弹窗叠在一起。
+                this.close();
                 try {
-                    openObsidianSettings(this.app, CURRENT_PLUGIN_ID);
-                    this.close();
+                    openOsycSettings(this.app);
                 } catch (error) {
                     console.error("打开 OsyC 设置失败", error);
                     new Notice("无法打开 OsyC 设置");

@@ -57,3 +57,9 @@
 ## Not changed on purpose
 
 - 根分组顺序：`ObsidianLiveSyncSettingTab.declarative.unit.spec.ts:216-242` 断言 `Quick Setup → Synchronisation → 🧠 OsyC → General Settings`，且注释明确「OsyC 自身的设置排在同步之后，既不抢首次配置的引导位」。因此**没有**通过「把 OsyC 提到第一」来达成直达，而是修跳转本身。
+
+## Superseded in part (2026-09-17, later the same day)
+
+用户真机验收 2.0.8 后反馈「设置跳转还是有问题」：修好 `openTabById` 之后确实能落到本插件的设置页，但**那一页先呈现的是分组列表**，用户还得再点一次才能看到 OsyC 的设置项 —— 这一层无法靠 `openTabById` 消除（设置分组在 Obsidian 声明式设置里没有 id，没有可深链的目标）。
+
+因此插件内的设置入口改为打开 **Obsidian 原生弹窗**，并**把 `🧠 OsyC` 根分组提到第一位**（本节上面的「Not changed on purpose」因此不再成立）。见 `docs/changes/codex-2026-09-17-settings-modal-and-osyc-group-first.md`。

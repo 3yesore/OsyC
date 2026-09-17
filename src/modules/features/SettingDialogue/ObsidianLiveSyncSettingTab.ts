@@ -870,6 +870,8 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
             getPage("synchronisation"),
         ]);
         // OsyC 自身的偏好（连接 / 外观 / 交互 / 诊断）单独成组，避免与 LiveSync 的设置项混排。
+        // 同时排在最前：插件内入口都已收敛到设置弹窗，走到原生设置页的用户多半是
+        // 主动来找自己的偏好；LiveSync 的首次配置引导保持原顺序紧随其后。
         const osyc = this.createRootGroup("osyc", [getPage("osyc")]);
         const generalSettings = this.createGeneralSettingsGroup();
         const quickSetup = this.createQuickSetupGroup();
@@ -901,8 +903,8 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
         if (this.isLiveSyncConfigured()) {
             return [
                 pendingInitialisation,
-                synchronisation,
                 osyc,
+                synchronisation,
                 generalSettings,
                 setupOtherDevices,
                 quickSetup,
@@ -911,9 +913,9 @@ export class ObsidianLiveSyncSettingTab extends PluginSettingTab {
         }
         return [
             pendingInitialisation,
+            osyc,
             quickSetup,
             synchronisation,
-            osyc,
             generalSettings,
             setupOtherDevices,
             ...laterGroups,

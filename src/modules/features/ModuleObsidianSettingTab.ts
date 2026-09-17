@@ -3,8 +3,7 @@ import { AbstractObsidianModule } from "@/modules/AbstractObsidianModule.ts";
 // import { PouchDB } from "../../lib/src/pouchdb/pouchdb-browser";
 import { EVENT_REQUEST_OPEN_SETTINGS, eventHub } from "@/common/events.ts";
 import type { LiveSyncCore } from "@/main.ts";
-import { openObsidianSettings } from "@/common/obsidianSettings.ts";
-import { CURRENT_PLUGIN_ID } from "@/osyc/migration/pluginIdentity";
+import { openOsycSettings } from "@/osyc/features/AIAgent/OsycSettingsModal";
 
 export class ModuleObsidianSettingDialogue extends AbstractObsidianModule {
     settingTab!: ObsidianLiveSyncSettingTab;
@@ -19,7 +18,7 @@ export class ModuleObsidianSettingDialogue extends AbstractObsidianModule {
     }
 
     openSetting() {
-        openObsidianSettings(this.app, CURRENT_PLUGIN_ID);
+        openOsycSettings(this.app);
     }
 
     get appId() {

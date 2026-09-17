@@ -205,24 +205,25 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         expect(activeReplicatorGetter).not.toHaveBeenCalled();
     });
 
-    it("keeps Quick Setup first while LiveSync is not configured, regardless of transient replication status", () => {
+    it("keeps OsyC first regardless of transient replication status", () => {
         const tab = createSettingsTab({ replicationStatus: "CONNECTED" });
         tab.editingSettings.isConfigured = false;
         const definitions = tab.getSettingDefinitions().filter(isGroup);
 
-        expect(definitions[0]?.heading).toBe("🧙‍♂️ Quick Setup");
+        expect(definitions[0]?.heading).toBe("🧠 OsyC");
     });
 
-    it("keeps Quick Setup first while LiveSync is not configured and separates synchronisation pages from it", () => {
+    it("keeps OsyC first while LiveSync is not configured and leaves the LiveSync onboarding order behind it", () => {
         const tab = createSettingsTab();
         tab.editingSettings.isConfigured = false;
         const definitions = tab.getSettingDefinitions().filter(isGroup);
 
-        // OsyC 自身的设置排在同步之后，既不抢首次配置的引导位，也不落到帮助之后。
+        // OsyC 排在最前：插件内入口都已收敛到设置弹窗，走到原生设置页的用户多半是主动
+        // 来找自己的偏好；LiveSync 的首次配置引导保持原顺序紧随其后。
         expect(definitions.slice(0, 4).map(itemLabel)).toEqual([
+            "🧠 OsyC",
             "🧙‍♂️ Quick Setup",
             "🔄 Synchronisation",
-            "🧠 OsyC",
             "⚙️ General Settings",
         ]);
     });
@@ -233,8 +234,8 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         const definitions = tab.getSettingDefinitions().filter(isGroup);
 
         expect(definitions.slice(0, 5).map(itemLabel)).toEqual([
-            "🔄 Synchronisation",
             "🧠 OsyC",
+            "🔄 Synchronisation",
             "⚙️ General Settings",
             "📲 Set up other devices",
             "🧙‍♂️ Quick Setup",
@@ -276,9 +277,9 @@ describe("ObsidianLiveSyncSettingTab native page lifecycle", () => {
         const groups = definitions.filter(isGroup);
 
         expect(groups.map(({ heading }) => heading)).toEqual([
+            "🧠 OsyC",
             "🧙‍♂️ Quick Setup",
             "🔄 Synchronisation",
-            "🧠 OsyC",
             "⚙️ General Settings",
             "📲 Set up other devices",
             "🛠️ Maintenance and recovery",

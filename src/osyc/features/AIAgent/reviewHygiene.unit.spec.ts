@@ -47,6 +47,8 @@ describe("Obsidian review hygiene", () => {
         "AIAgentAccountModal.ts",
         "AnnouncementModal.ts",
         "osycSettingsPane.ts",
+        // 设置弹窗把原生设置页的整体渲染承载过来，自己只画一个图标（settings）。
+        "OsycSettingsModal.ts",
     ];
 
     // 设置页要额外豁免：`addPane(name, emoji, order)` 的 emoji 是 LiveSync 全插件通用的

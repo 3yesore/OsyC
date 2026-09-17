@@ -1376,3 +1376,27 @@ body.is-mobile .ai-tools-modal {
 body.is-mobile .ai-tools-modal .modal-content {
     max-height: calc(100dvh - 96px);
 }
+
+.osyc-settings-modal {
+    width: min(640px, calc(100vw - 32px));
+    max-width: 100%;
+}
+
+.osyc-settings-modal .modal-content {
+    max-height: min(78vh, 760px);
+    overflow-y: auto;
+}
+
+.osyc-settings-modal-footer {
+    margin-top: var(--size-4-4, 16px);
+    padding-top: var(--size-4-2, 8px);
+    border-top: 1px solid var(--background-modifier-border);
+}
+
+body.is-mobile .osyc-settings-modal {
+    width: calc(100vw - 20px);
+}
+
+body.is-mobile .osyc-settings-modal .modal-content {
+    max-height: calc(100dvh - 96px);
+}

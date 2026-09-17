@@ -590,8 +590,14 @@ function renderDiagnostics(el: HTMLElement, controller: OsycSettingsController):
         );
 }
 
-export function paneOsyc(this: ObsidianLiveSyncSettingTab, paneEl: HTMLElement, { addPane }: PageFunctions): void {
-    void this;
+/**
+ * 渲染 OsyC 偏好设置的四个分组。
+ *
+ * 原生设置页与设置弹窗（`OsycSettingsModal`）共用这一份实现：两套设置界面各持
+ * 一份状态、互相覆盖，正是上一版自建设置弹窗被删除的原因。本函数不依赖 `this`，
+ * 因此两个宿主都能直接调用。
+ */
+export function renderOsycSettingsPanes(paneEl: HTMLElement, { addPane }: PageFunctions): void {
     const controller = getOsycSettingsController();
     if (!controller) {
         void addPane(paneEl, "OsyC", "🧠", 10).then((el) => {
@@ -606,4 +612,16 @@ export function paneOsyc(this: ObsidianLiveSyncSettingTab, paneEl: HTMLElement, 
     void addPane(paneEl, "外观", "🎨", 12).then((el) => renderAppearance(el, controller));
     void addPane(paneEl, "交互", "🖱️", 13).then((el) => renderInteraction(el, controller));
     void addPane(paneEl, "诊断", "🧰", 14).then((el) => renderDiagnostics(el, controller));
+}
+
+/**
+ * 原生设置页入口。
+ *
+ * `SettingsPageRenderer` 的签名带 `this: ObsidianLiveSyncSettingTab`，而本页面
+ * 从不使用 `this`（渲染全部经 `OsycSettingsController` 回到运行时），所以这里只是
+ * 一个薄适配层，把调用转给共享实现。
+ */
+export function paneOsyc(this: ObsidianLiveSyncSettingTab, paneEl: HTMLElement, functions: PageFunctions): void {
+    void this;
+    renderOsycSettingsPanes(paneEl, functions);
 }
