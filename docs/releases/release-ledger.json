@@ -5,13 +5,13 @@
     "sourceRepository": {
         "name": "obsidian-livesync",
         "branch": "codex-2.0.6-stabilize",
-        "commit": "2832f448fff6e531872a11534a9573d3b5cde1b9"
+        "commit": "c4c6efd3c959ec139544b1f9799b6be69eac7c34"
     },
     "distributionRepository": {
         "name": "3yesore/OsyC",
         "remote": "https://github.com/3yesore/OsyC.git",
         "branch": "main",
-        "commit": "2832f448fff6e531872a11534a9573d3b5cde1b9"
+        "commit": "c4c6efd3c959ec139544b1f9799b6be69eac7c34"
     },
     "currentStable": {
         "version": "2.0.4",
