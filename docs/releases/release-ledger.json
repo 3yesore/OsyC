@@ -35,10 +35,26 @@
     },
     "candidate": {
         "version": "2.0.8",
-        "status": "reserved",
+        "status": "prerelease-published",
         "channel": "prerelease",
         "sourceBranch": "codex-2.0.6-stabilize",
-        "stablePromotionOwner": "release-captain"
+        "stablePromotionOwner": "release-captain",
+        "sourceCommit": "141ce77f7ba567c487c9622c624a0168a225b5f0",
+        "assetSourceCommit": "2832f448fff6e531872a11534a9573d3b5cde1b9",
+        "tag": "2.0.8",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.8",
+        "publishedAt": "2026-09-17T05:02:34Z",
+        "publishedAssets": [
+            "main.js",
+            "manifest.json",
+            "styles.css"
+        ],
+        "assetSha256": {
+            "main.js": "0106a644649e0bef11a6ddbdbb3cafd250070035b5a5a0ace17dc1fd6e0944cf",
+            "manifest.json": "0b24e7073c52f3498d73da3cf2b1453e677459e6acfef85c750cd1d4fad45a73",
+            "styles.css": "ff1c43208931a1063d90081cbec3cd04cd5d4e4712a49c4b9d69f03c9a090e19"
+        },
+        "bratValidation": "pending-mobile"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -48,7 +64,8 @@
         "docs/releases/osyc-2.0.6-launch-baseline.md remains a dated snapshot of 15 September 2026 and is deliberately not rewritten. Its plug-in publication gate is now met, but its backend gates are still open: a versioned backend candidate with the diagnostics/email contracts, backend tests, health/runtime-info/zero-cost dry-run, the four low-cost acceptance samples, and desktop plus mobile UI acceptance.",
         "2.0.7 was published on 2026-09-16 by fast-forwarding main to the reviewed commit 1fc9006 (6457aaa..1fc9006), which triggered publish-release-assets.yml. The workflow created tag 2.0.7 and the GitHub Release OsyC 2.0.7 with prerelease=true and target_commitish=1fc9006; the three uploaded assets match the local release-info.json byte for byte. 2.0.4 and 2.0.6 were left untouched.",
         "WARNING: GET /releases/latest returned 2.0.0 on 2026-09-16 (checked twice) even though 2.0.4 is newer and is not a prerelease. A BRAT stable (non-beta) install can therefore resolve to 2.0.0 rather than 2.0.4. Confirm on a device and then re-point latest to 2.0.4, or install by explicit version. This is a release-captain action and requires a credential that is not available in this environment.",
-        "2.0.8 carries three fixes: the settings jump (openObsidianSettings() called open() before openTabById(), and the account modal passed a LiveSync settings *group* id where Obsidian expects a tab id — the group objects carry no id at all); the colour preset (toAppearance() wrote `preset` into `colourPreset`, so any non-theme typography preset silently applied that preset's hard-coded palette and the chat surface stopped following the Obsidian theme); and the sync provisioning gate (a first activation returned an empty setup_uri while provisioning was still pending, which the plugin reported as a hard failure)."
+        "2.0.8 carries three fixes: the settings jump (openObsidianSettings() called open() before openTabById(), and the account modal passed a LiveSync settings *group* id where Obsidian expects a tab id — the group objects carry no id at all); the colour preset (toAppearance() wrote `preset` into `colourPreset`, so any non-theme typography preset silently applied that preset's hard-coded palette and the chat surface stopped following the Obsidian theme); and the sync provisioning gate (a first activation returned an empty setup_uri while provisioning was still pending, which the plugin reported as a hard failure).",
+        "2.0.8 was published on 2026-09-17 by fast-forwarding main to the reviewed commit 141ce77 (d780536..141ce77), which triggered publish-release-assets.yml. The workflow created the tag and the GitHub Release as a pre-release, so the stable channel still resolves to 2.0.4. All three release assets matched the locally recorded sha256 values byte-for-byte."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
