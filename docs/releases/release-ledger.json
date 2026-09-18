@@ -36,11 +36,24 @@
     },
     "candidate": {
         "version": "2.0.12",
-        "status": "reserved",
+        "status": "stable-published",
         "channel": "stable",
         "sourceBranch": "codex-activation-remote-config-reroute",
         "stablePromotionOwner": "release-captain",
-        "deviceAcceptance": "pending-desktop"
+        "sourceCommit": "5dd2644",
+        "assetSourceCommit": "5dd2644",
+        "tag": "2.0.12",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.12",
+        "publishedAt": "2026-09-18T04:10:43Z",
+        "deviceAcceptance": "pending-desktop",
+        "publishedAssets": ["main.js", "manifest.json", "styles.css"],
+        "assetSha256": {
+            "main.js": "ef188aa8f353fc715859d750af05fa1c8183b14883e53c6d122464283ecaf114",
+            "manifest.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
+            "manifest-beta.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
+            "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121",
+            "versions.json": "5b7d0ff2bbba52ba2ca44814f03df79cc2b687fb7665dfb2939716f76a12de57"
+        }
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
