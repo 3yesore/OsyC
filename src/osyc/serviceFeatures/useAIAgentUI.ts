@@ -13,6 +13,7 @@ import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/AP
 import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
 import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { planProvisionedReplicationRepair } from "@/osyc/features/AIAgent/livesyncActivation";
+import { resolveServiceUrl } from "@/osyc/features/AIAgent/serviceDefaults";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
 import { applyThemeProfileStyles, migrateAppearanceToThemeProfile } from "@/osyc/theme/themeModel";
@@ -754,7 +755,9 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                     fontResources = saved.fontResources ?? [];
                     await Promise.all(fontResources.map((resource) => mountFontResource(resource)));
                     applyAppearance(appearance);
-                    agent.configure(saved.apiBase ?? "", saved.token ?? "");
+                    // 空值 / 历史官方地址统一解析成官方默认入口（见 serviceDefaults.ts）：
+                    // 新用户装完插件不填地址也能激活，老用户从 CF 慢链路迁到直连入口。
+                    agent.configure(resolveServiceUrl(saved.apiBase), saved.token ?? "");
                     lastToken = agent.settings.token;
                     if (saved.state || saved.tasks) {
                         agent.restore(saved.state, saved.tasks ?? []);

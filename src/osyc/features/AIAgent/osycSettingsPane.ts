@@ -15,6 +15,7 @@ import {
     type FontSource,
 } from "./appearance";
 import { getOsycSettingsController, type OsycSettingsController } from "./osycSettingsController";
+import { DEFAULT_SERVICE_URL } from "./serviceDefaults";
 
 /**
  * OsyC 偏好设置页。
@@ -86,7 +87,7 @@ function renderConnection(el: HTMLElement, controller: OsycSettingsController): 
     const status = el.createEl("p", { cls: "setting-item-description osyc-setting-status" });
     const refreshStatus = () => {
         const url = controller.snapshot().serviceUrl;
-        status.setText(url ? `当前服务地址：${url}` : "尚未配置服务地址，留空时将无法发送任务。");
+        status.setText(url ? `当前服务地址：${url}` : `当前使用官方默认服务地址：${DEFAULT_SERVICE_URL}`);
     };
     refreshStatus();
 
@@ -94,11 +95,11 @@ function renderConnection(el: HTMLElement, controller: OsycSettingsController): 
     let pending: number | null = null;
     new Setting(el)
         .setName("服务地址")
-        .setDesc("后端 API 地址，例如 https://api.example.com。一般由分发方预置，仅自助部署与联调时需要修改。")
+        .setDesc(`后端 API 地址，默认已预置为 ${DEFAULT_SERVICE_URL}（官方地址）；仅自助部署与联调时才需要修改。`)
         .addText((text) =>
             text
-                .setPlaceholder("https://api.example.com")
-                .setValue(controller.snapshot().serviceUrl)
+                .setPlaceholder(DEFAULT_SERVICE_URL)
+                .setValue(controller.snapshot().serviceUrl || DEFAULT_SERVICE_URL)
                 .onChange((value) => {
                     if (pending !== null) window.clearTimeout(pending);
                     pending = window.setTimeout(() => {
