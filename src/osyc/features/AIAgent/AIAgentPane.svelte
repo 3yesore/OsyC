@@ -257,14 +257,16 @@
     .ai-new-chat:hover, .ai-session-item:hover, .ai-sidebar-action:hover { background: var(--background-modifier-hover); }
     .ai-session-list { flex: 1 1 0; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 1px; }
     .ai-session-group { padding: 14px 8px 6px; color: var(--text-faint); font-size: var(--font-ui-smaller); font-weight: 600; }
-    .ai-session-item { display: flex; align-items: center; gap: 9px; width: 100%; min-height: 38px; border: 0; border-radius: 8px; padding: 6px 8px; text-align: left; color: var(--text-normal); background: transparent; cursor: pointer; font: inherit; }
+    /* Obsidian 的 button 基础样式会把内容居中；会话记录必须首字左对齐，
+       所以显式声明 flex-start，并让标签占据剩余宽度。 */
+    .ai-session-item { display: flex; align-items: center; justify-content: flex-start; gap: 9px; width: 100%; min-height: 38px; border: 0; border-radius: 8px; padding: 6px 8px; text-align: left; color: var(--text-normal); background: transparent; cursor: pointer; font: inherit; }
     .ai-session-item.active { background: var(--background-modifier-hover); color: var(--text-accent); }
     .ai-session-status { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; color: var(--text-faint); }
     .ai-session-status-running { color: var(--interactive-accent); animation: osyc-session-spin 1.4s linear infinite; }
     .ai-session-status-done { color: var(--color-green); }
     .ai-session-status-failed, .ai-session-status-conflict, .ai-session-status-delivery_failed { color: var(--color-red); }
     .ai-session-status-awaiting_confirmation { color: var(--color-orange); }
-    .ai-session-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: var(--font-ui-small); }
+    .ai-session-label { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-size: var(--font-ui-small); }
     .ai-session-empty { padding: 12px 8px; color: var(--text-faint); font-size: var(--font-ui-smaller); }
     .ai-sidebar-actions { display: flex; flex-direction: column; gap: 2px; padding-top: 10px; border-top: 1px solid var(--background-modifier-border); }
     .ai-sidebar-action { display: flex; align-items: center; gap: 10px; min-height: 38px; border: 0; border-radius: 8px; padding: 0 8px; text-align: left; color: var(--text-muted); background: transparent; cursor: pointer; font: inherit; }

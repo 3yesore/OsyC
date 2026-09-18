@@ -22,8 +22,10 @@ Production evidence (2026-09-18): the tenant `37e5e9d0-a57b-47b7-94a6-d08a74f759
 - `src/osyc/features/AIAgent/livesyncActivation.ts` (new): `planProvisionedReplicationRepair()` returns `{ liveSync: true }` only when the settings were provisioned by the OsyC activation flow and the user has no other remote:
   1. `isConfigured === true`;
   2. `liveSync` is not already true;
-  3. an `osyc` remote configuration exists (only the activation flow writes that id);
-  4. the active configuration is not another remote, and no other remote configuration exists.
+  3. `couchDB_USER` starts with `osyc_sync_` — the account the provisioner creates for every tenant, and the only provenance marker that actually reaches the client;
+  4. `activeConfigurationId` is empty or `osyc`.
+
+  The first draft keyed on `remoteConfigurations.osyc`, which **never reaches the client**: the setup URI payload carries only `couchDB_URI` / `couchDB_USER` / `couchDB_PASSWORD` / `couchDB_DBNAME` / `isConfigured` / `usePluginSyncV2` / `configPassphraseStore` / `encryptedCouchDBConnection` / `encryptedPassphrase`. Verified on 2026-09-18 by decoding the live tenant URI with `/opt/osyc/osyc-tools/verify_setup_uri.mjs` (exit 0). That draft would never have fired.
 - `src/osyc/serviceFeatures/useAIAgentUI.ts`: at plugin load, apply that repair once (`applyPartial({liveSync:true}, true)` + `control.applySettings()`) and log it. This repairs devices that were activated before the fix, without asking the user to re-enter the card.
 - `src/osyc/features/AIAgent/livesyncActivation.unit.spec.ts` (new): 7 cases covering the repair decision and every safety-valve branch.
 

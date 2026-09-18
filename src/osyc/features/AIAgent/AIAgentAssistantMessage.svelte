@@ -177,7 +177,7 @@
     {#if cost > 0 || task.status === "done"}
         <div class="ai-assistant-meta">
             <span>{statusLabel}</span>
-            {#if cost > 0}<span>{estimated ? "预计 " : ""}-{cost} 积分</span>{/if}
+            {#if !estimated && cost > 0}<span>-{cost} 积分</span>{/if}
         </div>
     {/if}
 

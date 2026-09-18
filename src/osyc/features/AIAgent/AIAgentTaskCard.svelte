@@ -145,10 +145,8 @@
     <div class="ai-task-foot">
         <span class="ai-task-status">{meta.label}</span>
         <span class="ai-task-costs">
-            {#if cost > 0}
-                <span class="ai-task-cost">
-                    {estimated ? "预计 " : ""}-{cost} 积分
-                </span>
+            {#if !estimated && cost > 0}
+                <span class="ai-task-cost">-{cost} 积分</span>
             {/if}
         </span>
     </div>
