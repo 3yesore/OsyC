@@ -2,16 +2,16 @@
 
 This register prevents two agents from implementing or publishing the same line of work. It is a coordination record, not a substitute for the append-only change records in `docs/changes/`.
 
-## Current baseline
+## Current baseline (corrected 2026-09-17)
 
-- Current stable plug-in: `2.0.4` (published 2026-09-14). `2.0.5` has a tag but no GitHub Release, so it is not a BRAT-installable rollback target.
-- Current pre-release: `2.0.7` (published 2026-09-16 as a GitHub pre-release for BRAT mobile validation; not a stable promotion). It carries the chat-surface (ChatGPT layout) and icon-unification work.
-- Previous pre-release: `2.0.6` (tag stays at `0a7dd4d`; never move it).
+- Current stable plug-in: **`2.0.10`** (published 2026-09-17T12:18:22Z as a **published** release; source commit `9b2af60`, published from `fdbfdec`; the three release assets matched `release-info.json` byte for byte).
+- Previous stable: `2.0.9` (published 2026-09-17T06:04:59Z, promoted 11:12Z). `2.0.8`, `2.0.7` and `2.0.6` are pre-releases of the retired BRAT era; `2.0.5` has a tag but no GitHub Release; `2.0.4` is the last pre-2.0.6 non-prerelease release.
 - Distribution repository: `3yesore/OsyC`
-- Release ledger: `docs/releases/release-ledger.json` (updated 2026-09-16 with the `2.0.6` pre-release)
-- Last verified source commit: `1fc9006471ba4afc7d2e975b4cf5b5ec7fefde4e` on `codex-2.0.6-stabilize` (flat branch name; the nested `codex/2.0.6-stabilize` ref is kept as an archive because nested refs are unreliable on this machine)
-- Last verified distribution commit: `1fc9006471ba4afc7d2e975b4cf5b5ec7fefde4e` on `main`
-- Last verified release tag: `2.0.7` (pre-release), `2.0.6` (pre-release), and `2.0.4` (newest non-prerelease release)
+- Release ledger: `docs/releases/release-ledger.json` (updated 2026-09-17 with the `2.0.10` publication)
+- Last verified source commit: `80aadec` on `codex-2.0.6-stabilize` (flat branch name; the nested `codex/2.0.6-stabilize` ref is kept as an archive because nested refs are unreliable on this machine)
+- Last verified distribution commit: `80aadec` on `main`
+- Last verified release tag: `2.0.10`
+- ⚠️ **Channel rule (2026-09-17 incident).** The Obsidian Community directory matches **published** releases only. `2.0.9` was created as a pre-release while the default-branch manifest already named it, so the directory scan at 06:43Z found no matching published release and removed the listing. Releases are now published directly: `publish-release-assets.yml` refuses to create a pre-release from the default branch, and `verify-release-channel.yml` checks the invariant hourly. See `docs/releases/README.md` → *Directory contract*.
 
 ## Reservations
 
@@ -34,9 +34,8 @@ Rules:
 ## Open integration questions
 
 - Name the maintainer who will own the release-captain role.
-- ~~Decide whether the next release is a stable patch or a BRAT pre-release after the current mobile review.~~ Decided 2026-09-16: the next release is the `2.0.6` BRAT pre-release, now published. The follow-up decision is whether `2.0.6` is promoted to stable once mobile UI validation passes, or superseded by a patch.
-- ~~Is the `2.0.6` pre-release validated?~~ Answered 2026-09-16: the maintainer reported the UI validation as passed. The chat-surface and icon work that followed is committed at `7a42e93` and is **newer than the `2.0.6` pre-release**, so it cannot ship under that version.
-- Reserved version for the chat-surface / icon work: **`2.0.7`**, authorised by the maintainer on 2026-09-16 and published the same day. The `2.0.6` tag must stay at `0a7dd4d`.
-- ⚠️ **The "stable rollback = 2.0.4" claim does not hold on the GitHub side.** `GET /releases/latest` returns `2.0.0` even though `2.0.4` (2026-09-14) is newer and is not a prerelease, so a BRAT stable (non-beta) install may resolve to `2.0.0`. Observed twice on 2026-09-16 while verifying the `2.0.7` publication. Confirm on a real device, then re-point latest to `2.0.4` (needs a credential; release-captain action) or install by explicit version.
-- Keep the current `2.0.4` Release immutable while those decisions are made.
-- Decide whether the unusable `2.0.5` tag should get a GitHub Release retroactively or be documented as a dead tag; it is currently the only rollback gap.
+- ~~Which channel?~~ Resolved 2026-09-17: **published releases only**, no pre-release stage and no promotion step. The BRAT pre-release lane is retired because the Community directory matches published releases only and a pre-release for the default-branch version de-lists the plug-in.
+- ~~`GET /releases/latest` returned `2.0.0`.~~ Resolved: it now resolves to `2.0.10`. The 2026-09-16 note described the community-directory listing rather than what an installed client receives; Obsidian takes the version from the default-branch `manifest.json` and downloads the assets of the release whose tag matches it.
+- ~~Should `2.0.5` get a Release retroactively?~~ No. It stays a dead tag and is documented as such; the effective rollback target is the previous published release in the ledger.
+- Retired: the pre-release/test-package lane. A candidate that must stay unreleased keeps its number in `manifest-beta.json` only and is published from a feature branch.
+- Open: the directory's automated review still reports **Caution** for `main.js` (inline `:has` and `!important` usage). It does not block the listing, but it should be reduced.
