@@ -12,6 +12,14 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.12
+
+18th September, 2026
+
+- OsyC `2.0.12` makes activation survive an existing configuration profile: LiveSync 2.x overlays the profile named by `activeConfigurationId` over the top-level `couchDB_*` keys, so activation now rewrites that profile as well. A top-level-only write was reverted by the old endpoint on any device that already had a profile.
+- OsyC `2.0.12` pins `remoteType` to CouchDB during activation, so a legacy `minio` or `p2p` value cannot route the replicator to the wrong remote.
+- OsyC `2.0.12` presets the official service address `https://api4.sacu3.cn` and migrates the historical official endpoints, so a fresh install can activate after pasting a card key without setting the API base by hand.
+
 ## 2.0.11
 
 18th September, 2026

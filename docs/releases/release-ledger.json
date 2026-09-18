@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "updatedAt": "2026-09-17",
+    "updatedAt": "2026-09-18",
     "releaseOwner": "release-captain",
     "sourceRepository": {
         "name": "obsidian-livesync",
@@ -14,34 +14,33 @@
         "commit": "9b2af60d026a049effcb0071ae12fafff5a17d4f"
     },
     "currentStable": {
-        "version": "2.0.10",
-        "tag": "2.0.10",
+        "version": "2.0.11",
+        "tag": "2.0.11",
         "status": "published",
-        "publishedAt": "2026-09-17T12:18:22Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.10",
+        "publishedAt": "2026-09-18T00:50:24Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.11",
         "assets": ["main.js", "manifest.json", "manifest-beta.json", "styles.css", "versions.json"],
         "assetSha256": {
-            "main.js": "0a39a3b798fcb8e01a869562e6771b62dd8fd288a005e226cf8c39c0d893f8ec",
-            "manifest.json": "264618084af61123fac84c18ba4bdcfce445293e83a095b8c8d47800ce0ed8c3",
-            "manifest-beta.json": "264618084af61123fac84c18ba4bdcfce445293e83a095b8c8d47800ce0ed8c3",
+            "main.js": "a1ce468114031a6d993ef7c93ac6f7879e46c1cd17173b02a46e631a776c378c",
+            "manifest.json": "a83224a417a21c5b82569765596868095f3c6db33ba203995dd56b83da40299c",
+            "manifest-beta.json": "a83224a417a21c5b82569765596868095f3c6db33ba203995dd56b83da40299c",
             "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121",
-            "versions.json": "54a9c185d31854f0b7acc878002b1f79d34b5979c70a4eeba583beeb779981fe"
+            "versions.json": "822a74a3f3560cff15b5fd388c4bf70eeb8427250b794fdba2958ecbc4de80fe"
         }
     },
     "previousStable": {
-        "version": "2.0.9",
-        "tag": "2.0.9",
+        "version": "2.0.10",
+        "tag": "2.0.10",
         "status": "superseded",
-        "publishedAt": "2026-09-17T06:04:59Z",
-        "promotedAt": "2026-09-17T11:12:00Z"
+        "publishedAt": "2026-09-17T12:18:22Z"
     },
     "candidate": {
-        "version": "2.0.11",
+        "version": "2.0.12",
         "status": "reserved",
         "channel": "stable",
-        "sourceBranch": "codex-2.0.6-stabilize",
+        "sourceBranch": "codex-activation-remote-config-reroute",
         "stablePromotionOwner": "release-captain",
-        "deviceAcceptance": "pending-mobile"
+        "deviceAcceptance": "pending-desktop"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -63,7 +62,9 @@
         "2.0.10 is reserved to publish with a normal (non-prerelease) release, which is what the directory requires. It carries the terminal progress cleanup (terminal status hides every progress phase, and the heartbeat merge keeps only its newest tick) and the release-channel guard: publish-release-assets.yml now creates a published release on a push and refuses to create a pre-release from the default branch, and verify-release-channel.yml checks the manifest/release invariant hourly.",
         "2.0.10 was published on 2026-09-17 by fast-forwarding main to fdbfdec (43c0b95..fdbfdec). The release-channel guard made the workflow create 2.0.10 as a normal release on the push itself, so the manifest version and a published release agreed from the first second. All three release assets matched release-info.json byte for byte, and GET /releases/latest resolves to 2.0.10.",
         "Publishing 2.0.10 also restored the Obsidian community directory listing that the 06:43Z mirror commit removed. Desktop search found osyc again within minutes of the release; mobile follows on its own directory refresh.",
-        "2.0.11 carries the sync-activation fix (the setup URI payload has no liveSync, so the replicator never opened), a load-time repair for devices already activated under that bug, the removal of the estimated credit display, and the left alignment of the session list rows. The directory listing for 2.0.10 was restored on 2026-09-17."
+        "2.0.11 carries the sync-activation fix (the setup URI payload has no liveSync, so the replicator never opened), a load-time repair for devices already activated under that bug, the removal of the estimated credit display, and the left alignment of the session list rows. The directory listing for 2.0.10 was restored on 2026-09-17.",
+        "2.0.11 was published on 2026-09-18 as a normal (non-prerelease) release rather than a pre-release, so the manifest version, the tag 2.0.11 at the reviewed cut commit 0a2ff89 and a published GitHub Release agreed; GET /releases/latest resolves to 2.0.11.",
+        "2.0.12 carries the activation reroute (activation now rewrites the remote configuration profile named by activeConfigurationId together with the top-level couchDB_* keys, because LiveSync 2.x overlays the active profile over the top level and a top-level-only write was reverted by the old endpoint on a device that already had a profile), pins remoteType to CouchDB during activation so a legacy minio/p2p value cannot route the replicator to the wrong remote, and presets the official service address https://api4.sacu3.cn while migrating the historical official endpoints so a fresh install can activate after pasting a card key."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
