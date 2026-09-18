@@ -11,6 +11,7 @@ import type { LiveSyncCore } from "@/main";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { buildSetupPatch, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
+import { planProvisionedReplicationRepair } from "@/osyc/features/AIAgent/livesyncActivation";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
 import { applyThemeProfileStyles, migrateAppearanceToThemeProfile } from "@/osyc/theme/themeModel";
@@ -120,6 +121,27 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const app: App = core.services.context.app;
     const adapter = app.vault?.adapter;
     const configPath = `${app.vault.configDir}/${CONFIG_FILE_NAME}`;
+
+    // 激活自愈（2026-09-18 生产故障）：早期激活流程写下去的 LiveSync 配置里
+    // 没有打开 liveSync 总开关（setup_uri 载荷不含该键，默认 false），
+    // 复制器 `liveSync || syncOnStart` 两个都为 false 时永不启动 ——
+    // 表现为「激活成功、云库里只有版本标记、服务端 vault 恒为空」。
+    // 这里在加载时补一次，让**已经激活过**的设备也能把 vault 完整传上云，
+    // 不必重输卡密。是否动手由 planProvisionedReplicationRepair 的安全阀决定：
+    // 只认 OsyC 激活写入的远端，且用户没有别的远端配置。
+    void (async () => {
+        try {
+            const repair = planProvisionedReplicationRepair(
+                core.services.setting.currentSettings() as unknown as Record<string, unknown>
+            );
+            if (!repair) return;
+            await core.services.setting.applyPartial(repair, true);
+            await core.services.control.applySettings();
+            osycLogger.info("已补开 LiveSync 同步开关（激活自愈）");
+        } catch (error) {
+            osycLogger.warn("激活自愈失败", error);
+        }
+    })();
 
     const agent = new CmdAIAgent();
     const announcements = writable<Announcement[]>([]);
