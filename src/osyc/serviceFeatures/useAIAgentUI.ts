@@ -10,7 +10,8 @@ import { get, writable } from "svelte/store";
 import type { LiveSyncCore } from "@/main";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
-import { buildSetupPatch, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
+import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
+import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { planProvisionedReplicationRepair } from "@/osyc/features/AIAgent/livesyncActivation";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
@@ -335,9 +336,36 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         try {
             const decoded = await decodeSettingsFromSetupURI(setupUri, passphrase);
             if (!decoded) return false;
+            const decodedValues = decoded as unknown as Record<string, unknown>;
             // 合并式写入：applyPartial 而非 applyExternalSettings
-            const patch = buildSetupPatch(decoded as unknown as Record<string, unknown>);
-            await core.services.setting.applyPartial(patch, true);
+            const patch = buildSetupPatch(decodedValues);
+
+            // 远程配置档案必须一起改写（2026-09-18 现场根因）：
+            // LiveSync 2.x 的 SettingService.loadSettings() 在 activeConfigurationId 指向的
+            // remoteConfigurations[id] 存在时，会调用 activateRemoteConfiguration(),
+            // 用档案 uri 覆盖顶层的 remoteType 与 couchDB_URI/USER/PASSWORD/DBNAME；
+            // 而 applyExternalSettings / applyPartial 只做浅合并，**不会**碰
+            // remoteConfigurations，adjustSettings() 也只会在档案为空时才从顶层重建。
+            // 因此只写顶层字段的设备，下次启动必然被旧档案覆盖回旧端点（实测客户端
+            // data.json 里 activeConfigurationId=legacy-couchdb，档案 uri 指向旧的
+            // https://sync.sacu3.cn，换了 setup URI 也连不上新后端）。
+            // 这里把活动 couchdb 档案的 uri 一并改写成新目标，让顶层字段与档案拓扑一致。
+            //
+            // 分级原则不变：这不给 agent / 自动流程开口子 —— 身份类键仍只由这条激活链路
+            // 写入（buildSetupPatch 不走白名单，planCouchDbRemoteConfigurationReroute
+            // 也只接受激活流程的解码结果），而 sanitizeLivesyncPatch 的白名单里没有它们。
+            const reroute = planCouchDbRemoteConfigurationReroute(
+                decodedValues,
+                core.services.setting.currentSettings()
+            );
+            const mergedPatch: Partial<ObsidianLiveSyncSettings> = reroute.changed
+                ? {
+                      ...patch,
+                      remoteConfigurations: reroute.remoteConfigurations,
+                      activeConfigurationId: reroute.activeConfigurationId,
+                  }
+                : patch;
+            await core.services.setting.applyPartial(mergedPatch, true);
             await core.services.control.applySettings();
             return true;
         } catch {

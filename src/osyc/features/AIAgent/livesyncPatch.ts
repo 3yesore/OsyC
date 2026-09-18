@@ -1,7 +1,10 @@
 import {
     DEFAULT_SETTINGS,
+    type CouchDBConnection,
     type ObsidianLiveSyncSettings,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
+import type { RemoteConfiguration } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.type";
 
 /**
  * LiveSync 设置的分级与合并式修改。
@@ -166,4 +169,123 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
         // 且即使后端将来下发 false，激活的语义也应当是「打开同步」。
         liveSync: true,
     };
+}
+
+
+/**
+ * 重写远程配置档案，使「激活流程写入的顶层端点」与「活动档案里的 uri」保持一致。
+ *
+ * ## 为什么必须动档案（根因）
+ *
+ * LiveSync（commonlib）2.x 的 `SettingService.loadSettings()` 在
+ * `activeConfigurationId` 指向的 `remoteConfigurations[id]` 存在时，会调用内部的
+ * `activateRemoteConfiguration(settings, id)`，用档案 uri 解析出的字段**覆盖**顶层的
+ * `remoteType` 与 `couchDB_URI / couchDB_USER / couchDB_PASSWORD / couchDB_DBNAME`。
+ * 而 `applyExternalSettings(partial)`（以及它调用的 `applyPartial`）只做
+ * `{ ...settings, ...partial }` 的浅合并，**不会**碰 `remoteConfigurations`；
+ * `adjustSettings()` 里的 `migrateLegacyRemoteConfigurationsInPlace` 也只在
+ * `remoteConfigurations` 为空时才会从顶层字段重建档案。
+ *
+ * 结论：只写顶层 couchDB_* 字段的激活，在一台**已经有档案**的机器上必然被下次启动
+ * 覆盖回旧端点。现场实测：客户端 data.json 里 `activeConfigurationId: "legacy-couchdb"`、
+ * 档案 uri 指向旧的 `https://sync.sacu3.cn`，换了后端下发的 setup URI 也连不上新端点。
+ *
+ * ## 行为
+ *
+ * - `decoded` 必须同时给出非空的 couchDB_URI / USER / PASSWORD / DBNAME，否则原样返回、
+ *   一个档案都不碰（`changed: false`）。
+ * - 只重写 `type === "couchdb"` 的档案；S3 / P2P 档案原样保留，绝不让用户丢配置。
+ * - `parse` 抛异常的坏档案原样保留，不会因为一条坏档案炸掉整个激活。
+ * - 没有 couchdb 档案时把 `activeConfigurationId` 置空，交给下次启动的
+ *   `migrateLegacyRemoteConfigurationsInPlace` 从新的顶层字段重建。
+ * - 幂等：目标 uri 已经相同就不标记 `changed`，避免无谓写盘与 UI 提示。
+ *
+ * 纯函数，不碰任何全局状态，方便单测。
+ */
+export function planCouchDbRemoteConfigurationReroute(
+    decoded: Record<string, unknown>,
+    current: {
+        remoteConfigurations?: Record<string, RemoteConfiguration>;
+        activeConfigurationId?: string;
+    },
+): {
+    remoteConfigurations: Record<string, RemoteConfiguration>;
+    activeConfigurationId: string;
+    changed: boolean;
+} {
+    const existing = current.remoteConfigurations ?? {};
+    const originalActiveId =
+        typeof current.activeConfigurationId === "string" ? current.activeConfigurationId : "";
+
+    const requiredKeys = ["couchDB_URI", "couchDB_USER", "couchDB_PASSWORD", "couchDB_DBNAME"] as const;
+    const targetIsComplete = requiredKeys.every(
+        (key) => typeof decoded[key] === "string" && (decoded[key] as string).trim() !== ""
+    );
+    if (!targetIsComplete) {
+        // 载荷不完整：无法确定新目标，原样返回、不碰任何档案。
+        return { remoteConfigurations: existing, activeConfigurationId: originalActiveId, changed: false };
+    }
+
+    // serialize 需要完整设置对象：以 DEFAULT_SETTINGS 兜底，再依次覆盖「当前设置」与
+    // 「解码结果」。这样缺失的可选 couchDB 字段（headers / JWT / requestAPI 等）
+    // 不会变成 undefined 而破坏 uri。
+    const mergedSettings = {
+        ...(DEFAULT_SETTINGS as unknown as Record<string, unknown>),
+        ...(current as unknown as Record<string, unknown>),
+        ...decoded,
+    } as unknown as CouchDBConnection;
+
+    const nextConfigurations: Record<string, RemoteConfiguration> = {};
+    const couchDbIds: string[] = [];
+    let changed = false;
+
+    for (const [id, configuration] of Object.entries(existing)) {
+        if (!configuration || typeof configuration !== "object" || typeof configuration.uri !== "string") {
+            // 非预期数据：原样保留，绝不因为坏数据丢配置。
+            if (configuration) nextConfigurations[id] = configuration;
+            continue;
+        }
+        let parsed: ReturnType<typeof ConnectionStringParser.parse>;
+        try {
+            parsed = ConnectionStringParser.parse(configuration.uri);
+        } catch {
+            // 坏 uri（加密串或历史脏数据）：原样保留，不因一条坏档案炸掉整个激活。
+            nextConfigurations[id] = configuration;
+            continue;
+        }
+        if (parsed.type !== "couchdb") {
+            // S3 / P2P：原样保留，绝不改。
+            nextConfigurations[id] = configuration;
+            continue;
+        }
+        couchDbIds.push(id);
+        let uri = configuration.uri;
+        try {
+            // 明文 uri：同时把 isEncrypted 置回 false，否则下次启动解密会失败。
+            uri = ConnectionStringParser.serialize({ type: "couchdb", settings: mergedSettings });
+        } catch {
+            // 目标设置本身无法序列化：保留旧 uri，至少不丢档案。
+            nextConfigurations[id] = configuration;
+            continue;
+        }
+        if (uri !== configuration.uri || configuration.isEncrypted !== false) {
+            changed = true;
+        }
+        nextConfigurations[id] = { ...configuration, uri, isEncrypted: false };
+    }
+
+    let activeConfigurationId: string;
+    if (couchDbIds.length === 0) {
+        // 没有 couchdb 档案：清空活动档案，靠 migrateLegacyRemoteConfigurationsInPlace
+        // 从新的顶层字段重建，避免下次启动被旧档案覆盖。
+        activeConfigurationId = "";
+    } else if (originalActiveId && couchDbIds.includes(originalActiveId)) {
+        activeConfigurationId = originalActiveId;
+    } else {
+        // 原活动档案不是 couchdb（或为空）：切到第一个 couchdb 档案，保证新端点生效。
+        activeConfigurationId = couchDbIds[0];
+    }
+    if (activeConfigurationId !== originalActiveId) changed = true;
+
+    return { remoteConfigurations: nextConfigurations, activeConfigurationId, changed };
 }
