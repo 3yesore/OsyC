@@ -12,6 +12,14 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.11
+
+18th September, 2026
+
+- OsyC `2.0.11` makes activation actually start syncing. The setup URI payload carries no `liveSync` key and the LiveSync default is `false`, so the replicator never opened: a fresh activation reached `doc_count = 1` on its tenant database and the server-side vault stayed empty. The activation patch now opens the master switch, and a load-time repair opens it for devices that were activated before this build.
+- OsyC `2.0.11` stops showing an estimated credit cost while a task is queued or running; the cost chip appears once the task settles.
+- OsyC `2.0.11` left-aligns the rows of the session list; Obsidian's button base style had centred them.
+
 ## 2.0.10
 
 17th September, 2026
