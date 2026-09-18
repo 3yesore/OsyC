@@ -153,5 +153,17 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
     return {
         ...patch,
         isConfigured: true,
+        // 同步引擎的总开关，必须由激活流程显式打开。
+        //
+        // setup_uri 的载荷只含身份类字段（couchDB_* / isConfigured /
+        // usePluginSyncV2 / configPassphraseStore / encrypted*），**没有 liveSync**，
+        // 而 LiveSync 的默认值是 false。复制器的启动条件是
+        // `liveSync || syncOnStart`（ModuleReplicatorCouchDB._everyAfterResumeProcess），
+        // 两个都是 false 时它根本不会打开 —— 表现为「激活成功、配置也写进去了，
+        // 但一条笔记都不会上传，服务端 vault 永远是空的」。
+        //
+        // 这里放在最后而不是加进载荷：载荷由 commonlib 编码、改不了；
+        // 且即使后端将来下发 false，激活的语义也应当是「打开同步」。
+        liveSync: true,
     };
 }
