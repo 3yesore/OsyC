@@ -168,6 +168,12 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
         // 这里放在最后而不是加进载荷：载荷由 commonlib 编码、改不了；
         // 且即使后端将来下发 false，激活的语义也应当是「打开同步」。
         liveSync: true,
+        // OsyC 只提供 CouchDB 同步（tools/gen_setup_uri.mjs 里 `remoteType: ""`），而
+        // setup_uri 的载荷同样**不含 remoteType** —— 于是设备上遗留的 `remoteType`
+        // （例如用户以前配过 S3/P2P，值是 "minio"/"p2p"）会在激活后继续生效，
+        // 复制器按那个类型去找远端，表现为「激活成功但同步到别处 / 根本不同步」。
+        // 激活的语义是「切到 OsyC 的 CouchDB 后端」，所以这里显式钉死为空。
+        remoteType: "",
     };
 }
 

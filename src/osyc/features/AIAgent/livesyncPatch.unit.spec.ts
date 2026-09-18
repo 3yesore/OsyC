@@ -37,6 +37,11 @@ describe("buildSetupPatch：激活下发的同步配置", () => {
         expect(patch.isConfigured).toBe(true);
     });
 
+    it("必须把 remoteType 钉成 CouchDB（遗留的 minio/p2p 会让复制器走错远端）", () => {
+        expect(buildSetupPatch(payload).remoteType).toBe("");
+        expect(buildSetupPatch({ ...payload, remoteType: "minio" }).remoteType).toBe("");
+    });
+
     it("载荷里的身份类字段原样保留", () => {
         const patch = buildSetupPatch(payload);
         expect(patch.couchDB_URI).toBe("https://sync.example.com");
