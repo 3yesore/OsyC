@@ -174,3 +174,41 @@ describe("OsyC 设置页信息架构", () => {
         expect(source).toContain("agent.configure(value, agent.settings.token)");
     });
 });
+
+describe("激活流程的回读自检", () => {
+    it("applySetupUri 在 applySettings() 之后回读设置，并校验活动远端档案", () => {
+        const applyPartialAt = source.indexOf("await core.services.setting.applyPartial(mergedPatch, true);");
+        const applySettingsAt = source.indexOf("await core.services.control.applySettings();", applyPartialAt);
+        const verifyAt = source.indexOf(
+            "verifyActivatedRemote(core.services.setting.currentSettings())",
+            applySettingsAt
+        );
+        expect(applyPartialAt).toBeGreaterThan(-1);
+        expect(applySettingsAt).toBeGreaterThan(applyPartialAt);
+        expect(verifyAt).toBeGreaterThan(applySettingsAt);
+    });
+
+    it("复用纯函数 verifyActivatedRemote，而不是内联重复判定", () => {
+        expect(source).toContain(
+            'import { planProvisionedReplicationRepair, verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";'
+        );
+    });
+
+    it("自检失败时 console.warn 明确中文原因并返回 false，让上层标为配置失败", () => {
+        expect(source).toContain("if (!verification.ok) {");
+        expect(source).toContain("console.warn(`激活后未生成可用的同步档案：${verification.reason}`)");
+        // 不能自检失败还 return true（那正是「报告成功但没有任何远端」的现场形态）
+        const warnAt = source.indexOf("console.warn(`激活后未生成可用的同步档案：${verification.reason}`)");
+        const failAt = source.indexOf("return false;", warnAt);
+        expect(failAt).toBeGreaterThan(warnAt);
+    });
+
+    it("回读自检之外的异常也要 console.warn，不能静默 return false", () => {
+        const warnLiteral = 'console.warn("激活写入同步配置时异常，已按配置失败处理")';
+        expect(source).toContain(warnLiteral);
+        // 先留日志再按配置失败返回，语义仍是 false（不改返回值）
+        const warnAt = source.indexOf(warnLiteral);
+        const failAt = source.indexOf("return false;", warnAt);
+        expect(failAt).toBeGreaterThan(warnAt);
+    });
+});

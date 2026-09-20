@@ -5,6 +5,7 @@ import {
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
 import type { RemoteConfiguration } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.type";
+import { DoctorRegulation } from "@vrtmrz/livesync-commonlib/compat/common/configForDoc";
 
 /**
  * LiveSync 设置的分级与合并式修改。
@@ -174,6 +175,33 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
         // 复制器按那个类型去找远端，表现为「激活成功但同步到别处 / 根本不同步」。
         // 激活的语义是「切到 OsyC 的 CouchDB 后端」，所以这里显式钉死为空。
         remoteType: "",
+        // 分块参数必须与「配置诊断」（Doctor）规章的要求值一致，否则激活后的**冷启动**会被
+        // 问诊弹窗拦住，同步静默停摆。
+        //
+        // setup_uri 的载荷同样**不含 customChunkSize**：它的 schema 默认值就是 0
+        // （setting.const.defaults.js:96），而 encodeSettingsToSetupURI 以
+        // skipDefaultValue=true 编码，与默认值相同的键会被整条剥掉，于是设备上留的就是 0。
+        //
+        // 但 DoctorRegulation 对「自建 CouchDB + v3-rabin-karp」要求的是 60
+        // （其 customChunkSize 规则，也是 PREFERRED_SETTING_SELF_HOSTED 的取值）。
+        // 判定时它走不到数值容差分支：容差要求 `"min" in rule && "max" in rule` 同时成立，
+        // 而上游把该规则的 `max` 注释掉了 —— min:55 因此形同虚设，0 一律判违规。
+        //
+        // 后果不是「弹个提示」那么轻：问诊发生在启动链中途且 await 用户作答
+        // （ModuleLiveSyncMain → onFirstInitialise → runDoctor → performDoctorConsultation），
+        // 不作答就永远走不到紧随其后的 applySettings()，复制器不会启动 ——
+        // 表现为「激活当下能同步，一重启就静默停摆，用户毫不知情」。
+        //
+        // 为什么是「写值」而不是用 doctorProcessedVersion 静音整版：
+        // 那个开关的静音是**整版、不分等级**的（连 hashAlg 等 Necessary 规则一起静音，
+        // 见 configForDoc.js 的 performDoctorConsultation 早退分支），代价远大于收益。
+        // 写 60 只消掉这一条违规，其余规则照常评估、该提示时照常提示。
+        //
+        // 副作用已知且可接受：把分块上限从「1×」调到「61×」，会改变去重粒度。
+        // 已有数据不受影响（分块是内容寻址的，旧块照常可读），只是后续修订按新粒度切分。
+        // 对空库/新租户完全无代价；对已经以 0 同步过的 vault 属「兼容但有损」变更，
+        // 而这正是问诊弹窗自己给出的默认修法（点 Yes 后再点 Fix 写下的就是同一个值）。
+        customChunkSize: DoctorRegulation.rules.customChunkSize?.value ?? 60,
     };
 }
 
@@ -202,12 +230,16 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
  *   一个档案都不碰（`changed: false`）。
  * - 只重写 `type === "couchdb"` 的档案；S3 / P2P 档案原样保留，绝不让用户丢配置。
  * - `parse` 抛异常的坏档案原样保留，不会因为一条坏档案炸掉整个激活。
- * - 没有 couchdb 档案时把 `activeConfigurationId` 置空，交给下次启动的
- *   `migrateLegacyRemoteConfigurationsInPlace` 从新的顶层字段重建。
+ * - 没有 couchdb 档案时**新建 `legacy-couchdb` 档案并激活**（uri 由本次解码结果序列化）。
+ *   不能交给下次启动的 `migrateLegacyRemoteConfigurationsInPlace`：它只认明文
+ *   `couchDB_URI`，而凭据在保存时已被加密进 `encryptedCouchDBConnection`。
  * - 幂等：目标 uri 已经相同就不标记 `changed`，避免无谓写盘与 UI 提示。
  *
  * 纯函数，不碰任何全局状态，方便单测。
  */
+/** 与上游 migrateLegacyRemoteConfigurationsInPlace 相同的档案 id，便于 UI 与后续迁移识别。 */
+const LEGACY_COUCHDB_ID = "legacy-couchdb";
+
 export function planCouchDbRemoteConfigurationReroute(
     decoded: Record<string, unknown>,
     current: {
@@ -282,9 +314,34 @@ export function planCouchDbRemoteConfigurationReroute(
 
     let activeConfigurationId: string;
     if (couchDbIds.length === 0) {
-        // 没有 couchdb 档案：清空活动档案，靠 migrateLegacyRemoteConfigurationsInPlace
-        // 从新的顶层字段重建，避免下次启动被旧档案覆盖。
-        activeConfigurationId = "";
+        // 没有 couchdb 档案：**当场建一份并激活**。
+        //
+        // 不能像早先那样只把 activeConfigurationId 置空、指望下次启动的
+        // migrateLegacyRemoteConfigurationsInPlace 从顶层字段重建 ——
+        // 那个迁移的前提是**明文** couchDB_URI（hasText(settings.couchDB_URI)），
+        // 而 SettingService 保存时会把凭据加密进 encryptedCouchDBConnection 并清空
+        // 明文字段。于是下次启动时 hasCouchDB=false：既没有档案、也没有明文端点，
+        // 客户端等于完全没配远端。
+        // 2026-09-20 现场证据（用户新 vault，激活后一条笔记都读不到）：
+        //   couchDB_URI/USER/PASSWORD/DBNAME 全为空、remoteConfigurations={}、
+        //   activeConfigurationId=""，只有 encryptedCouchDBConnection 有值；
+        // 而老 vault 能用，正是因为它**已经有** legacy-couchdb 档案。
+        let created = false;
+        try {
+            const uri = ConnectionStringParser.serialize({ type: "couchdb", settings: mergedSettings });
+            nextConfigurations[LEGACY_COUCHDB_ID] = {
+                id: LEGACY_COUCHDB_ID,
+                name: "CouchDB Remote",
+                uri,
+                isEncrypted: false,
+            };
+            created = true;
+            changed = true;
+        } catch {
+            // 目标设置本身无法序列化：退回旧行为（置空），至少不写坏数据。
+            created = false;
+        }
+        activeConfigurationId = created ? LEGACY_COUCHDB_ID : "";
     } else if (originalActiveId && couchDbIds.includes(originalActiveId)) {
         activeConfigurationId = originalActiveId;
     } else {

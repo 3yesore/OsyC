@@ -1555,7 +1555,9 @@ export class CmdAIAgent {
             case 402:
                 return "积分不足，请充值后再试";
             case 403:
-                return "设备数量超限（最多 3 台）";
+                // 不写死台数：档位上限随订阅变化（base 2 / member 5 / pro 10），
+                // 硬编码「最多 3 台」会误导用户以为解绑到 3 台就行。
+                return "设备数量已达本档位上限，请在账户弹窗里解绑旧设备";
             case 429:
                 return "请求过于频繁，请稍后再试";
             default:

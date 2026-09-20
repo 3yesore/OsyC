@@ -134,26 +134,28 @@ describe("planCouchDbRemoteConfigurationReroute：激活时改写远程配置档
         expect(result.remoteConfigurations["legacy-couchdb"].uri).not.toBe(OLD_COUCHDB_URI);
     });
 
-    it("没有任何 couchdb 档案时把 activeConfigurationId 置空（交给下次启动重建）", () => {
+    it("原 active 指向已消失的档案时，新建 legacy-couchdb 顶上", () => {
         const result = planCouchDbRemoteConfigurationReroute(TARGET, {
             remoteConfigurations: {},
             activeConfigurationId: "legacy-couchdb",
         });
 
-        expect(result.remoteConfigurations).toEqual({});
-        expect(result.activeConfigurationId).toBe("");
+        expect(Object.keys(result.remoteConfigurations)).toEqual(["legacy-couchdb"]);
+        expect(result.activeConfigurationId).toBe("legacy-couchdb");
         expect(result.changed).toBe(true);
     });
 
-    it("只有非 couchdb 档案时也置空 active，但仍保留这些档案", () => {
+    it("只有非 couchdb 档案时保留它们，并新建 couchdb 档案作为活动远端", () => {
         const s3 = { id: "legacy-s3", name: "S3 Remote", uri: serializeS3(), isEncrypted: false } as RemoteConfiguration;
         const result = planCouchDbRemoteConfigurationReroute(TARGET, {
             remoteConfigurations: { "legacy-s3": s3 },
             activeConfigurationId: "legacy-s3",
         });
 
+        // S3 档案原样保留（绝不让用户丢配置），但激活语义是切到 OsYc 的 CouchDB 后端
         expect(result.remoteConfigurations["legacy-s3"]).toBe(s3);
-        expect(result.activeConfigurationId).toBe("");
+        expect(result.remoteConfigurations["legacy-couchdb"]).toBeDefined();
+        expect(result.activeConfigurationId).toBe("legacy-couchdb");
         expect(result.changed).toBe(true);
     });
 
@@ -228,11 +230,21 @@ describe("planCouchDbRemoteConfigurationReroute：激活时改写远程配置档
         expect(result!.changed).toBe(true);
     });
 
-    it("没有档案时返回空对象且 active 置空", () => {
+    it("没有档案时当场新建 legacy-couchdb 档案并激活（否则新设备等于没配远端）", () => {
+        // 现场回归：新 vault 激活后 data.json 里 couchDB_* 全空、remoteConfigurations={}，
+        // activeConfigurationId=""，只剩 encryptedCouchDBConnection —— 顶层明文凭据被
+        // 保存时加密清空，下次启动的 migrateLegacyRemoteConfigurationsInPlace 因
+        // hasText(couchDB_URI)=false 拒绝重建，客户端从此没有任何远端，一条笔记都读不到。
         const result = planCouchDbRemoteConfigurationReroute(TARGET, {});
-        expect(result.remoteConfigurations).toEqual({});
-        expect(result.activeConfigurationId).toBe("");
-        // active 本来就是空，无实际变化
-        expect(result.changed).toBe(false);
+        expect(result.changed).toBe(true);
+        expect(result.activeConfigurationId).toBe("legacy-couchdb");
+
+        const created = result.remoteConfigurations["legacy-couchdb"];
+        expect(created.id).toBe("legacy-couchdb");
+        expect(created.isEncrypted).toBe(false);
+        const parsed = ConnectionStringParser.parse(created.uri);
+        expect(parsed.type).toBe("couchdb");
+        expect((parsed.settings as CouchDBConnection).couchDB_URI).toBe("https://new.sync.example.com");
+        expect((parsed.settings as CouchDBConnection).couchDB_DBNAME).toBe("t_newdb");
     });
 });
