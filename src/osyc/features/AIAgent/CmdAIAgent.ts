@@ -4,6 +4,23 @@ import type { ActiveNoteSnapshot } from "./activeNoteContext";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 import { createTaskClientId, ensureTaskClientId, mergeProgressEvents, mergeResponseText, type AgentProgressEvent } from "./conversationModel";
 import type { LiveSyncControlPort } from "./livesyncSyncActions";
+import { isOfficialServiceUrl, resolveServiceCandidates } from "./serviceDefaults";
+import { tryEndpointsInOrder } from "./serviceFailover";
+
+/**
+ * 端点故障转移用的请求参数（去掉 `url`，由 apiRequest 按候选端点补上）。
+ *
+ * 注意：不能写成 `Omit<Parameters<typeof requestUrl>[0], "url">` —— obsidian 的签名是
+ * `requestUrl(request: RequestUrlParam | string)`，这个联合类型被 Omit 之后就取不到 `method` 了。
+ */
+type ApiRequestOptions = {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    throw?: boolean;
+    contentType?: string;
+};
+type ApiResponse = Awaited<ReturnType<typeof requestUrl>>;
 
 export type AITaskStatus =
     | "queued" | "running" | "done" | "failed"
@@ -893,8 +910,7 @@ export class CmdAIAgent {
         method: string,
         body?: unknown
     ): Promise<{ status: number; data: unknown }> {
-        const res = await requestUrl({
-            url: `${this.settings.apiBase}${path}`,
+        const res = await this.apiRequest(path, {
             method,
             headers: {
                 "Content-Type": "application/json",
@@ -910,6 +926,42 @@ export class CmdAIAgent {
             data = null;
         }
         return { status: res.status, data };
+    }
+
+    /**
+     * 端点故障转移：按候选顺序请求，遇到网络层失败或可重试状态码就换下一条。
+     *
+     * 候选顺序来自 resolveServiceCandidates：**当前只有灰云直连的 api4 一条**
+     * （Cloudflare 的 api / osyctest 已被排除，见 serviceDefaults.ts 文件头）。
+     * - 只会在**官方直连候选之间**轮换；用户自填地址永远只有一个候选，不会被替换；
+     * - 命中的端点若是官方直连入口，就写回 settings.apiBase，让后续请求与设置页都跟上；
+     * - 能否重试由 shouldTryNextEndpoint 判定：网络失败与 502 一定重试，
+     *   503/504 只有幂等 GET 才重试（避免把可能已生效的 POST 在另一端点重做）；
+     * - 第一条成功的端点就返回，不再碰后续候选（不放大请求）。
+     */
+    private async apiRequest(path: string, options: ApiRequestOptions): Promise<ApiResponse> {
+        const candidates = resolveServiceCandidates(this.settings.apiBase);
+        const method = typeof options.method === "string" ? options.method : "GET";
+        const { base, value } = await tryEndpointsInOrder(
+            candidates,
+            method,
+            async (candidate) => {
+                const res = await requestUrl({ ...options, url: `${candidate}${path}` });
+                return { base: candidate, value: res, status: res.status };
+            },
+            ({ base: skipped, status, error }) => {
+                if (error) {
+                    osycLogger.warn("OsyC 端点网络失败，尝试下一个端点", { base: skipped, error: String(error) });
+                } else {
+                    osycLogger.warn("OsyC 端点返回可重试状态，尝试下一个端点", { base: skipped, status });
+                }
+            }
+        );
+        if (base !== this.settings.apiBase && isOfficialServiceUrl(base)) {
+            osycLogger.warn("OsyC 端点已自动切换", { from: this.settings.apiBase, to: base });
+            this.settings.apiBase = base;
+        }
+        return value;
     }
 
     async loadSchedules(): Promise<void> {
@@ -1293,8 +1345,7 @@ export class CmdAIAgent {
         }
         if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/activate`,
+            const res = await this.apiRequest("/api/activate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ card_key: cardKey, device_id: deviceId }),
@@ -1421,8 +1472,7 @@ export class CmdAIAgent {
     async refreshStatus(): Promise<void> {
         if (this.isMock || !this.settings.token) return;
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/status`,
+            const res = await this.apiRequest("/api/status", {
                 method: "GET",
                 headers: { Authorization: `Bearer ${this.settings.token}` },
                 throw: false,
@@ -1454,8 +1504,7 @@ export class CmdAIAgent {
         if (this.isMock || !this.settings.token || this.runtimeInfoLoaded) return this.runtimeInfo;
         this.runtimeInfoLoaded = true;
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/runtime-info`,
+            const res = await this.apiRequest("/api/runtime-info", {
                 method: "GET",
                 headers: { Authorization: `Bearer ${this.settings.token}` },
                 throw: false,
@@ -1519,8 +1568,7 @@ export class CmdAIAgent {
         }
 
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/send`,
+            const res = await this.apiRequest("/api/send", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
@@ -1569,8 +1617,7 @@ export class CmdAIAgent {
 
                 let res: { status: number; json: unknown };
                 try {
-                    res = await requestUrl({
-                        url: `${this.settings.apiBase}/api/task/${taskId}`,
+                    res = await this.apiRequest(`/api/task/${taskId}`, {
                         method: "GET",
                         headers: { Authorization: `Bearer ${this.settings.token}` },
                         throw: false,
@@ -1668,8 +1715,7 @@ export class CmdAIAgent {
         }
         if (!this.hasApiBase && !this.isMock) return { ok: false, message: this.configurationError() };
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/task/${encodeURIComponent(taskId)}/confirm`,
+            const res = await this.apiRequest(`/api/task/${encodeURIComponent(taskId)}/confirm`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.settings.token}` },
                 body: JSON.stringify({ token: confirmation.token, summary_sha256: confirmation.summary_sha256 }),
@@ -1706,8 +1752,7 @@ export class CmdAIAgent {
         }
         if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/task/${encodeURIComponent(taskId)}/cancel-confirmation`,
+            const res = await this.apiRequest(`/api/task/${encodeURIComponent(taskId)}/cancel-confirmation`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${this.settings.token}` },
                 throw: false,
@@ -1733,8 +1778,7 @@ export class CmdAIAgent {
                 if (!artifact || !artifact.path || artifact.size <= 0 || !/^[a-f0-9]{64}$/.test(artifact.sha256)) {
                     throw new Error("结果文件元数据无效");
                 }
-                const res = await requestUrl({
-                    url: `${this.settings.apiBase}/api/task/${encodeURIComponent(taskId)}/artifact?path=${encodeURIComponent(artifact.path)}`,
+                const res = await this.apiRequest(`/api/task/${encodeURIComponent(taskId)}/artifact?path=${encodeURIComponent(artifact.path)}`, {
                     method: "GET",
                     headers: { Authorization: `Bearer ${this.settings.token}` },
                     throw: false,
@@ -1765,8 +1809,7 @@ export class CmdAIAgent {
                 delivered.push(artifact);
             }
             if (this.stopped || generation !== this.lifecycleGeneration) return;
-            const ack = await requestUrl({
-                url: `${this.settings.apiBase}/api/task/${encodeURIComponent(taskId)}/artifact-ack`,
+            const ack = await this.apiRequest(`/api/task/${encodeURIComponent(taskId)}/artifact-ack`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.settings.token}` },
                 body: JSON.stringify({ artifacts: delivered }),
@@ -1889,8 +1932,7 @@ export class CmdAIAgent {
                 : { ok: false, message: latest?.deliveryError ?? "手机写入失败" };
         }
         try {
-            const res = await requestUrl({
-                url: `${this.settings.apiBase}/api/task/${taskId}/retry-push`,
+            const res = await this.apiRequest(`/api/task/${taskId}/retry-push`, {
                 method: "POST",
                 headers: { Authorization: `Bearer ${this.settings.token}` },
                 throw: false,

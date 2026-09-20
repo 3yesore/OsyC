@@ -12,6 +12,8 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+- OsyC `2.0.14` takes every Cloudflare endpoint out of the AI Agent's runtime paths. The official service address is the direct `https://api4.sacu3.cn` only; the historical `api.sacu3.cn` and `osyctest.sacu3.cn` names both resolve to Cloudflare (`Server: cloudflare`, measured TTFB median ~1.5 s versus ~0.29 s direct) and now migrate to `api4` instead of being retried. All backend requests funnel through `CmdAIAgent.apiRequest` + `tryEndpointsInOrder`; the direct fallback list is intentionally empty because no second direct API entry exists yet. See `docs/changes/codex-2026-09-20-endpoint-failover-direct-only.md`.
+
 ## 2.0.13
 
 20th September, 2026

@@ -835,4 +835,72 @@ describe("CmdAIAgent", () => {
             expect(seen[0]).toEqual(snippet);
         });
     });
+    describe("端点故障转移（只走灰云直连）", () => {
+        it("候选链只有 api4：直连失败也不会换到 Cloudflare 的 osyctest / api", async () => {
+            agent.configure("https://api4.sacu3.cn", "token");
+            requestUrlMock.mockRejectedValue(new Error("socket closed"));
+
+            await agent.send("测试直连失败不换 CF");
+
+            const urls = requestUrlMock.mock.calls.map((call) => String((call[0] as { url?: string }).url));
+            expect(urls.length).toBeGreaterThan(0);
+            expect(urls.every((url) => url.includes("api4.sacu3.cn"))).toBe(true);
+            expect(urls.some((url) => url.includes("osyctest") || url.includes("//api."))).toBe(false);
+            expect(agent.settings.apiBase).toBe("https://api4.sacu3.cn");
+            agent.stop();
+        });
+
+        it("settings.apiBase 是历史 CF 地址时，请求也会被迁到 api4（显式选择也不走 CF）", async () => {
+            for (const cf of ["https://api.sacu3.cn", "https://osyctest.sacu3.cn"]) {
+                requestUrlMock.mockReset();
+                agent.configure(cf, "token");
+                requestUrlMock.mockResolvedValue({ status: 200, json: { task_id: "t-cf", est_cost: 10 } });
+
+                await agent.send("测试历史 CF 地址迁移");
+
+                const urls = requestUrlMock.mock.calls.map((call) => String((call[0] as { url?: string }).url));
+                expect(urls.length).toBeGreaterThan(0);
+                expect(urls.every((url) => url.includes("api4.sacu3.cn"))).toBe(true);
+                expect(agent.settings.apiBase).toBe("https://api4.sacu3.cn");
+                agent.stop();
+            }
+        });
+
+        it("502 且没有第二条直连候选时原样交给调用方，不自作主张换 CF", async () => {
+            agent.configure("https://api4.sacu3.cn", "token");
+            requestUrlMock.mockResolvedValue({ status: 502, json: {} });
+
+            await agent.send("测试 502");
+
+            const urls = requestUrlMock.mock.calls.map((call) => String((call[0] as { url?: string }).url));
+            expect(urls.length).toBeGreaterThan(0);
+            expect(urls.every((url) => url.includes("api4.sacu3.cn"))).toBe(true);
+            agent.stop();
+        });
+
+        it("业务状态码不换端点（401 原样交给调用方）", async () => {
+            agent.configure("https://api4.sacu3.cn", "token");
+            requestUrlMock.mockResolvedValue({ status: 401, json: {} });
+
+            await agent.send("测试 401 不换端点");
+
+            const urls = requestUrlMock.mock.calls.map((call) => String((call[0] as { url?: string }).url));
+            expect(urls.length).toBeGreaterThan(0);
+            expect(urls.every((url) => url.includes("api4.sacu3.cn"))).toBe(true);
+            agent.stop();
+        });
+
+        it("自填地址只有一个候选：失败也不会偷偷换到官方端点", async () => {
+            agent.configure("https://self-hosted.example.com", "token");
+            requestUrlMock.mockRejectedValue(new Error("socket closed"));
+
+            await agent.send("测试自填地址");
+
+            const urls = requestUrlMock.mock.calls.map((call) => String((call[0] as { url?: string }).url));
+            expect(urls.length).toBeGreaterThan(0);
+            expect(urls.every((url) => url.includes("self-hosted.example.com"))).toBe(true);
+            expect(agent.settings.apiBase).toBe("https://self-hosted.example.com");
+            agent.stop();
+        });
+    });
 });

@@ -95,7 +95,10 @@ function renderConnection(el: HTMLElement, controller: OsycSettingsController): 
     let pending: number | null = null;
     new Setting(el)
         .setName("服务地址")
-        .setDesc(`后端 API 地址，默认已预置为 ${DEFAULT_SERVICE_URL}（官方地址）；仅自助部署与联调时才需要修改。`)
+        .setDesc(
+            `后端 API 地址，默认已预置为 ${DEFAULT_SERVICE_URL}（官方灰云直连地址）；仅自助部署与联调时才需要修改。` +
+                `官方入口只走直连、不使用 Cloudflare；历史上用过的 api.sacu3.cn / osyctest.sacu3.cn 一律自动迁移到这里。`
+        )
         .addText((text) =>
             text
                 .setPlaceholder(DEFAULT_SERVICE_URL)

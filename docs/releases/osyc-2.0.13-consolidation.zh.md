@@ -94,11 +94,11 @@ git commit -m "release(osyc): cut 2.0.14 with email sign-in and the recharge ent
 | 后端 API | `https://api4.sacu3.cn` | DNS A → 106.55.1.124；HTTPS `/health` 200（TLS 校验通过、TLS1.3）；`/api/runtime-info` 200；`POST /api/activate`（无效卡密）401；HTTP → 302 跳 HTTPS；nginx vhost 反代 `http://osyc_api`（127.0.0.1:8124） |
 | LiveSync 同步 | `https://osyc3.sacu3.cn` | DNS A → 106.55.1.124；根路径 401（CouchDB 要求鉴权，符合预期）；nginx vhost 反代 `http://osyc_couchdb`（127.0.0.1:5984） |
 | 证书 | `/etc/ssl/osyc/fullchain.pem` | Let's Encrypt，**SAN = api4.sacu3.cn, osyc3.sacu3.cn**（CN 只是 osyc3）；有效期至 2026-12-17；`osyc-acme-renew.timer` 下次 2026-09-21 03:58 续期 |
-| 插件预置 | `src/osyc/features/AIAgent/serviceDefaults.ts` | `DEFAULT_SERVICE_URL = "https://api4.sacu3.cn"`；`LEGACY_OFFICIAL_SERVICE_URLS = ["https://api.sacu3.cn", "https://osyctest.sacu3.cn"]` |
+| 插件预置 | `src/osyc/features/AIAgent/serviceDefaults.ts` | `DEFAULT_SERVICE_URL = "https://api4.sacu3.cn"`；`DIRECT_FALLBACK_SERVICE_URLS = []`（2026-09-20 复核：没有第二条直连入口）；`LEGACY_OFFICIAL_SERVICE_URLS = ["https://api.sacu3.cn", "https://osyctest.sacu3.cn"]` |
 | 服务端签发 | `/etc/osyc/provisioner.json` | `endpoint = https://osyc3.sacu3.cn`、`couchdb.uri = http://127.0.0.1:5984`，即下发给客户端的 setup URI 里的同步入口 |
 
 结论：插件默认地址与生产入口一致，客户端 API 走 `api4`、同步走 `osyc3`，两者同机（106.55.1.124）同一张证书。
-历史入口 `api.sacu3.cn`（CF 隧道）与 `osyctest.sacu3.cn` 目前仍返回 200，插件只把它们当**历史值迁移**来源，新安装一律落到 `api4`。
+历史入口 `api.sacu3.cn` 与 `osyctest.sacu3.cn` **都是 Cloudflare 橙云隧道**（2026-09-20 复核：A 记录 `172.67.192.54` / `104.21.65.204`，响应头 `Server: cloudflare` 且带 `CF-RAY`；本机 20 次实测 TTFB 中位约 1.5 s，而 `api4` 直连约 0.29 s）。插件只把它们当**历史值迁移**来源，新安装一律落到 `api4`；**2.0.14 起运行时不保留任何 Cloudflare 候选**，详见 `docs/changes/codex-2026-09-20-endpoint-failover-direct-only.md`。
 可选清理项：确认没有客户端还在用后，把 `osyctest.sacu3.cn`（以及 CF 隧道那条）在 DNS/nginx 上退役，减少长期暴露面。
 
 ## 8. 已就绪但尚未并入的修复：移动端首启激活卡
