@@ -21,6 +21,17 @@ describe("LiveSync-owned translation catalogue", () => {
         expect($msg("moduleCheckRemoteSize.optionIncreaseLimit", { newMax: "800" }, "def")).toBe("increase to 800MB");
     });
 
+    it("substitutes the Config Doctor dialogue instead of leaking or faking its placeholders", () => {
+        // 中文弹窗曾经把问题清单写死在译文里，并整体丢掉 ${activateReason} / ${issues}，
+        // 于是用户看到的是一份固定的、过期的清单（其中一条对应的规则已从规章移除）。
+        const rendered = $msg("Doctor.Dialogue.Main", { activateReason: "updated", issues: "- 增强块大小" }, "zh");
+
+        expect(rendered).toContain("updated");
+        expect(rendered).toContain("- 增强块大小");
+        expect(rendered).not.toContain("${");
+        expect(rendered).not.toContain("为数据块计算修订版本");
+    });
+
     it("uses Commonlib's canonical English when the application catalogue has no translation", () => {
         setLang("es");
 

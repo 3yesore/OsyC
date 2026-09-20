@@ -140,7 +140,7 @@ Doctor:
     Yes: Да
   Dialogue:
     Main: >-
-      Привет! Диагностика настроек активирована из-за activateReason!
+      Привет! Диагностика настроек активирована из-за ${activateReason}!
 
       К сожалению, некоторые настройки были обнаружены как потенциальные
       проблемы.
@@ -151,29 +151,29 @@ Doctor:
       Сообщаем вам заранее, мы спросим о следующих пунктах.
 
 
-      issues
+      ${issues}
 
 
       Начнём?
     MainFix: |-
-      name
+      ## ${name}
 
       | Текущее | Идеальное |
       |:---:|:---:|
-      | current | ideal |
+      | ${current} | ${ideal} |
 
-      **Уровень рекомендации:** level
+      **Уровень рекомендации:** ${level}
 
       ### Почему это было обнаружено?
 
-      reason
+      ${reason}
 
-      note
+      ${note}
 
       Исправить на идеальное значение?
     Title: Диагностика Self-hosted LiveSync
     TitleAlmostDone: Почти готово!
-    TitleFix: Исправление проблемы current/total
+    TitleFix: Исправление проблемы ${current}/${total}
   Level:
     Must: Обязательно
     Necessary: Необходимо
@@ -294,16 +294,16 @@ liveSyncReplicator:
   cantReplicateLowerValue: Нельзя реплицировать с меньшим значением.
   checkingLastSyncPoint: Поиск последней точки синхронизации.
   couldNotConnectTo: |-
-    Не удалось подключиться к uri : name
-    (db)
-  couldNotConnectToRemoteDb: "Не удалось подключиться к удалённой базе данных: d"
+    Не удалось подключиться к ${uri} : ${name}
+    (${db})
+  couldNotConnectToRemoteDb: "Не удалось подключиться к удалённой базе данных: ${d}"
   couldNotConnectToServer: Не удалось подключиться к серверу.
-  couldNotConnectToURI: Не удалось подключиться к uri:dbRet
+  couldNotConnectToURI: Не удалось подключиться к ${uri}:${dbRet}
   couldNotMarkResolveRemoteDb: Не удалось отметить удалённую базу данных как разрешённую.
   liveSyncBegin: Начало LiveSync...
   lockRemoteDb: Блокировка удалённой базы данных для предотвращения повреждения данных
   markDeviceResolved: Отметить это устройство как «разрешённое».
-  oneShotSyncBegin: Начало OneShot синхронизации... (syncMode)
+  oneShotSyncBegin: Начало OneShot синхронизации... (${syncMode})
   remoteDbCorrupted: Удалённая база данных новее или повреждена, убедитесь, что
     установлена последняя версия self-hosted-livesync
   remoteDbCreatedOrConnected: Удалённая база данных создана или подключена
@@ -312,12 +312,12 @@ liveSyncReplicator:
   remoteDbMarkedResolved: Удалённая база данных отмечена как разрешённая.
   replicationClosed: Репликация закрыта
   replicationInProgress: Репликация уже выполняется
-  retryLowerBatchSize: "Повтор с меньшим размером пакета: batch_size/batches_limit"
+  retryLowerBatchSize: "Повтор с меньшим размером пакета: ${batch_size}/${batches_limit}"
   unlockRemoteDb: Разблокировка удалённой базы данных для предотвращения повреждения данных
 liveSyncSetting:
-  errorNoSuchSettingItem: "Такого параметра настройки не существует: key"
-  originalValue: "Оригинал: value"
-  valueShouldBeInRange: Значение должно быть min < значение < max
+  errorNoSuchSettingItem: "Такого параметра настройки не существует: ${key}"
+  originalValue: "Оригинал: ${value}"
+  valueShouldBeInRange: Значение должно быть ${min} < значение < ${max}
 liveSyncSettings:
   btnApply: Применить
 Local Database Tweak: Настройки локальной базы данных
@@ -346,9 +346,9 @@ Minimum delay for batch database updating: Минимальная задержк
 Minimum interval for syncing: Минимальный интервал синхронизации
 moduleCheckRemoteSize:
   logCheckingStorageSizes: Проверка размеров хранилища
-  logCurrentStorageSize: "Размер удалённого хранилища: measuredSize"
-  logExceededWarning: "Размер удалённого хранилища: measuredSize превысил notifySize"
-  logThresholdEnlarged: Порог увеличен до sizeМБ
+  logCurrentStorageSize: "Размер удалённого хранилища: ${measuredSize}"
+  logExceededWarning: "Размер удалённого хранилища: ${measuredSize} превысил ${notifySize}"
+  logThresholdEnlarged: Порог увеличен до ${size}МБ
   msgConfirmRebuild: Это может занять некоторое время. Вы действительно хотите
     перестроить всё сейчас?
   msgDatabaseGrowing: Ваша база данных увеличивается! Но не волнуйтесь, мы можем решить это сейчас.
@@ -357,7 +357,7 @@ moduleCheckRemoteSize:
   option800MB: 800МБ (Cloudant, fly.io)
   optionAskMeLater: Спросить позже
   optionDismiss: Отклонить
-  optionIncreaseLimit: увеличить до newMaxМБ
+  optionIncreaseLimit: увеличить до ${newMax}МБ
   optionNoWarn: Нет, не уведомлять
   optionRebuildAll: Перестроить всё сейчас
   titleDatabaseSizeLimitExceeded: Размер удалённого хранилища превысил лимит
@@ -371,7 +371,7 @@ moduleLiveSyncMain:
   logAdditionalSafetyScan: Дополнительная проверка безопасности...
   logLoadingPlugin: Загрузка плагина...
   logPluginInitCancelled: Инициализация плагина отменена модулем
-  logPluginVersion: Self-hosted LiveSync vmanifestVersion packageVersion
+  logPluginVersion: Self-hosted LiveSync v${manifestVersion} ${packageVersion}
   logReadChangelog: LiveSync обновлён, пожалуйста, прочитайте список изменений!
   logSafetyScanCompleted: Дополнительная проверка безопасности завершена
   logSafetyScanFailed: Дополнительная проверка безопасности не удалась в модуле
@@ -433,8 +433,8 @@ moduleMigration:
     была повреждена. Приносим извинения. Автоматически отключено.
   logFetchRemoteTweakFailed: Не удалось загрузить удалённые настройки
   logLocalDatabaseNotReady: Что-то пошло не так! Локальная база данных не готова
-  logMigratedSameBehaviour: Миграция на db:current с тем же поведением, что и раньше
-  logMigrationFailed: Миграция не удалась или отменена с old на current
+  logMigratedSameBehaviour: Миграция на db:${current} с тем же поведением, что и раньше
+  logMigrationFailed: Миграция не удалась или отменена с ${old} на ${current}
   logRedflag2CreationFail: Не удалось создать redflag2
   logRemoteTweakUnavailable: Не удалось получить удалённые настройки
   logSetupCancelled: Настройка отменена, Self-hosted LiveSync ожидает вашей настройки!
@@ -518,18 +518,18 @@ obsidianLiveSyncSettingTab:
   logCheckingConfigDone: Проверка конфигурации завершена
   logCheckingConfigFailed: Проверка конфигурации не удалась
   logCheckingDbConfig: Проверка конфигурации базы данных
-  logCheckPassphraseFailed: "ОШИБКА: Не удалось проверить пароль с удалённым сервером: db."
+  logCheckPassphraseFailed: "ОШИБКА: Не удалось проверить пароль с удалённым сервером: ${db}."
   logConfiguredDisabled: "Настроенный режим синхронизации: ОТКЛЮЧЕН"
   logConfiguredLiveSync: "Настроенный режим синхронизации: LiveSync"
   logConfiguredPeriodic: "Настроенный режим синхронизации: Периодический"
-  logCouchDbConfigFail: "Конфигурация CouchDB: title не удалась"
-  logCouchDbConfigSet: "Конфигурация CouchDB: title -> Установить key в value"
-  logCouchDbConfigUpdated: "Конфигурация CouchDB: title успешно обновлена"
+  logCouchDbConfigFail: "Конфигурация CouchDB: ${title} не удалась"
+  logCouchDbConfigSet: "Конфигурация CouchDB: ${title} -> Установить ${key} в ${value}"
+  logCouchDbConfigUpdated: "Конфигурация CouchDB: ${title} успешно обновлена"
   logDatabaseConnected: База данных подключена
   logEncryptionNoPassphrase: Вы не можете включить шифрование без парольной фразы
   logEncryptionNoSupport: Ваше устройство не поддерживает шифрование.
   logErrorOccurred: Произошла ошибка!!
-  logEstimatedSize: "Примерный размер: size"
+  logEstimatedSize: "Примерный размер: ${size}"
   logPassphraseInvalid: Парольная фраза недействительна, пожалуйста, исправьте.
   logPassphraseNotCompatible: "ОШИБКА: Парольная фраза несовместима с удалённым сервером!"
   logRebuildNote: Синхронизация отключена, загрузите и включите снова при желании.
@@ -541,7 +541,7 @@ obsidianLiveSyncSettingTab:
   msgConnectionCheck: --Проверка подключения--
   msgConnectionProxyNote: Если у вас проблемы с проверкой подключения, проверьте
     конфигурацию обратного прокси.
-  msgCurrentOrigin: "Текущий origin: origin"
+  msgCurrentOrigin: "Текущий origin: ${origin}"
   msgDiscardConfirmation: Вы действительно хотите отменить существующие настройки и базы данных?
   msgDone: --Готово--
   msgEnableCors: Установить httpd.enable_cors
@@ -556,7 +556,7 @@ obsidianLiveSyncSettingTab:
   msgNonHTTPSWarning: Не удаётся подключиться к не-HTTPS URI. Обновите конфигурацию.
   msgNotice: ---Уведомление---
   msgObjectStorageWarning: "ПРЕДУПРЕЖДЕНИЕ: Эта функция в разработке."
-  msgOriginCheck: "Проверка origin: org"
+  msgOriginCheck: "Проверка origin: ${org}"
   msgRebuildRequired: Требуется перестроение баз данных для применения изменений.
   msgSetCorsCredentials: Установить cors.credentials
   msgSetCorsOrigins: Установить cors.origins
@@ -564,7 +564,7 @@ obsidianLiveSyncSettingTab:
   msgSetMaxRequestSize: Установить chttpd.max_http_request_size
   msgSetRequireValidUser: Установить chttpd.require_valid_user = true
   msgSetRequireValidUserAuth: Установить chttpd_auth.require_valid_user = true
-  msgSettingModified: Настройка setting была изменена с другого устройства.
+  msgSettingModified: Настройка ${setting} была изменена с другого устройства.
   msgSettingsUnchangeableDuringSync: Эти настройки нельзя изменить во время синхронизации.
   msgSetWwwAuth: Установить httpd.WWW-Authenticate
   nameApplySettings: Применить настройки
@@ -610,7 +610,7 @@ obsidianLiveSyncSettingTab:
   panelPrivacyEncryption: Конфиденциальность и шифрование
   panelRemoteConfiguration: Удалённая конфигурация
   panelSetup: Настройка
-  serverVersion: "Информация о сервере: info"
+  serverVersion: "Информация о сервере: ${info}"
   titleActiveRemoteServer: Активный удалённый сервер
   titleAppearance: Внешний вид
   titleConflictResolution: Разрешение конфликтов
@@ -638,7 +638,7 @@ obsidianLiveSyncSettingTab:
   titleSyncSettings: Настройки синхронизации
   titleSyncSettingsViaMarkdown: Синхронизация настроек через Markdown
   titleUpdateThinning: Оптимизация обновлений
-  warnCorsOriginUnmatched: ⚠ CORS Origin не совпадает from->to
+  warnCorsOriginUnmatched: ⚠ CORS Origin не совпадает ${from}->${to}
   warnNoAdmin: ⚠ У вас нет прав администратора.
 Ok: ОК
 Old Algorithm: Старый алгоритм
@@ -670,10 +670,10 @@ P2P:
   P2PReplication: P2P Репликация
   PaneTitle: long_p2p_sync
   ReplicatorInstanceMissing: P2P Sync репликатор не найден, возможно, не настроен.
-  SeemsOffline: Устройство name офлайн, пропущено.
+  SeemsOffline: Устройство ${name} офлайн, пропущено.
   SyncAlreadyRunning: P2P Sync уже запущен.
   SyncCompleted: P2P Sync завершён.
-  SyncStartedWith: P2P Sync с name начат.
+  SyncStartedWith: P2P Sync с ${name} начат.
 paneMaintenance:
   markDeviceResolvedAfterBackup: Пометить устройство как обработанное после резервного копирования
   remoteLockedAndDeviceNotAccepted: Удалённая база данных заблокирована, и это устройство ещё не одобрено.
@@ -806,7 +806,38 @@ Send chunks: Отправить чанки
 Server URI: URI сервера
 Setting:
   GenerateKeyPair:
-    Desc: Мы сгенерировали пару ключей!
+    Desc: |+
+      Мы сгенерировали пару ключей!
+
+      Примечание: эта пара ключей больше не будет показана. Сохраните её в надёжном месте. Если вы её потеряете, потребуется создать новую пару ключей.
+      Примечание 2: открытый ключ имеет формат spki, закрытый ключ — формат pkcs8. Для удобства копирования переводы строк в открытом ключе преобразуются в `\n`.
+      Примечание 3: открытый ключ следует настроить в удалённой базе данных, а закрытый ключ — на локальных устройствах.
+
+      >[!FOR YOUR EYES ONLY]-
+      > <div class="sls-keypair">
+      >
+      > ### Открытый ключ
+      > ```
+      ${public_key}
+      > ```
+      >
+      > ### Закрытый ключ
+      > ```
+      ${private_key}
+      > ```
+      >
+      > </div>
+
+      >[!Both for copying]-
+      >
+      > <div class="sls-keypair">
+      >
+      > ```
+      ${public_key}
+      ${private_key}
+      > ```
+      >
+      > </div>
     Title: Новая пара ключей сгенерирована!
   TroubleShooting:
     _value: Устранение неполадок
@@ -829,7 +860,7 @@ Setup:
       Cancel: Отменить и отменить
       OnlyApply: Только применить
     Message: Новая конфигурация готова. Есть несколько способов применить её.
-    Title: Применить новую конфигурацию из method
+    Title: Применить новую конфигурацию из ${method}
     WarningRebuildRecommended: "ПРИМЕЧАНИЕ: после настройки изменений определено,
       что требуется перестроение."
   Doctor:
@@ -846,7 +877,12 @@ Setup:
     Message: Если мы уже синхронизировались с другим устройством, удалённая база
       данных хранит подходящие значения конфигурации.
     Title: Загрузить конфигурацию с удалённой базы данных?
-  QRCode: Мы сгенерировали QR-код для передачи настроек. Отсканируйте QR-код телефоном.
+  QRCode: |-
+    Мы сгенерировали QR-код для передачи настроек. Отсканируйте QR-код телефоном или другим устройством.
+    Примечание: QR-код не зашифрован, поэтому открывайте его с осторожностью.
+
+    >[!FOR YOUR EYES ONLY]-
+    > <div class="sls-qr">${qr_image}</div>
   ShowQRCode:
     _value: Показать QR код
     Desc: Показать QR код для передачи настроек.
@@ -1021,7 +1057,8 @@ TweakMismatchResolve:
     _value: |-
       | Имя значения | Это устройство | На удалённом |
       |: --- |: ---- :|: ---- :|
-    Row: "| name | self | remote |"
+      ${rows}
+    Row: "| ${name} | ${self} | ${remote} |"
   Title:
     _value: Обнаружено несоответствие конфигурации
     TweakResolving: Обнаружено несоответствие конфигурации

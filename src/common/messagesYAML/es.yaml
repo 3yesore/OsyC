@@ -1542,7 +1542,7 @@ obsidianLiveSyncSettingTab:
   msgConnectionProxyNote: Si tienes problemas con la verificación de conexión
     (incluso después de verificar la configuración), por favor verifica la
     configuración de tu proxy reverso.
-  msgCurrentOrigin: "Origen actual: {origin}"
+  msgCurrentOrigin: "Origen actual: ${origin}"
   msgDiscardConfirmation: ¿Realmente deseas descartar las configuraciones y bases de datos existentes?
   msgDone: --Hecho--
   msgEnableCors: Configurar httpd.enable_cors
@@ -1583,7 +1583,7 @@ obsidianLiveSyncSettingTab:
     favor crea un issue en GitHub.
 
     Aprecio mucho tu gran dedicación.
-  msgOriginCheck: "Verificación de origen: {org}"
+  msgOriginCheck: "Verificación de origen: ${org}"
   msgRebuildRequired: >-
     Es necesario reconstruir las bases de datos para aplicar los cambios. Por
     favor selecciona el método para aplicar los cambios.
@@ -1714,7 +1714,7 @@ obsidianLiveSyncSettingTab:
   titleSyncSettings: Configuraciones de Sincronización
   titleSyncSettingsViaMarkdown: Configuración de sincronización a través de Markdown
   titleUpdateThinning: Actualización de adelgazamiento
-  warnCorsOriginUnmatched: "⚠ El origen de CORS no coincide: {from}->{to}"
+  warnCorsOriginUnmatched: "⚠ El origen de CORS no coincide: ${from}->${to}"
   warnNoAdmin: ⚠ No tienes privilegios de administrador.
   errEnableCorsChttpd: ❗ chttpd.enable_cors es incorrecto
   msgEnableCorsChttpd: Establecer chttpd.enable_cors

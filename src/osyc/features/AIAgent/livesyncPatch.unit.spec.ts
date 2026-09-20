@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { buildSetupPatch, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
+import {
+    DEFAULT_SETTINGS,
+    type ObsidianLiveSyncSettings,
+} from "@vrtmrz/livesync-commonlib/compat/common/types";
+import {
+    DoctorRegulation,
+    checkUnsuitableValues,
+} from "@vrtmrz/livesync-commonlib/compat/common/configForDoc";
 
 /**
  * 激活流程写下去的同步配置必须能让复制器真正启动。
@@ -90,5 +98,63 @@ describe("sanitizeLivesyncPatch：agent 不能碰同步开关", () => {
         const { applied, rejected } = sanitizeLivesyncPatch({ batchSave: true });
         expect(applied.batchSave).toBe(true);
         expect(rejected).toHaveLength(0);
+    });
+});
+
+/**
+ * 激活写下去的分块参数必须与「配置诊断」（Doctor）规章一致。
+ *
+ * 背景（2026-09-20 真机验证）：setup_uri 的载荷由 commonlib 以
+ * skipDefaultValue=true 编码，`customChunkSize` 因等于 schema 默认值 0 被整条剥掉，
+ * 于是设备上留 0；而 DoctorRegulation 对「自建 CouchDB + v3-rabin-karp」要求 60。
+ * 该规则的 `max` 被上游注释掉，而容差分支要求 `min` 与 `max` 同时存在 ——
+ * 于是 min:55 形同虚设，0 一律判违规。
+ *
+ * 后果比「弹个提示」严重得多：问诊发生在启动链中途且 await 用户作答
+ * （ModuleLiveSyncMain → onFirstInitialise → runDoctor → performDoctorConsultation），
+ * 不作答就走不到紧随其后的 applySettings()，复制器不会启动 ——
+ * 「激活当下能同步，一重启就静默停摆」。真机零插桩实测：弹窗挂满 60 秒纹丝不动。
+ *
+ * 这里锁两件事：① 写进去的值 == 规章要求值；② **激活后不应再有任何问诊违规**。
+ * 第二条比第一条重要 —— 将来上游升版新增要求值时，这组测试会红在 CI，
+ * 而不是红在用户重启后的设备上。
+ */
+describe("buildSetupPatch：不得把设备留在会被配置诊断拦下的状态", () => {
+    const payload: Record<string, unknown> = {
+        couchDB_URI: "https://sync.example.com",
+        couchDB_USER: "osyc_sync_abc",
+        couchDB_PASSWORD: "x".repeat(64),
+        couchDB_DBNAME: "t_abc",
+        isConfigured: true,
+        usePluginSyncV2: true,
+        configPassphraseStore: "",
+        encryptedCouchDBConnection: "",
+        encryptedPassphrase: "",
+    };
+
+    it("customChunkSize 必须写成规章要求值（载荷不含它，schema 默认值是 0）", () => {
+        expect(buildSetupPatch(payload).customChunkSize).toBe(DoctorRegulation.rules.customChunkSize?.value);
+    });
+
+    it("0 确实会被判违规 —— 证明这一行不是可有可无", () => {
+        const withZero: Partial<ObsidianLiveSyncSettings> = {
+            ...DEFAULT_SETTINGS,
+            ...payload,
+            customChunkSize: 0,
+        };
+        expect(Object.keys(checkUnsuitableValues(withZero).rules)).toContain("customChunkSize");
+    });
+
+    it("激活后的设置不得再有任何问诊违规（有违规就会在冷启动阻塞 applySettings）", () => {
+        const afterActivation: Partial<ObsidianLiveSyncSettings> = {
+            ...DEFAULT_SETTINGS,
+            // DEFAULT_SETTINGS 里 `handleFilenameCaseSensitive` 是 undefined，而规章要求 false。
+            // 设备上这个键由 SettingService.loadSettings() 在启动早期归一化（真机实测落盘为 false），
+            // **不归 buildSetupPatch 管**，所以这里显式补上以复现设备上的真实基线 ——
+            // 否则测的是「裸默认常量」而不是「设备真实状态」，会凭空多出一条违规。
+            handleFilenameCaseSensitive: false,
+            ...buildSetupPatch(payload),
+        };
+        expect(Object.keys(checkUnsuitableValues(afterActivation).rules)).toEqual([]);
     });
 });

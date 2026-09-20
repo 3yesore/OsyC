@@ -104,14 +104,15 @@ Doctor:
     Yes: 确定
   Dialogue:
     Main: |-
-      您好！配置医生已根据您的要求启动(感谢您)！！遗憾的是,检测到部分配置存在潜在问题。请放心,我们将逐一解决这些问题。
+      您好！配置医生因 ${activateReason} 而启动！
+      遗憾的是，部分配置被检测出存在潜在问题。
+      请放心，我们会逐一解决这些问题。
 
-      提前告知您,我们将就以下事项进行确认：
+      先提前告知您，我们将就以下项目进行确认：
 
-      为数据块计算修订版本(此前行为)
-      增强块大小
+      ${issues}
 
-      我们开始处理吗?
+      我们开始处理吗？
     MainFix: |-
 
       ## ${name}
@@ -529,7 +530,7 @@ obsidianLiveSyncSettingTab:
   msgConfigCheckFailed: 配置检查失败。仍要继续吗？
   msgConnectionCheck: --连接检查--
   msgConnectionProxyNote: 如果您在连接检查时遇到问题(即使检查了配置后),请检查您的反向代理配置
-  msgCurrentOrigin: "当前源: {origin}"
+  msgCurrentOrigin: "当前源: ${origin}"
   msgDiscardConfirmation: 您真的要丢弃现有的设置和数据库吗？
   msgDone: --完成--
   msgEnableCors: 设置 httpd.enable_cors
@@ -551,7 +552,7 @@ obsidianLiveSyncSettingTab:
 
     如果您遇到任何问题,或对此功能有任何想法,请在 GitHub 上创建 issue。
     感谢您的巨大贡献
-  msgOriginCheck: "源检查: {org}"
+  msgOriginCheck: "源检查: ${org}"
   msgRebuildRequired: |-
     需要重建数据库以应用更改。请选择应用更改的方法。
 
@@ -657,7 +658,7 @@ obsidianLiveSyncSettingTab:
   titleSyncSettings: 同步设置
   titleSyncSettingsViaMarkdown: 通过 Markdown 同步设置
   titleUpdateThinning: 更新精简
-  warnCorsOriginUnmatched: ⚠ CORS 源不匹配 {from}->{to}
+  warnCorsOriginUnmatched: ⚠ CORS 源不匹配 ${from}->${to}
   warnNoAdmin: ⚠ 您没有管理员权限
 Ok: 确定
 Old Algorithm: 旧算法
