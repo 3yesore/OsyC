@@ -94,6 +94,22 @@ describe("AI 面板移动端底部输入区", () => {
         expect(paneSource).toContain("max(8px, env(safe-area-inset-bottom))");
     });
 
+    it("首次启动只显示激活卡，键盘不会把激活框顶到看不见", () => {
+        // 欢迎区只在账户可用后出现：否则它和激活卡各带一份 12vh 外边距，
+        // 手机会把激活框挤到键盘下方。
+        expect(paneSource).toContain("!$agentState.onboarded && activated");
+        // 未激活时给时间线留出键盘高度的滚动余量，并让激活卡上移
+        expect(paneSource).toContain("class:ai-timeline-activating={!activated}");
+        expect(paneSource).toContain(".ai-chat-timeline.ai-timeline-activating { padding-bottom: max(38vh, 200px); }");
+        expect(paneSource).toContain(".ai-activation { margin-top: 3vh; }");
+        // 移动端输入体验：回车即激活，且不弹自动大写/自动纠错
+        expect(paneSource).toContain('enterkeyhint="go"');
+        expect(paneSource).toContain('autocomplete="off"');
+        // 仍然禁止用 scrollIntoView 滚整页（历史回归）
+        expect(paneSource).not.toContain('scrollIntoView({ block: "center"');
+        expect(paneSource).not.toContain("onfocus={scrollIntoViewOnKeyboard}");
+        expect(paneSource).not.toContain("window.visualViewport");
+    });
     it("基础档用户不应在主任务流里看到 Cloud-Vault，聚焦也不能滚动整页", () => {
         expect(paneSource).not.toContain("Cloud-Vault 私有备份");
         expect(toolsSource).toContain("Cloud-Vault 备份");
