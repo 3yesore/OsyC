@@ -124,6 +124,21 @@ describe("AI 账户移动端摘要", () => {
         expect(modalSource).toContain('this.renderFold(contentEl, "账户操作", false');
     });
 
+    // ── 口径回归：BYOK 未启用期间不得出现填写入口 ──
+    it("自带 API Key 未启用期间，账户弹窗不得提供填写入口", () => {
+        // 口径（2026-09-20）：BYOK 暂不启用，计划 2.# 版本开放。
+        // 生产走 AGENT_BACKEND=hermes，它不读 devices.byo_key → 填了不生效。
+        // 所以界面既不能出现输入框/保存按钮，也不能出现"不消耗配额"这类承诺。
+        expect(modalSource).toContain("自带 API Key（暂未开放）");
+        expect(modalSource).toContain(".setDisabled(true)");
+        expect(modalSource).not.toContain("不消耗 OsyC 配额");
+        expect(modalSource).not.toContain('placeholder: "sk-..."');
+        // 断言真实调用点：本文件注释里会提到这两个方法名，不能拿注释当依据
+        expect(modalSource).not.toContain("this.agent.saveByoKey");
+        expect(modalSource).not.toContain("this.agent.clearByoKey");
+        expect(modalSource).not.toContain("已配自带 Key");
+    });
+
     it("首屏顺序为 概览 → 权益 → 同步 → 折叠区", () => {
         const order = [
             'setName("剩余积分")',

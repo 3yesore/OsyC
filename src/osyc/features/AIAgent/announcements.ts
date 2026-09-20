@@ -85,7 +85,8 @@ export class AnnouncementClient {
     }
 
     cached(): Announcement[] { return this.store.load(); }
-    unread(): Announcement[] { return this.store.unread(this.store.load()); }
+    /** 未读公告。可传入已有列表（避免重复读缓存）；不传则取本地缓存。 */
+    unread(items: Announcement[] = this.store.load()): Announcement[] { return this.store.unread(items); }
     markRead(id: string): void { this.store.markRead(id); }
 
     configure(apiBase: string, token: string): void {
@@ -93,6 +94,7 @@ export class AnnouncementClient {
         this.options.token = token;
     }
 
+    /** 拉取并返回**全部**公告（含已读）。未读数另用 unread() 取，用于角标。 */
     async refresh(): Promise<Announcement[]> {
         if (!this.options.apiBase) return this.cached();
         const request = this.options.request ?? (globalThis as unknown as { requestUrl?: AnnouncementClientOptions["request"] }).requestUrl;
@@ -107,6 +109,8 @@ export class AnnouncementClient {
         const envelope = record(data) && Array.isArray(data.items) ? data.items : data;
         const items = parseAnnouncements(envelope);
         this.store.save(items);
-        return this.store.unread(items);
+        // 返回**全部**：已读的不应从列表消失（2026-09-20）。
+        // 未读数由调用方用 unread() 单独取 —— 它只驱动铃铛角标，不过滤列表。
+        return items;
     }
 }

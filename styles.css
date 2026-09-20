@@ -1400,3 +1400,16 @@ body.is-mobile .osyc-settings-modal {
 body.is-mobile .osyc-settings-modal .modal-content {
     max-height: calc(100dvh - 96px);
 }
+
+
+/* 公告（AnnouncementModal）——2026-09-20
+   正文此前走 Setting.setDesc()（底层 textContent），换行会被折叠成空格，
+   因此一条完整公告没法显示，只能迫拆成多条。这里放开换行。 */
+.osyc-announcement-modal .setting-item-description {
+    white-space: pre-wrap;
+}
+
+/* critical 级别公告：这个类名此前没有任何样式，等于失效 */
+.osyc-announcement-critical .setting-item-name {
+    color: var(--text-error);
+}

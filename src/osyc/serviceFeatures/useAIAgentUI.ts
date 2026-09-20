@@ -148,11 +148,17 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const agent = new CmdAIAgent();
     const announcements = writable<Announcement[]>([]);
     const announcementClient = new AnnouncementClient({ apiBase: "", token: "", request: requestUrl });
+    // 未读数**只**用于铃铛角标：列表始终是全部公告，标记已读不会让它消失（2026-09-20）。
+    const unreadAnnouncements = writable<number>(0);
+    const publishAnnouncements = (items: Announcement[]) => {
+        announcements.set(items);
+        unreadAnnouncements.set(announcementClient.unread(items).length);
+    };
     const refreshAnnouncements = async () => {
         announcementClient.configure(agent.settings.apiBase, agent.settings.token);
-        announcements.set(await announcementClient.refresh());
+        publishAnnouncements(await announcementClient.refresh());
     };
-    announcements.set(announcementClient.cached());
+    publishAnnouncements(announcementClient.cached());
 
     agent.artifactWriter = async (artifact: ArtifactMetadata, bytes: Uint8Array) => {
         const path = artifact.path.replace(/\\/g, "/");
@@ -192,7 +198,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         app,
         announcements,
         refreshAnnouncements,
-        (id: string) => { announcementClient.markRead(id); announcements.set(announcementClient.unread()); },
+        (id: string) => { announcementClient.markRead(id); publishAnnouncements(announcementClient.cached()); },
     );
     const openAnnouncements = () => {
         toolsModal.close();
@@ -664,7 +670,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                 confirm: () => window.confirm("上传脱敏诊断？不会包含 Vault 原文、卡密或 API 密钥。"),
                 request: requestUrl,
             }),
-            announcements,
+            unreadAnnouncements,
             openAnnouncements,
             openAccount,
         );

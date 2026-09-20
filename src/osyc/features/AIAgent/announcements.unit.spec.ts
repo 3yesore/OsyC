@@ -40,4 +40,19 @@ describe("OsyC announcements", () => {
         client.markRead(announcement.id);
         expect(client.unread()).toEqual([]);
     });
+
+    it("标记已读后列表仍返回该公告（已读不消失），只有未读数归零", async () => {
+        const client = new AnnouncementClient({
+            apiBase: "https://example.test",
+            token: "token",
+            storage: new Map<string, string>(),
+            request: async () => ({ status: 200, json: { items: [announcement] } }),
+        });
+        await expect(client.refresh()).resolves.toEqual([announcement]);
+        client.markRead(announcement.id);
+        // 回归：此前 refresh() 返回的是 unread()，标记已读后公告会从弹窗里消失。
+        await expect(client.refresh()).resolves.toEqual([announcement]);
+        expect(client.cached()).toEqual([announcement]);
+        expect(client.unread()).toEqual([]);
+    });
 });

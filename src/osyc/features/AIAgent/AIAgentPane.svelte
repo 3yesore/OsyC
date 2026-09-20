@@ -5,7 +5,7 @@
 <script lang="ts">
     import { onMount } from "svelte";
     import type { App } from "@/deps.ts";
-    import type { Writable } from "svelte/store";
+    import type { Readable, Writable } from "svelte/store";
     import type { AISnippet, AITask, AIAgentState } from "./CmdAIAgent";
     import AIAgentAssistantMessage from "./AIAgentAssistantMessage.svelte";
     import OsycIcon from "./OsycIcon.svelte";
@@ -17,7 +17,6 @@
         OSYC_PANE_PREFERENCE_KEYS,
     } from "./osycPanePreferences";
     import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
-    import type { Announcement } from "./announcements";
 
     interface Props {
         app: App;
@@ -35,7 +34,7 @@
         onConfirmTask: (taskId: string) => Promise<{ ok: boolean; message: string }>;
         onCancelConfirmation: (taskId: string) => Promise<{ ok: boolean; message: string }>;
         onUploadDiagnostics: (task: AITask) => Promise<{ ok: boolean; message: string }>;
-        announcements: Writable<Announcement[]>;
+        unreadAnnouncements: Readable<number>;
         onOpenAnnouncements: () => void;
         onOpenAccount: () => void;
         onApplySettingsPatch: (patch: Record<string, unknown>) => Promise<{ applied: number; rejected: { key: string; reason: string }[] }>;
@@ -47,7 +46,7 @@
         app, tasks, agentState, isMock, onSend, onActivate, onClear, onOpenFile,
         onDeactivate, onOpenTools,
         onLoadCloudVault, onRetryPush, onConfirmTask, onCancelConfirmation, onApplySettingsPatch,
-        onApplyThemeSnippet, onMarkOnboarded, onUploadDiagnostics, announcements, onOpenAnnouncements,
+        onApplyThemeSnippet, onMarkOnboarded, onUploadDiagnostics, unreadAnnouncements, onOpenAnnouncements,
         onOpenAccount,
     }: Props = $props();
 
@@ -97,7 +96,6 @@
     let mobileSidebarOpen = $state(false);
     let sidebarCollapsed = $state(false);
     let selectedTaskId = $state<string | null>(null);
-    let unreadAnnouncements = $derived($announcements.length);
     let dismissedSuggestions = $state<string[]>([]);
     let dismissedSnippets = $state<string[]>([]);
     let applyingSuggestionId = $state<string | null>(null);
@@ -234,7 +232,7 @@
         {#if mobileSidebarOpen}<button class="ai-sidebar-scrim" aria-label="关闭会话记录" onclick={closeSidebar}></button>{/if}
 
         <main class="ai-chat">
-            <header class="ai-chat-header"><button class="ai-icon-btn ai-sidebar-toggle" aria-label={sidebarToggleLabel} title={sidebarToggleLabel} onclick={toggleSidebar}><OsycIcon name="panel-left" size={18} /></button><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" title="打开会话记录" onclick={() => (mobileSidebarOpen = true)}><OsycIcon name="menu" size={18} /></button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={onOpenAnnouncements}><OsycIcon name="bell" size={18} />{#if unreadAnnouncements > 0}<span class="ai-icon-dot" aria-hidden="true"></span>{/if}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => onOpenTools()}><OsycIcon name="wrench" size={18} /></button><button class="ai-account-strip" aria-label="我的账户与权益" title="我的账户与权益" onclick={onOpenAccount}><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</button></header>
+            <header class="ai-chat-header"><button class="ai-icon-btn ai-sidebar-toggle" aria-label={sidebarToggleLabel} title={sidebarToggleLabel} onclick={toggleSidebar}><OsycIcon name="panel-left" size={18} /></button><button class="ai-icon-btn ai-mobile-menu" aria-label="打开会话记录" title="打开会话记录" onclick={() => (mobileSidebarOpen = true)}><OsycIcon name="menu" size={18} /></button><div class="ai-chat-title"><strong>OC</strong><span>Obsidian 笔记助理</span></div><button class="ai-icon-btn ai-announcement-button" aria-label="公告" title="公告" onclick={onOpenAnnouncements}><OsycIcon name="bell" size={18} />{#if $unreadAnnouncements > 0}<span class="ai-icon-dot" aria-hidden="true"></span>{/if}</button><button class="ai-icon-btn ai-tools-button" aria-label="工具中心" title="工具中心" onclick={() => onOpenTools()}><OsycIcon name="wrench" size={18} /></button><button class="ai-account-strip" aria-label="我的账户与权益" title="我的账户与权益" onclick={onOpenAccount}><span><b>{activated ? $agentState.credits : "—"}</b> 积分</span><span>到期 {expireText}</span><span class="ai-plan-badge" data-plan={$agentState.plan}>{planLabel}</span>{#if $agentState.syncState.enabled || $agentState.syncState.status !== "unknown"}<span class="ai-sync-badge" data-sync-status={$agentState.syncState.status} title={syncBadgeTitle}>{syncBadgeLabel}</span>{/if}</button></header>
             {#if isMock}<div class="ai-banner"><span class="ai-banner-dot"></span>演示模式 · 当前为本地模拟，任务与积分不会真实消耗</div>{/if}
             <div class="ai-chat-timeline" class:ai-timeline-activating={!activated} bind:this={timelineEl} onscroll={onTimelineScroll}>
                 {#if !$agentState.onboarded && activated}<section class="ai-welcome"><h1>和 OC 开始对话</h1><p>阅读、整理和归纳你的 Obsidian 笔记，并把结果交付回笔记库。</p><button class="ai-btn ai-btn-primary" onclick={onMarkOnboarded}>开始使用</button></section>{/if}

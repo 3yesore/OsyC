@@ -3,7 +3,6 @@ import { mount } from "svelte";
 import { SvelteItemView } from "@/common/SvelteItemView.ts";
 import AIAgentPaneComponent from "./AIAgentPane.svelte";
 import type { AISnippet, CmdAIAgent } from "./CmdAIAgent";
-import type { Announcement } from "./announcements";
 import type { Writable } from "svelte/store";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
@@ -25,7 +24,7 @@ export class AIAgentPaneView extends SvelteItemView {
     onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>;
     onMarkOnboarded: () => void;
     onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>;
-    announcements: Writable<Announcement[]>;
+    unreadAnnouncements: Writable<number>;
     onOpenAnnouncements: () => void;
     onOpenAccount: () => void;
 
@@ -46,7 +45,7 @@ export class AIAgentPaneView extends SvelteItemView {
         onApplyThemeSnippet: (snippet: AISnippet) => Promise<{ ok: boolean; message: string }>,
         onMarkOnboarded: () => void,
         onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => Promise<{ ok: boolean; message: string }>,
-        announcements: Writable<Announcement[]>,
+        unreadAnnouncements: Writable<number>,
         onOpenAnnouncements: () => void,
         onOpenAccount: () => void
     ) {
@@ -61,7 +60,7 @@ export class AIAgentPaneView extends SvelteItemView {
         this.onApplyThemeSnippet = onApplyThemeSnippet;
         this.onMarkOnboarded = onMarkOnboarded;
         this.onUploadDiagnostics = onUploadDiagnostics;
-        this.announcements = announcements;
+        this.unreadAnnouncements = unreadAnnouncements;
         this.onOpenAnnouncements = onOpenAnnouncements;
         this.onOpenAccount = onOpenAccount;
     }
@@ -141,7 +140,7 @@ export class AIAgentPaneView extends SvelteItemView {
                 onConfirmTask: (taskId: string) => this.agent.confirmTask(taskId),
                 onCancelConfirmation: (taskId: string) => this.agent.cancelConfirmation(taskId),
                 onUploadDiagnostics: (task: import("./CmdAIAgent").AITask) => this.onUploadDiagnostics(task),
-                announcements: this.announcements,
+                unreadAnnouncements: this.unreadAnnouncements,
                 onOpenAnnouncements: () => this.onOpenAnnouncements(),
                 onOpenAccount: () => this.onOpenAccount(),
             },

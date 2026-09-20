@@ -191,7 +191,7 @@ export class AIAgentAccountModal extends Modal {
     private renderDeviceSection(contentEl: HTMLElement) {
         const box = contentEl.createDiv();
         if (!get(this.agent.state).activated) {
-            box.createEl("p", { text: "激活账户后可管理设备与自带 Key。", cls: "ai-account-hint" });
+            box.createEl("p", { text: "激活账户后可管理已绑定设备。", cls: "ai-account-hint" });
             return;
         }
         box.createEl("p", { text: "加载中…", cls: "ai-account-hint" });
@@ -216,7 +216,8 @@ export class AIAgentAccountModal extends Modal {
         for (const dev of d.devices) {
             const setting = new Setting(box);
             setting.setName(dev.is_current ? `${dev.device_id}（本机）` : dev.device_id);
-            setting.setDesc(dev.has_byo_key ? "已配自带 Key" : "走 OsyC 额度");
+            // 不展示 has_byo_key：BYOK 未启用，任何设备都实走 OsyC 额度。
+            setting.setDesc("走 OsyC 额度");
             if (!dev.is_current) {
                 setting.addButton((btn) =>
                     btn.setButtonText("撤销").setIcon("trash-2").onClick(async () => {
@@ -231,35 +232,15 @@ export class AIAgentAccountModal extends Modal {
             }
         }
 
-        // 自带 API Key（仅作用于本机）
-        const byo = new Setting(box)
-            .setName("自带 API Key")
-            .setDesc("填了后本机执行真实模型走你的额度，不消耗 OsyC 配额");
-        const input = byo.controlEl.createEl("input", {
-            cls: "ai-account-input",
-            type: "password",
-            placeholder: "sk-...",
-        });
-        byo.addButton((btn) =>
-            btn.setButtonText("保存").setIcon("check").setCta().onClick(async () => {
-                const res = await this.agent.saveByoKey(input.value);
-                if (res.ok) {
-                    input.value = "";
-                    await this.refreshDevices(box);
-                } else {
-                    box.createEl("p", { text: res.message, cls: "ai-account-hint" });
-                }
-            })
-        );
-        const cur = d.devices.find((x) => x.is_current);
-        if (cur?.has_byo_key) {
-            byo.addButton((btn) =>
-                btn.setButtonText("清空").setIcon("x").onClick(async () => {
-                    await this.agent.clearByoKey();
-                    await this.refreshDevices(box);
-                })
-            );
-        }
+        // 自带 API Key：暂未启用（口径 2026-09-20：计划 2.# 版本开放）。
+        // 生产 AGENT_BACKEND=hermes 不读 devices.byo_key，填了也不生效 ——
+        // 界面不得提供填写入口，否则等于对用户承诺一个不存在的功能。
+        // 注意：待 hermes 真正接通 BYO 消费路径后，才恢复输入框与保存按钮，
+        //    届时同步更新服务公告与本处文案（agent 层 saveByoKey/clearByoKey 保留备用）。
+        new Setting(box)
+            .setName("自带 API Key（暂未开放）")
+            .setDesc("该能力计划在 2.# 版本提供；在此之前，所有任务一律按 OsyC 积分结算。")
+            .setDisabled(true);
     }
 
     private renderSkills(contentEl: HTMLElement, ent: AIEntitlements) {
