@@ -13,6 +13,8 @@ import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/AP
 import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
 import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { planProvisionedReplicationRepair, verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";
+import { LiveSyncCouchDBReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
+import { describeLiveSyncError, readConfiguredRemote, type LiveSyncControlPort, type LiveSyncDiagnosticInput } from "@/osyc/features/AIAgent/livesyncSyncActions";
 import { resolveServiceUrl } from "@/osyc/features/AIAgent/serviceDefaults";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
@@ -399,6 +401,141 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             return false;
         }
     };
+
+    /**
+     * LiveSync 同步诊断与动作端口（接线层实现）。
+     *
+     * 账户弹窗「同步」区只调用这里；所有能力都走 core.services 的
+     * replicator / replication / setting / rebuilder，不写死任何 HTTP。
+     *
+     * 关键的「接受远端里程碑」调的是 LiveSync 自己的
+     * LiveSyncAbstractReplicator.markRemoteResolved()：它把本机 nodeid
+     * 并入远端里程碑的 accepted_nodes，等价于原生设置里的
+     * 「Unlock / Accept this device」。现场事故就是缺这一步：
+     * 里程碑没有本机，客户端永远停在握手阶段，一个文件都下不来。
+     */
+    const currentLiveSyncSettings = () => core.services.setting.currentSettings();
+    const activeLiveSyncReplicator = () => core.services.replicator.getActiveReplicator();
+
+    const ensureLiveSyncNodeId = async (
+        replicator: NonNullable<ReturnType<typeof activeLiveSyncReplicator>>
+    ): Promise<string> => {
+        if (!replicator.nodeid) {
+            await replicator.initializeDatabaseForReplication();
+        }
+        if (!replicator.nodeid) {
+            throw new Error("本机设备 ID 尚未生成，请重启 Obsidian 后再试");
+        }
+        return replicator.nodeid;
+    };
+
+    const readRemoteMilestone = async (
+        replicator: NonNullable<ReturnType<typeof activeLiveSyncReplicator>>
+    ) => {
+        const settings = currentLiveSyncSettings();
+        return await core.services.replicator.runBoundedRemoteActivity(
+            () => replicator.getConnectedDeviceList(settings),
+            { label: "osyc-livesync-milestone" }
+        );
+    };
+
+    const runOneWayReplication = async (mode: "pullOnly" | "pushOnly"): Promise<void> => {
+        const settings = currentLiveSyncSettings();
+        const replicator = activeLiveSyncReplicator();
+        if (!replicator) throw new Error("LiveSync 复制器未就绪，请稍后重试或重启 Obsidian");
+        if (!(replicator instanceof LiveSyncCouchDBReplicator)) {
+            throw new Error("当前远端类型不支持单向同步，请在同步设置中使用 CouchDB 远端");
+        }
+        await core.services.replicator.runFiniteReplicationActivity(
+            async () => {
+                const ok = await replicator.openOneShotReplication(settings, true, false, mode, true);
+                if (!ok) {
+                    throw new Error(
+                        mode === "pullOnly"
+                            ? "拉取未完成：远端连接失败或同步已取消"
+                            : "推送未完成：远端连接失败或同步已取消"
+                    );
+                }
+            },
+            { label: mode === "pullOnly" ? "osyc-livesync-fetch" : "osyc-livesync-push" }
+        );
+    };
+
+    agent.livesyncControl = {
+        async diagnose(): Promise<LiveSyncDiagnosticInput> {
+            const settings = currentLiveSyncSettings();
+            const input: LiveSyncDiagnosticInput = {
+                ...readConfiguredRemote(settings),
+                localNodeId: null,
+                acceptedNodes: null,
+                protocolVersion: null,
+                error: null,
+            };
+            const replicator = activeLiveSyncReplicator();
+            if (!replicator) {
+                input.error = "LiveSync 复制器未就绪，无法读取远端里程碑";
+                return input;
+            }
+            const errors: string[] = [];
+            try {
+                input.localNodeId = await ensureLiveSyncNodeId(replicator);
+            } catch (error) {
+                errors.push(describeLiveSyncError(error));
+            }
+            try {
+                const list = await readRemoteMilestone(replicator);
+                if (list === false) {
+                    errors.push("未能读取远端里程碑（远端未初始化或网络不可达）");
+                } else {
+                    input.acceptedNodes = list.accepted_nodes ?? [];
+                }
+            } catch (error) {
+                errors.push("读取远端里程碑失败：" + describeLiveSyncError(error));
+            }
+            if (replicator instanceof LiveSyncCouchDBReplicator) {
+                try {
+                    const params = await core.services.replicator.runBoundedRemoteActivity(
+                        () => replicator.getSyncParameters(settings),
+                        { label: "osyc-livesync-sync-parameters" }
+                    );
+                    input.protocolVersion = params ? params.protocolVersion ?? null : null;
+                } catch (error) {
+                    errors.push("读取 sync_parameters 失败：" + describeLiveSyncError(error));
+                }
+            }
+            if (errors.length > 0) input.error = errors.join("；");
+            return input;
+        },
+
+        async acceptRemoteMilestone(): Promise<void> {
+            const settings = currentLiveSyncSettings();
+            const replicator = activeLiveSyncReplicator();
+            if (!replicator) throw new Error("LiveSync 复制器未就绪，请稍后重试或重启 Obsidian");
+            await ensureLiveSyncNodeId(replicator);
+            await core.services.replicator.runBoundedRemoteActivity(
+                () => replicator.markRemoteResolved(settings),
+                { label: "osyc-livesync-accept-milestone" }
+            );
+            const list = await readRemoteMilestone(replicator);
+            if (list === false) {
+                throw new Error("已提交加入远端，但回读里程碑失败，无法确认结果；请稍后重新诊断");
+            }
+            if (!(list.accepted_nodes ?? []).includes(replicator.nodeid)) {
+                throw new Error("已提交加入远端，但远端里程碑仍未包含本机；请确认远端未被锁定、网络可用后重试");
+            }
+            // 接受成功后立刻拉取一次，让本机马上开始下载。
+            if (replicator instanceof LiveSyncCouchDBReplicator) {
+                await runOneWayReplication("pullOnly");
+            } else {
+                await core.services.replication.replicate(true);
+            }
+        },
+
+        fetchFromRemote: () => runOneWayReplication("pullOnly"),
+        pushToRemote: () => runOneWayReplication("pushOnly"),
+        rebuildLocalFromRemote: () => core.rebuilder.$performRebuildDB("localOnly"),
+        overwriteRemoteWithLocal: () => core.rebuilder.$performRebuildDB("remoteOnly"),
+    } satisfies LiveSyncControlPort;
 
     /**
      * 应用 agent 提出的设置调整建议。

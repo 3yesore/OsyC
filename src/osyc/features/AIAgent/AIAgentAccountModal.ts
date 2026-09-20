@@ -3,6 +3,9 @@ import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
 import { isProNamespaceReadOnly } from "./CmdAIAgent";
 import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState, ProNamespaceState } from "./CmdAIAgent";
+import { LiveSyncConfirmModal } from "./LiveSyncConfirmModal";
+import { describeLiveSyncError, runLiveSyncAction, summarizeSyncDiagnostics, visibleLiveSyncActions, withBusyButton } from "./livesyncSyncActions";
+import type { LiveSyncActionDescriptor, LiveSyncControlPort, LiveSyncDiagnosticInput, LiveSyncDiagnosticView } from "./livesyncSyncActions";
 
 const PLAN_LABEL: Record<PlanType, string> = {
     base: "基础版",
@@ -320,6 +323,122 @@ export class AIAgentAccountModal extends Modal {
                     if (result.ok) this.onOpen();
                 })
             );
+
+        this.renderLiveSyncPanel(contentEl, syncState);
+    }
+
+    /**
+     * LiveSync 诊断 + 动作区（同步区内的最后一段）。
+     *
+     * 现场事故的修法：把「远端里程碑是否已接受本机」显式列出来，
+     * 并把常见的 LiveSync 动作收进这里，用户不必再去原生设置里手动点。
+     * 诊断只读；动作全部经 core.services 端口执行，危险动作强制确认。
+     */
+    private renderLiveSyncPanel(contentEl: HTMLElement, syncState: AIAgentSyncState): void {
+        const box = contentEl.createDiv({ cls: "ai-account-livesync" });
+        const title = box.createDiv({ cls: "ai-account-sync-title" });
+        title.createSpan({ text: "LiveSync 同步诊断" });
+        const body = box.createDiv({ cls: "ai-account-livesync-body" });
+        const refresh = () => { void this.paintLiveSyncPanel(body, syncState, refresh); };
+        refresh();
+    }
+
+    private async paintLiveSyncPanel(
+        body: HTMLElement,
+        syncState: AIAgentSyncState,
+        refresh: () => void
+    ): Promise<void> {
+        body.empty();
+        body.createEl("p", { text: "正在读取 LiveSync 诊断…", cls: "ai-account-hint" });
+        const control = this.agent.livesyncControl;
+        if (!control) {
+            body.empty();
+            body.createEl("p", { text: "当前版本未接入 LiveSync 控制能力，无法执行同步操作。", cls: "ai-account-hint" });
+            return;
+        }
+        let input: LiveSyncDiagnosticInput;
+        try {
+            input = await control.diagnose();
+        } catch (error) {
+            input = { error: "读取同步诊断失败：" + describeLiveSyncError(error) };
+        }
+        const view = summarizeSyncDiagnostics({
+            ...input,
+            lastPullAt: input.lastPullAt ?? syncState.last_pull_at,
+            lastPushAt: input.lastPushAt ?? syncState.last_push_at,
+        });
+        // 诊断是异步的，弹窗可能已关闭；避免往已卸载的节点里写。
+        if (!body.isConnected) return;
+        body.empty();
+        // 核心告警放最上面，必须用户一眼能看到。
+        if (view.alert) body.createEl("p", { text: view.alert, cls: "ai-account-livesync-alert" });
+        this.renderLiveSyncGrid(body, view);
+        if (view.hint) body.createEl("p", { text: view.hint, cls: "ai-account-hint" });
+        if (view.error) body.createEl("p", { text: view.error, cls: "ai-account-hint" });
+        for (const action of visibleLiveSyncActions(view)) {
+            if (action.risk === "critical") {
+                // 最危险动作默认折叠，降低误点。
+                const details = body.createEl("details", { cls: "ai-account-fold ai-account-livesync-danger" });
+                details.createEl("summary", {
+                    text: "最危险操作（用本机覆盖远端，默认收起）",
+                    cls: "ai-account-fold-summary",
+                });
+                const inner = details.createDiv({ cls: "ai-account-fold-body" });
+                this.renderLiveSyncAction(inner, action, control, refresh);
+                continue;
+            }
+            this.renderLiveSyncAction(body, action, control, refresh);
+        }
+    }
+
+    private renderLiveSyncGrid(box: HTMLElement, view: LiveSyncDiagnosticView): void {
+        const grid = box.createDiv({ cls: "ai-account-sync-grid" });
+        const rows: [string, string][] = [
+            ["活动档案", view.configurationLabel],
+            ["远端端点", view.endpointLabel],
+            ["远端类型", view.remoteTypeLabel],
+            ["协议版本", view.protocolVersionLabel],
+            ["本机设备", view.nodeIdLabel],
+            ["远端已接受", view.acceptedLabel],
+            ["accepted_nodes", view.acceptedNodesLabel],
+            ["最近拉取", view.lastPullLabel],
+            ["最近推送", view.lastPushLabel],
+        ];
+        for (const [label, value] of rows) {
+            grid.createEl("strong", { text: label });
+            grid.createSpan({ text: value });
+        }
+    }
+
+    private renderLiveSyncAction(
+        container: HTMLElement,
+        action: LiveSyncActionDescriptor,
+        control: LiveSyncControlPort,
+        refresh: () => void
+    ): void {
+        const setting = new Setting(container).setName(action.label).setDesc(action.description);
+        setting.addButton((btn) => {
+            btn.setButtonText(action.label).setIcon(action.icon);
+            if (action.risk === "safe") btn.setCta();
+            else btn.setWarning();
+            btn.onClick(async () => {
+                // 执行中禁用并显示进行中；withBusyButton 用 finally 恢复。
+                await withBusyButton(btn, action.label, action.runningLabel, async () => {
+                    const result = await runLiveSyncAction(action.id, control, (message) =>
+                        this.confirmLiveSyncAction(action, message)
+                    );
+                    new Notice(result.message);
+                });
+                refresh();
+            });
+        });
+    }
+
+    /** danger 弹一次确认；critical 在弹窗里还要求输入确认词。 */
+    private confirmLiveSyncAction(action: LiveSyncActionDescriptor, message: string): Promise<boolean> {
+        return new Promise<boolean>((resolve) => {
+            new LiveSyncConfirmModal(this.app, action, message, resolve).open();
+        });
     }
 
     /** 充值积分：积分包卡密入口（调用后端 /api/recharge；不显示、不保存卡密原文）。 */

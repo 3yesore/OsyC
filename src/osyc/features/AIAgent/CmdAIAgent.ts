@@ -3,6 +3,7 @@ import { requestUrl } from "@/deps.ts";
 import type { ActiveNoteSnapshot } from "./activeNoteContext";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 import { createTaskClientId, ensureTaskClientId, mergeProgressEvents, mergeResponseText, type AgentProgressEvent } from "./conversationModel";
+import type { LiveSyncControlPort } from "./livesyncSyncActions";
 
 export type AITaskStatus =
     | "queued" | "running" | "done" | "failed"
@@ -515,6 +516,11 @@ export class CmdAIAgent {
      * 用户也只需记住一个东西。改动任一侧都要同步另一侧。
      */
     applySetupUri?: (setupUri: string, passphrase: string) => Promise<boolean>;
+    /**
+     * LiveSync 同步诊断与动作端口，由插件接线层（useAIAgentUI）用 core.services 注入。
+     * 账户弹窗「同步」区只调用这里，不直接接触 core.services，也不写死任何 HTTP。
+     */
+    livesyncControl?: LiveSyncControlPort;
     // 应用 agent 提出的设置调整建议。后端只提建议，真正改配置发生在客户端，
     // 而且会再过一遍白名单 —— 不信任后端传来的任何键。
     applySettingsPatch?: (patch: Record<string, unknown>) => Promise<{
