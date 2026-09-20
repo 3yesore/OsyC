@@ -86,3 +86,30 @@ git commit -m "release(osyc): cut 2.0.14 with email sign-in and the recharge ent
 - `/api/sync/now`、公告邮件、冲突处理 UI、多设备 LiveSync 验收（`Learning-Vault`）；
 - 凭据轮换：QQ 授权码与 `ADMIN_TOKEN` 都曾出现在会话输出里；
 - 桌面侧 `osyc-tools/fix-dsh-windowshide.ps1`（DSH 弹窗补丁）需重启 DSH 后确认生效。
+
+## 7. 正式服务地址核对（2026-09-20 实测）
+
+| 用途 | 地址 | 证据 |
+| --- | --- | --- |
+| 后端 API | `https://api4.sacu3.cn` | DNS A → 106.55.1.124；HTTPS `/health` 200（TLS 校验通过、TLS1.3）；`/api/runtime-info` 200；`POST /api/activate`（无效卡密）401；HTTP → 302 跳 HTTPS；nginx vhost 反代 `http://osyc_api`（127.0.0.1:8124） |
+| LiveSync 同步 | `https://osyc3.sacu3.cn` | DNS A → 106.55.1.124；根路径 401（CouchDB 要求鉴权，符合预期）；nginx vhost 反代 `http://osyc_couchdb`（127.0.0.1:5984） |
+| 证书 | `/etc/ssl/osyc/fullchain.pem` | Let's Encrypt，**SAN = api4.sacu3.cn, osyc3.sacu3.cn**（CN 只是 osyc3）；有效期至 2026-12-17；`osyc-acme-renew.timer` 下次 2026-09-21 03:58 续期 |
+| 插件预置 | `src/osyc/features/AIAgent/serviceDefaults.ts` | `DEFAULT_SERVICE_URL = "https://api4.sacu3.cn"`；`LEGACY_OFFICIAL_SERVICE_URLS = ["https://api.sacu3.cn", "https://osyctest.sacu3.cn"]` |
+| 服务端签发 | `/etc/osyc/provisioner.json` | `endpoint = https://osyc3.sacu3.cn`、`couchdb.uri = http://127.0.0.1:5984`，即下发给客户端的 setup URI 里的同步入口 |
+
+结论：插件默认地址与生产入口一致，客户端 API 走 `api4`、同步走 `osyc3`，两者同机（106.55.1.124）同一张证书。
+历史入口 `api.sacu3.cn`（CF 隧道）与 `osyctest.sacu3.cn` 目前仍返回 200，插件只把它们当**历史值迁移**来源，新安装一律落到 `api4`。
+可选清理项：确认没有客户端还在用后，把 `osyctest.sacu3.cn`（以及 CF 隧道那条）在 DNS/nginx 上退役，减少长期暴露面。
+
+## 8. 已就绪但尚未并入的修复：移动端首启激活卡
+
+分支 `fix/mobile-activation-keyboard`（基于本分支 `1ad7176`）提交 `af81337`：
+
+- 首启欢迎区改为**账户可用后**才渲染：原来它渲染在激活卡上方，且两块各带一份 12vh 外边距，手机上一点卡密输入框弹出的键盘就把激活框盖住；
+- 激活卡吸收了原欢迎区文案，移动端 `margin-top: 3vh`，未激活时时间线留 `padding-bottom: max(38vh, 200px)` 键盘余量；
+- 卡密输入框补 `autocomplete=off`、不自动大写、不走拼写检查、`enterkeyhint=go`，回车即激活；
+- 仍遵守既有回归约束：不引入 `scrollIntoView` 整页滚动，不在 pane 里用 `window.visualViewport`；
+- 门禁：svelte-check 0 error / 0 warning；unit 137 文件 / 1031 用例全绿。
+
+**并入时必须补做一步**：该提交没有重建 `main.js`（提交时工作区还有其它 agent 的未提交改动，不能在脏树上出构建产物）。
+合并到任一发布分支后，要在**干净工作区**执行 `npm run build`，再重算五个资产指纹并同步 `release-info.json` 与台账的 `sourceCommit/assetSourceCommit`。
