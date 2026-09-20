@@ -386,7 +386,10 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             }
             return true;
         } catch {
-            // 配置失败不该让激活失败 —— 记在返回值里，由 UI 提示手动配置
+            // 配置失败不该让激活失败 —— 记在返回值里，由 UI 提示手动配置；
+            // 但也不能静默吞掉：解码/写入/应用设置任一步抛异常时，日志必须留痕，
+            // 否则现场只会看到「激活失败」而没有可排查的线索。
+            console.warn("激活写入同步配置时异常，已按配置失败处理");
             return false;
         }
     };

@@ -202,4 +202,13 @@ describe("激活流程的回读自检", () => {
         const failAt = source.indexOf("return false;", warnAt);
         expect(failAt).toBeGreaterThan(warnAt);
     });
+
+    it("回读自检之外的异常也要 console.warn，不能静默 return false", () => {
+        const warnLiteral = 'console.warn("激活写入同步配置时异常，已按配置失败处理")';
+        expect(source).toContain(warnLiteral);
+        // 先留日志再按配置失败返回，语义仍是 false（不改返回值）
+        const warnAt = source.indexOf(warnLiteral);
+        const failAt = source.indexOf("return false;", warnAt);
+        expect(failAt).toBeGreaterThan(warnAt);
+    });
 });
