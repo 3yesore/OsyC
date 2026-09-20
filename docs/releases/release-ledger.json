@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "updatedAt": "2026-09-18",
+    "updatedAt": "2026-09-20",
     "releaseOwner": "release-captain",
     "sourceRepository": {
         "name": "obsidian-livesync",
@@ -35,25 +35,14 @@
         "publishedAt": "2026-09-17T12:18:22Z"
     },
     "candidate": {
-        "version": "2.0.12",
-        "status": "stable-published",
+        "version": "2.0.13",
+        "status": "reserved",
         "channel": "stable",
-        "sourceBranch": "codex-activation-remote-config-reroute",
+        "sourceBranch": "release/2.0.13",
         "stablePromotionOwner": "release-captain",
-        "sourceCommit": "5dd2644",
-        "assetSourceCommit": "5dd2644",
-        "tag": "2.0.12",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.12",
-        "publishedAt": "2026-09-18T04:10:43Z",
-        "deviceAcceptance": "pending-desktop",
-        "publishedAssets": ["main.js", "manifest.json", "styles.css"],
-        "assetSha256": {
-            "main.js": "ef188aa8f353fc715859d750af05fa1c8183b14883e53c6d122464283ecaf114",
-            "manifest.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
-            "manifest-beta.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
-            "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121",
-            "versions.json": "5b7d0ff2bbba52ba2ca44814f03df79cc2b687fb7665dfb2939716f76a12de57"
-        }
+        "sourceCommit": "5f86f45",
+        "assetSourceCommit": "5f86f45",
+        "deviceAcceptance": "pending-desktop"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -77,7 +66,10 @@
         "Publishing 2.0.10 also restored the Obsidian community directory listing that the 06:43Z mirror commit removed. Desktop search found osyc again within minutes of the release; mobile follows on its own directory refresh.",
         "2.0.11 carries the sync-activation fix (the setup URI payload has no liveSync, so the replicator never opened), a load-time repair for devices already activated under that bug, the removal of the estimated credit display, and the left alignment of the session list rows. The directory listing for 2.0.10 was restored on 2026-09-17.",
         "2.0.11 was published on 2026-09-18 as a normal (non-prerelease) release rather than a pre-release, so the manifest version, the tag 2.0.11 at the reviewed cut commit 0a2ff89 and a published GitHub Release agreed; GET /releases/latest resolves to 2.0.11.",
-        "2.0.12 carries the activation reroute (activation now rewrites the remote configuration profile named by activeConfigurationId together with the top-level couchDB_* keys, because LiveSync 2.x overlays the active profile over the top level and a top-level-only write was reverted by the old endpoint on a device that already had a profile), pins remoteType to CouchDB during activation so a legacy minio/p2p value cannot route the replicator to the wrong remote, and presets the official service address https://api4.sacu3.cn while migrating the historical official endpoints so a fresh install can activate after pasting a card key."
+        "2.0.12 carries the activation reroute (activation now rewrites the remote configuration profile named by activeConfigurationId together with the top-level couchDB_* keys, because LiveSync 2.x overlays the active profile over the top level and a top-level-only write was reverted by the old endpoint on a device that already had a profile), pins remoteType to CouchDB during activation so a legacy minio/p2p value cannot route the replicator to the wrong remote, and presets the official service address https://api4.sacu3.cn while migrating the historical official endpoints so a fresh install can activate after pasting a card key.",
+        "2.0.13 is reserved by the branch release/2.0.13 at cut commit 5f86f45; it is unpublished. The candidate carries no tag, releaseUrl or publishedAt on purpose: utils/verify-osyc-collaboration.mjs treats a candidate without a tag as a reserved line ahead of the stable release, so the reviewed tree may carry 2.0.13 while currentStable still names 2.0.11. Publication stays with the release-captain (featureAgentsMayPublish is false) and is the usual fast-forward of main, which makes publish-release-assets.yml create 2.0.13 as a normal release.",
+        "2.0.13 is a build-hygiene release: it removes two unnecessary type assertions (planCouchDbRemoteConfigurationReroute in src/osyc/features/AIAgent/livesyncPatch.ts and the currentSettings() call in src/osyc/serviceFeatures/useAIAgentUI.ts), which returns eslint to 0 errors with the nine pre-existing warnings unchanged. There is no runtime change; the five versioned assets were rebuilt and re-hashed, and tsc, svelte-check, the iOS 15 compatibility check and 136 unit-test files / 1019 tests all passed.",
+        "Ledger state on 2026-09-20: currentStable still names 2.0.11 even though 2.0.12 was published as a normal release on 2026-09-18T04:10:43Z. The 2.0.12 record, including its published asset list and all five fingerprints, was moved to previousCandidate so that reserving 2.0.13 would not discard it. Promoting currentStable to 2.0.12 remains a release-captain action."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
@@ -94,16 +86,24 @@
         "bratStableValidationRequired": true
     },
     "previousCandidate": {
-        "version": "2.0.10",
+        "version": "2.0.12",
         "status": "stable-published",
         "channel": "stable",
-        "sourceBranch": "codex-2.0.6-stabilize",
+        "sourceBranch": "codex-activation-remote-config-reroute",
         "stablePromotionOwner": "release-captain",
-        "sourceCommit": "fdbfdece49b2159c41110d635a8814282cd9fcb8",
-        "assetSourceCommit": "9b2af60d026a049effcb0071ae12fafff5a17d4f",
-        "tag": "2.0.10",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.10",
-        "publishedAt": "2026-09-17T12:18:22Z",
-        "deviceAcceptance": "pending-mobile"
+        "sourceCommit": "5dd2644",
+        "assetSourceCommit": "5dd2644",
+        "tag": "2.0.12",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.12",
+        "publishedAt": "2026-09-18T04:10:43Z",
+        "deviceAcceptance": "pending-desktop",
+        "publishedAssets": ["main.js", "manifest.json", "styles.css"],
+        "assetSha256": {
+            "main.js": "ef188aa8f353fc715859d750af05fa1c8183b14883e53c6d122464283ecaf114",
+            "manifest.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
+            "manifest-beta.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
+            "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121",
+            "versions.json": "5b7d0ff2bbba52ba2ca44814f03df79cc2b687fb7665dfb2939716f76a12de57"
+        }
     }
 }
