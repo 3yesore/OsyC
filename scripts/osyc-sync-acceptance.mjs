@@ -26,14 +26,25 @@
  * ## 用法（详见 docs/osyc-sync-acceptance.zh.md）
  *
  *   node scripts/osyc-sync-acceptance.mjs --setup-uri "<uri>" --passphrase "<卡密>" \
- *        [--expect-db <db>] [--expect-endpoint <https://...>] [--timeout-ms 15000]
+ *        [--expect-db <db>] [--expect-endpoint <https://...>] [--timeout-ms 15000] \
+ *        [--pro-namespace]
  *
  * 也可以从文件 / 环境变量取（避免口令出现在进程参数里）：
  *   --setup-uri-file <path>  --passphrase-file <path>
  *   OSYC_SYNC_ACCEPTANCE_SETUP_URI / OSYC_SYNC_ACCEPTANCE_PASSPHRASE
  *
+ * ## 两条链路都要覆盖
+ *
+ * - **默认 CouchDB 激活链路**：库名 `t_<uuid32>`。
+ * - **Pro 独立同步空间链路**（由 /srv/osyc/current/scripts/pro_namespace.py 开通）：
+ *   库名 `t_<uuid32>_pro`、用户名 `osyc_sync_<uuid32>_pro`，setup URI 与默认链路
+ *   走同一个生成器，所以这里复用同一条解码 → 激活复现 → 真实 GET 链路，额外断言
+ *   Pro 命名与 base/Pro 隔离。只要 --expect-db 形如 `t_..._pro`（或目标库名是 Pro 名），
+ *   Pro 断言自动开启；--pro-namespace 可显式强制。
+ *
  * 没给 setup URI 时打印 SKIP 并 exit 0（本地/CI 无租户凭据时不阻塞）；
  * 检查失败 exit 1；用法错误 exit 2。
+ * --self-test 不需要任何租户凭据，离线跑命名/期望值断言的负向用例（用于 CI 与本地回归）。
  *
  * ## 安全约束（硬要求）
  *
@@ -59,6 +70,18 @@ import {
 const DEVICE_UA =
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148";
 
+/**
+ * 命名规则是服务端 app/pro_namespace.py 的唯一实现，这里只做**只读识别**：
+ *   base: db t_<uuid32>          user osyc_sync_<uuid32>
+ *   pro:  db t_<uuid32>_pro      user osyc_sync_<uuid32>_pro
+ * <uuid32> = 租户 UUID 去掉横线后的 32 位小写十六进制。门禁绝不改写任何名字。
+ */
+const UUID32 = "[0-9a-f]{32}";
+const PRO_DB_RE = new RegExp(`^t_(${UUID32})_pro$`);
+const BASE_DB_RE = new RegExp(`^t_(${UUID32})$`);
+const PRO_USER_SUFFIX = "_pro";
+const USER_PREFIX = "osyc_sync_";
+
 const EXIT_OK = 0;
 const EXIT_FAILED = 1;
 const EXIT_USAGE = 2;
@@ -83,6 +106,8 @@ function parseArgs(argv) {
         expectDb: "",
         expectEndpoint: "",
         timeoutMs: 15000,
+        proNamespace: false,
+        selfTest: false,
         help: false,
     };
     for (let i = 0; i < argv.length; i += 1) {
@@ -114,6 +139,13 @@ function parseArgs(argv) {
                 break;
             case "--timeout-ms":
                 options.timeoutMs = Number(value());
+                break;
+            case "--pro-namespace":
+            case "--pro":
+                options.proNamespace = true;
+                break;
+            case "--self-test":
+                options.selfTest = true;
                 break;
             case "--help":
             case "-h":
@@ -147,12 +179,164 @@ function maskUser(user) {
     return `${text.slice(0, 6)}…${text.slice(-3)}`;
 }
 
+/** Pro 层库名识别：t_<uuid32>_pro。命中返回 {uuid32, database, user}，否则 null。 */
+function matchProDatabaseName(name) {
+    const text = String(name ?? "");
+    const matched = text.match(PRO_DB_RE);
+    if (!matched) return null;
+    return { uuid32: matched[1], database: text, user: USER_PREFIX + matched[1] + PRO_USER_SUFFIX };
+}
+
+/** base 层库名识别：t_<uuid32>。 */
+function matchBaseDatabaseName(name) {
+    const text = String(name ?? "");
+    const matched = text.match(BASE_DB_RE);
+    return matched ? { uuid32: matched[1], database: text, user: USER_PREFIX + matched[1] } : null;
+}
+
+/**
+ * 「载荷/档案库名 与 --expect-db」断言。返回检查项数组，由调用方统一打印。
+ *
+ * 档案库名单独断言，而不是只比「档案 ?? 载荷」：Pro 链路最贵的故障形态就是
+ * 「setup URI 指向 _pro，但设备上已存在的档案把顶层 couchDB_* 覆盖回 base」——
+ * 只比一个合并值会漏掉档案与 --expect-db 的偏差。
+ */
+function evaluateExpectDbChecks({ decodedDb, profileDb, expectDb }) {
+    const out = [];
+    if (!expectDb) return out;
+    const payloadOk = String(decodedDb ?? "") === expectDb;
+    out.push({
+        name: "载荷 couchDB_DBNAME 等于 --expect-db",
+        ok: payloadOk,
+        detail: payloadOk ? expectDb : "载荷=" + String(decodedDb) + " 期望=" + expectDb,
+    });
+    if (profileDb !== undefined && profileDb !== null && profileDb !== "") {
+        const profileOk = String(profileDb) === expectDb;
+        out.push({
+            name: "档案库名与 --expect-db 一致",
+            ok: profileOk,
+            detail: profileOk ? expectDb : "档案=" + String(profileDb) + " 期望=" + expectDb,
+        });
+    }
+    return out;
+}
+
+/**
+ * Pro 独立同步空间断言（proMode 为真时全部必须通过）：
+ *   1. 目标库名符合 t_<uuid32>_pro；
+ *   2. 用户名与库名派生自同一个 uuid32（osyc_sync_<uuid32>_pro）；
+ *   3. Pro 库名不得等于同一租户的 base 库名（分层隔离）。
+ * 只做只读识别，绝不改写任何名字。
+ */
+function evaluateProChecks({ targetDb, user, proMode }) {
+    const out = [];
+    if (!proMode) return out;
+    const pro = matchProDatabaseName(targetDb);
+    out.push({
+        name: "Pro 库名符合 t_<uuid32>_pro",
+        ok: Boolean(pro),
+        detail: pro ? String(targetDb) : "实际=" + String(targetDb),
+    });
+    if (pro) {
+        const userOk = String(user ?? "") === pro.user;
+        out.push({
+            name: "Pro 用户名与库名同租户",
+            ok: userOk,
+            detail: userOk ? "osyc_sync_<同 uuid32>_pro" : "实际=" + maskUser(user) + " 期望=osyc_sync_<同 uuid32>_pro",
+        });
+        const isolated = String(targetDb) !== "t_" + pro.uuid32;
+        out.push({
+            name: "Pro 库名与 base 库名不同",
+            ok: isolated,
+            detail: isolated ? "base 库未被占用" : "Pro 与 base 同名",
+        });
+    }
+    return out;
+}
+
+/**
+ * 离线 self-test：不碰网络、不需要任何租户凭据，用合成 uuid 验证命名识别与
+ * 期望值断言的**负向**行为 —— 故意传错的 --expect-db 必须被判失败。
+ * 这是本门禁的「断言本身没坏」证据，CI 与本地回归都可直接跑。
+ */
+function runSelfTest() {
+    const uuid = "0".repeat(32); // 合成值：不是任何真实租户
+    const baseDb = "t_" + uuid;
+    const proDb = "t_" + uuid + "_pro";
+    const baseUser = USER_PREFIX + uuid;
+    const proUser = USER_PREFIX + uuid + "_pro";
+    const results = [];
+
+    const failing = (items) => items.filter((item) => !item.ok).length;
+    const record = (name, expected, actual) => {
+        results.push({ name, ok: expected === actual, expected, actual });
+    };
+
+    // 正向：Pro 链路一切匹配 → 0 个失败。
+    record(
+        "Pro 正常链路 0 失败",
+        0,
+        failing([
+            ...evaluateExpectDbChecks({ decodedDb: proDb, profileDb: proDb, expectDb: proDb }),
+            ...evaluateProChecks({ targetDb: proDb, user: proUser, proMode: true }),
+        ])
+    );
+    // 负向 1：故意把 --expect-db 传成 base 库 → 必须失败。
+    record(
+        "错误 --expect-db（base 库）必须有失败",
+        true,
+        failing([
+            ...evaluateExpectDbChecks({ decodedDb: proDb, profileDb: proDb, expectDb: baseDb }),
+            ...evaluateProChecks({ targetDb: proDb, user: proUser, proMode: true }),
+        ]) > 0
+    );
+    // 负向 2：档案库名与 --expect-db 不一致 → 专项断言必须失败。
+    record(
+        "档案库名与 --expect-db 不一致必须失败",
+        true,
+        evaluateExpectDbChecks({ decodedDb: proDb, profileDb: baseDb, expectDb: proDb }).some(
+            (item) => !item.ok && item.name === "档案库名与 --expect-db 一致"
+        )
+    );
+    // 负向 3：--pro-namespace 模式下目标却是 base 库 → 必须失败。
+    record(
+        "Pro 模式遇到 base 库名必须有失败",
+        true,
+        failing(evaluateProChecks({ targetDb: baseDb, user: baseUser, proMode: true })) > 0
+    );
+    // 负向 4：Pro 用户名与库名不同租户 → 必须失败。
+    record(
+        "Pro 用户名与库名不同租户必须有失败",
+        true,
+        failing(evaluateProChecks({ targetDb: proDb, user: baseUser, proMode: true })) > 0
+    );
+    // 命名识别：base 库名不得被当成 Pro。
+    record("base 库名不被识别为 Pro", null, matchProDatabaseName(baseDb));
+    record("base 库名识别出 uuid32", uuid, matchBaseDatabaseName(baseDb)?.uuid32 ?? null);
+    record("Pro 库名识别出同一 uuid32", uuid, matchProDatabaseName(proDb)?.uuid32 ?? null);
+
+    console.log("self-test（离线，无租户凭据）：");
+    for (const item of results) {
+        const mark = item.ok ? "OK  " : "FAIL";
+        console.log("  [" + mark + "] " + item.name);
+    }
+    const failed = results.filter((item) => !item.ok);
+    console.log("");
+    if (failed.length > 0) {
+        console.error("self-test 未通过：" + failed.length + " 项（共 " + results.length + " 项）。");
+        return EXIT_FAILED;
+    }
+    console.log("self-test 通过：" + results.length + " 项全部 OK。");
+    return EXIT_OK;
+}
+
 function printHelp() {
     console.log(`OsyC 同步端到端验收门禁
 
 用法：
   node scripts/osyc-sync-acceptance.mjs --setup-uri <uri> --passphrase <卡密>
        [--expect-db <db>] [--expect-endpoint <https://...>] [--timeout-ms 15000]
+       [--pro-namespace]
 
 参数：
   --setup-uri <uri>        租户 setup URI（来自服务器 tenants.setup_uri）
@@ -160,8 +344,11 @@ function printHelp() {
   --passphrase <卡密>      setup URI 的解密口令（就是激活用的卡密）
   --passphrase-file <path> 从文件读取口令
   --expect-db <db>         期望的 couchDB_DBNAME（可选）
+                           形如 t_<uuid32>_pro 时自动启用 Pro 链路断言
   --expect-endpoint <url>  期望的 couchDB_URI（可选）
   --timeout-ms <n>         远端请求超时，默认 15000
+  --pro-namespace          强制按 Pro 独立同步空间断言（t_<uuid32>_pro）
+  --self-test              离线自检命名/期望值断言，不需要租户凭据
 
 环境变量：OSYC_SYNC_ACCEPTANCE_SETUP_URI / OSYC_SYNC_ACCEPTANCE_PASSPHRASE
 未提供 setup URI 时打印 SKIP 并 exit 0。`);
@@ -202,6 +389,10 @@ async function main() {
     if (options.help) {
         printHelp();
         return EXIT_OK;
+    }
+    if (options.selfTest) {
+        // 离线自检在任何租户凭据之前返回，CI 不需要 setup URI。
+        return runSelfTest();
     }
     if (options.setupUriFile) options.setupUri = readSecretFile(options.setupUriFile);
     if (options.passphraseFile) options.passphrase = readPassphraseFile(options.passphraseFile);
@@ -329,16 +520,36 @@ async function main() {
         ok("凭据长度", `user=${maskUser(resolved.couchDB_USER)} password长度=${String(resolved.couchDB_PASSWORD ?? "").length}`);
     }
 
-    // 期望值断言（--expect-db / --expect-endpoint）。
+    // ---- 期望值断言（--expect-db / --expect-endpoint）与 Pro 链路断言 -----
     const targetDb = resolved?.couchDB_DBNAME ?? decoded.couchDB_DBNAME;
     const targetEndpoint = stripTrailingSlash(resolved?.couchDB_URI ?? decoded.couchDB_URI);
-    if (options.expectDb) {
-        if (String(targetDb) === options.expectDb) {
-            ok("couchDB_DBNAME 等于 --expect-db", options.expectDb);
-        } else {
-            fail("couchDB_DBNAME 等于 --expect-db", `实际=${targetDb} 期望=${options.expectDb}`);
-        }
+
+    // 目标库名是 Pro 名（或显式 --pro-namespace / --expect-db 指向 Pro 名）时自动
+    // 开启 Pro 断言；这样「参数指向 Pro 库」与「--pro-namespace」两种用法都能覆盖。
+    const proMode =
+        options.proNamespace === true ||
+        matchProDatabaseName(options.expectDb) !== null ||
+        matchProDatabaseName(targetDb) !== null;
+    console.log(`链路：${proMode ? "Pro 独立同步空间（t_<uuid32>_pro）" : "默认 CouchDB（t_<uuid32>）"}`);
+
+    // 载荷库名与档案库名分别对 --expect-db 断言：故意传错必须在这里失败。
+    for (const item of evaluateExpectDbChecks({
+        decodedDb: decoded.couchDB_DBNAME,
+        profileDb: resolved?.couchDB_DBNAME,
+        expectDb: options.expectDb,
+    })) {
+        checks.push(item);
     }
+
+    // Pro 命名 / 同租户用户名 / 与 base 隔离（非 Pro 链路自动跳过）。
+    for (const item of evaluateProChecks({
+        targetDb,
+        user: resolved?.couchDB_USER ?? decoded.couchDB_USER,
+        proMode,
+    })) {
+        checks.push(item);
+    }
+
     if (options.expectEndpoint) {
         if (targetEndpoint === stripTrailingSlash(options.expectEndpoint)) {
             ok("couchDB_URI 等于 --expect-endpoint", targetEndpoint);
