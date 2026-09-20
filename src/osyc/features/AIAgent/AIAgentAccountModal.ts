@@ -1,4 +1,4 @@
-import { Modal, Notice, Setting, type App } from "@/deps.ts";
+import { Modal, Notice, Setting, type App, type ButtonComponent } from "@/deps.ts";
 import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
 import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState } from "./CmdAIAgent";
@@ -121,8 +121,9 @@ export class AIAgentAccountModal extends Modal {
 
         // ── 账户操作（折叠，低频）──
         this.renderFold(contentEl, "账户操作", false, (body) => {
+            this.renderEmailLogin(body);
+            this.renderRecharge(body);
             this.renderReactivation(body);
-            this.renderEmailLoginTemplate(body);
             this.renderUpgradeHint(body, plan);
         });
 
@@ -325,6 +326,35 @@ export class AIAgentAccountModal extends Modal {
             );
     }
 
+    /** 充值积分：积分包卡密入口（调用后端 /api/recharge；不显示、不保存卡密原文）。 */
+    private renderRecharge(contentEl: HTMLElement) {
+        const setting = new Setting(contentEl)
+            .setName("充值积分")
+            .setDesc("输入积分包卡密即可充值到当前账户；充值活动赠送会一并到账。卡密原文不会被显示或保存。")
+            .addButton((btn) =>
+                btn.setButtonText("充值").setIcon("plus-circle").setCta().onClick(async () => {
+                    const input = setting.controlEl.querySelector<HTMLInputElement>("input");
+                    const cardKey = input?.value.trim() ?? "";
+                    if (!cardKey) {
+                        new Notice("请输入积分包卡密");
+                        return;
+                    }
+                    btn.setDisabled(true);
+                    const result = await this.agent.recharge(cardKey);
+                    btn.setDisabled(false);
+                    if (input) input.value = "";
+                    new Notice(result.message);
+                    if (result.ok) this.onOpen();
+                })
+            );
+        const input = setting.controlEl.createEl("input", {
+            type: "password",
+            placeholder: "输入积分包卡密",
+            attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
+        });
+        input.addClass("ai-account-input");
+    }
+
     private renderReactivation(contentEl: HTMLElement) {
         const setting = new Setting(contentEl)
             .setName("重新激活卡密")
@@ -353,30 +383,129 @@ export class AIAgentAccountModal extends Modal {
         input.addClass("ai-account-input");
     }
 
-    /** Preview the next-version email flow without enabling or contacting the server. */
-    private renderEmailLoginTemplate(contentEl: HTMLElement) {
+    /**
+     * 邮箱登录 / 绑定卡密。
+     *
+     * 邮箱是高于卡密的身份锚点：验证通过后卡密跟着邮箱走，换设备只认邮箱 + 验证码。
+     * 会话 token 只留在内存里（不落盘），插件重启后需要重新验证一次邮箱。
+     */
+    private renderEmailLogin(contentEl: HTMLElement) {
         const box = contentEl.createDiv({ cls: "ai-account-email-login" });
         box.createEl("p", {
-            text: "邮箱登录将在后续版本开放。当前版本不会发送邮件、保存邮箱或改变卡密登录。",
+            text: "邮箱是高于卡密的身份锚点：验证邮箱后绑定的卡密会自动载入，换设备只需邮箱验证码。",
             cls: "ai-account-hint",
         });
-        const email = new Setting(box).setName("邮箱地址");
-        const emailInput = email.controlEl.createEl("input", {
+
+        const emailSetting = new Setting(box).setName("邮箱地址");
+        const emailInput = emailSetting.controlEl.createEl("input", {
             type: "email",
             placeholder: "name@example.com",
-            attr: { autocomplete: "email" },
+            attr: { autocomplete: "email", autocapitalize: "none", spellcheck: "false" },
         });
-        emailInput.disabled = true;
-        email.addButton((button) => button.setButtonText("发送验证码").setDisabled(true));
-        const code = new Setting(box).setName("验证码");
-        const codeInput = code.controlEl.createEl("input", {
+        emailInput.addClass("ai-account-input");
+
+        const statusEl = box.createEl("p", { text: "状态：尚未验证邮箱", cls: "ai-account-hint" });
+        const setStatus = (text: string) => {
+            statusEl.setText(`状态：${text}`);
+        };
+
+        let sendButton: ButtonComponent | null = null;
+        let countdownTimer: number | null = null;
+        const startCountdown = (seconds: number) => {
+            if (!sendButton) return;
+            let left = seconds;
+            sendButton.setDisabled(true);
+            sendButton.setButtonText(`重新发送（${left}s）`);
+            countdownTimer = window.setInterval(() => {
+                left -= 1;
+                if (left <= 0) {
+                    if (countdownTimer !== null) window.clearInterval(countdownTimer);
+                    countdownTimer = null;
+                    sendButton?.setDisabled(false);
+                    sendButton?.setButtonText("发送验证码");
+                    return;
+                }
+                sendButton?.setButtonText(`重新发送（${left}s）`);
+            }, 1000);
+        };
+
+        emailSetting.addButton((btn) => {
+            sendButton = btn;
+            btn.setButtonText("发送验证码")
+                .setIcon("send")
+                .setCta()
+                .onClick(async () => {
+                    const email = emailInput.value.trim();
+                    if (!email) {
+                        new Notice("请输入邮箱地址");
+                        return;
+                    }
+                    btn.setDisabled(true);
+                    const result = await this.agent.requestEmailCode(email);
+                    new Notice(result.message);
+                    if (result.ok) {
+                        startCountdown(60);
+                        setStatus(`验证码已发送至 ${email}，5 分钟内有效`);
+                    } else {
+                        btn.setDisabled(false);
+                        setStatus(result.message);
+                    }
+                });
+        });
+
+        const codeSetting = new Setting(box).setName("验证码");
+        const codeInput = codeSetting.controlEl.createEl("input", {
             type: "text",
             placeholder: "6 位验证码",
             attr: { inputmode: "numeric", autocomplete: "one-time-code" },
         });
-        codeInput.disabled = true;
-        code.addButton((button) => button.setButtonText("登录").setDisabled(true));
-        box.createEl("p", { text: "状态：feature_disabled · 倒计时：—", cls: "ai-account-hint" });
+        codeInput.addClass("ai-account-input");
+        codeSetting.addButton((btn) =>
+            btn.setButtonText("登录").setIcon("log-in").setCta().onClick(async () => {
+                btn.setDisabled(true);
+                const result = await this.agent.loginWithEmail(emailInput.value, codeInput.value);
+                btn.setDisabled(false);
+                new Notice(result.message);
+                setStatus(result.message);
+                if (result.ok) {
+                    codeInput.value = "";
+                    this.onOpen();
+                }
+            })
+        );
+
+        const account = this.agent.emailAccount;
+        if (account) {
+            setStatus(`已登录 ${account.masked}`);
+            const cards = account.cards.map((c) => c.card_key).join("、") || "暂未绑定卡密";
+            box.createEl("p", { text: `已关联卡密：${cards}`, cls: "ai-account-hint" });
+        }
+
+        const bindSetting = new Setting(box)
+            .setName("绑定卡密")
+            .setDesc("把已有卡密并入当前邮箱账户；需要先完成一次邮箱验证。");
+        const cardInput = bindSetting.controlEl.createEl("input", {
+            type: "password",
+            placeholder: "输入卡密",
+            attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
+        });
+        cardInput.addClass("ai-account-input");
+        bindSetting.addButton((btn) =>
+            btn.setButtonText("绑定").setIcon("link").setCta().onClick(async () => {
+                const cardKey = cardInput.value.trim();
+                if (!cardKey) {
+                    new Notice("请输入卡密");
+                    return;
+                }
+                btn.setDisabled(true);
+                const result = await this.agent.bindCardToEmail(cardKey);
+                btn.setDisabled(false);
+                if (result.ok) cardInput.value = "";
+                new Notice(result.message);
+                setStatus(result.message);
+                if (result.ok) this.onOpen();
+            })
+        );
     }
 
     override onClose() {

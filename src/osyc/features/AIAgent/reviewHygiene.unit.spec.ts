@@ -55,6 +55,9 @@ describe("Obsidian review hygiene", () => {
     // 分组标题约定（每个 pane 标题都带 emoji），不属于 OsyC 自造的按钮图标，不能单独改。
     const OSYC_GLYPH_FREE_SURFACES = OSYC_ICON_SURFACES.filter((name) => name !== "osycSettingsPane.ts");
 
+    // 逐项验证方法：在本机 Obsidian 安装目录的 resources/obsidian.asar 里检索
+    // 带引号的图标 id。2026-09-20 用同一方法补验了 link / log-in / plus-circle / send
+    // （充值入口、邮箱登录与绑定卡密按钮需要）。
     // 逐个比对过本机 Obsidian 1.13.7 内置图标表（1994 个 id）之后确认存在的子集。
     // Obsidian 遇到未知图标名不会报错，只是静默渲染成空白，只有真机上才看得出来，
     // 因此用白名单把拼写错误挡在提交之前。
@@ -72,14 +75,18 @@ describe("Obsidian review hygiene", () => {
         "home",
         "info",
         "key",
+        "link",
         "loader",
+        "log-in",
         "log-out",
         "menu",
         "panel-left",
         "pause",
         "plus",
+        "plus-circle",
         "refresh-cw",
         "rotate-ccw",
+        "send",
         "settings",
         "sparkles",
         "trash-2",

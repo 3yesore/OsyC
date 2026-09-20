@@ -1,3 +1,5 @@
+<p align="center"><img src="OsyC-logo.png" alt="OsyC" width="160"></p>
+
 # OsyC
 
 OsyC is an Obsidian plugin that combines a local note workspace with an AI

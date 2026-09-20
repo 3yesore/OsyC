@@ -30,6 +30,17 @@ describe("AI 账户移动端摘要", () => {
         expect(modalSource).toContain('this.agent.activate(cardKey)');
     });
 
+    it("提供充值积分入口（积分包卡密兑换）", () => {
+        expect(modalSource).toContain('setName("充值积分")');
+        expect(modalSource).toContain("this.agent.recharge(cardKey)");
+        // 充值入口与重新激活是两个不同入口：前者加积分，后者换卡密/恢复同步
+        expect(modalSource.indexOf('setName("充值积分")')).toBeLessThan(
+            modalSource.indexOf('setName("重新激活卡密")')
+        );
+        // 不显示也不保存卡密原文
+        expect(modalSource).toContain('type: "password"');
+    });
+
     it("显示服务器同步覆盖率摘要而不展示远程地址", () => {
         expect(modalSource).toContain("同步覆盖");
         expect(modalSource).not.toContain("setup_uri");
@@ -66,12 +77,36 @@ describe("AI 账户移动端摘要", () => {
         expect(modalSource.indexOf('this.renderFold(contentEl, "账户操作"')).toBeLessThan(closeAt);
     });
 
-    it("提供下版本邮箱登录的完整禁用预览流程", () => {
-        expect(modalSource).toContain("邮箱登录将在后续版本开放");
-        expect(modalSource).toContain("邮箱地址");
-        expect(modalSource).toContain("验证码");
-        expect(modalSource).toContain("倒计时");
-        expect(modalSource).toContain("feature_disabled");
+    it("邮箱登录是真实可用流程，不再有禁用预览残留", () => {
+        expect(modalSource).toContain("this.renderEmailLogin(body)");
+        expect(modalSource).not.toContain("feature_disabled");
+        expect(modalSource).not.toContain("邮箱登录将在后续版本开放");
+        expect(modalSource).not.toContain("renderEmailLoginTemplate");
+        expect(modalSource).toContain('setName("邮箱地址")');
+        expect(modalSource).toContain('setName("验证码")');
+        expect(modalSource).toContain("this.agent.requestEmailCode");
+        expect(modalSource).toContain("this.agent.loginWithEmail");
+        // 发码按钮带 60s 倒计时，避免用户连点触发后端限流
+        expect(modalSource).toContain("重新发送");
+        expect(modalSource).toContain("startCountdown(60)");
+    });
+
+    it("提供绑定卡密入口，且邮箱会话只留在内存", () => {
+        expect(modalSource).toContain('setName("绑定卡密")');
+        expect(modalSource).toContain("this.agent.bindCardToEmail");
+        // 会话 token 不落盘：插件里没有持久化邮箱会话的字段
+        expect(modalSource).not.toContain("settings.emailSession");
+        expect(modalSource).not.toContain("saveData");
+    });
+
+    it("账户操作区顺序：邮箱 → 充值 → 重新激活", () => {
+        const order = [
+            "this.renderEmailLogin(body)",
+            "this.renderRecharge(body)",
+            "this.renderReactivation(body)",
+        ].map((needle) => modalSource.indexOf(needle));
+        expect(order.every((idx) => idx > -1)).toBe(true);
+        expect(order).toEqual([...order].sort((a, b) => a - b));
     });
 
     // ── 版面基线：官方分组 + 折叠 ──

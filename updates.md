@@ -16,9 +16,11 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 20th September, 2026
 
-- OsyC `2.0.13` is a build-hygiene release with no runtime change. Two unchecked type assertions were removed: one in the LiveSync remote-configuration reroute (`planCouchDbRemoteConfigurationReroute`), where the surrounding `typeof === "string"` guard already proves the type, and one in the AI Agent UI settings reader (`useAIAgentUI`), where `currentSettings()` is already assignable. Activation, synchronisation and the AI Agent behave exactly as in `2.0.12`.
-- OsyC `2.0.13` brings the lint gate back to zero errors (the nine pre-existing warnings are unchanged), so the review gate stays green for the next feature release.
-- OsyC `2.0.13` publishes no 2.0.12 regression: the release contract, `tsc`, the unit suite and the five versioned assets are re-verified against the same source tree that produced the build.
+- OsyC `2.0.13` adds a **recharge entry** to the AI Agent account dialog: an integer-credit card key can be redeemed on the current account without leaving Obsidian, and any campaign bonus is reported back ("充值成功，另赠 N 积分"). The card key is never displayed or persisted.
+- OsyC `2.0.13` adds **email sign-in** as an identity anchor above activation cards. The account dialog sends a six-digit code to a mailbox, signs in with it, and binds an existing card key to that mailbox; once a card is linked, the same mailbox plus a fresh code is enough to obtain a device token on a new device, so there is no card key to recover. The binding is authorised by an account session token issued on verification — never by a client-chosen device identifier — and email sessions stay in memory instead of being written to disk.
+- OsyC `2.0.13` unifies the brand assets behind a single logo file at the repository root (`OsyC-logo.png`, derived sizes under `assets/brand/`, documented in `docs/BRAND_ASSETS.zh.md`) and drops the "笔记助手" suffix from user-facing signatures, which now read `OsyC`.
+- OsyC `2.0.13` also carries the build hygiene from the original cut: two unchecked type assertions were removed (the LiveSync remote-configuration reroute `planCouchDbRemoteConfigurationReroute`, where the surrounding `typeof === "string"` guard already proves the type, and the AI Agent UI settings reader `useAIAgentUI`, where `currentSettings()` is already assignable), and the lint gate is back to zero errors.
+- OsyC `2.0.13` publishes no 2.0.12 regression: the release contract, `tsc`, the unit suite and the versioned assets are re-verified against the same source tree that produced the build.
 
 ## 2.0.12
 

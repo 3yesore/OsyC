@@ -382,6 +382,20 @@ const MAX_TRANSIENT_RETRIES = 3;
  * Mock mode is opt-in for test harnesses only. A missing service address must
  * always be reported as a configuration error in production.
  */
+/** 邮箱账户下已关联的卡密（后端 /api/email/verify 与 /api/account/bind-card 返回）。 */
+export interface EmailCardRef {
+    card_key: string;
+    plan_type?: string;
+    expire_at?: number;
+}
+
+/** 内存中的邮箱会话：刻意不落盘，插件重启后需要重新验证一次邮箱。 */
+export interface EmailAccountSession {
+    masked: string;
+    cards: EmailCardRef[];
+    session: string;
+}
+
 export class CmdAIAgent {
     tasks: Writable<AITask[]> = writable([]);
     schedules: Writable<AISchedule[]> = writable([]);
@@ -472,7 +486,7 @@ export class CmdAIAgent {
                       : this.describeError(status);
             return { ok: false, message: msg };
         }
-        const res = data as { credits?: number; expire_at?: number } | null;
+        const res = data as { credits?: number; expire_at?: number; bonus_credits?: number } | null;
         // 充值后额度变了，折合金额要重新问后端拿
         this.state.update((s) => ({
             ...s,
@@ -480,7 +494,117 @@ export class CmdAIAgent {
             expireAt: normaliseExpireAt(res?.expire_at) ?? s.expireAt,
         }));
         await this.refreshStatus();
-        return { ok: true, message: "充值成功，额度和有效期已延长" };
+        const bonus = res?.bonus_credits ?? 0;
+        return {
+            ok: true,
+            message: bonus > 0 ? `充值成功，另赠 ${bonus} 积分` : "充值成功，额度和有效期已延长",
+        };
+    }
+
+    // ---------- 邮箱账户 ----------
+
+    /** 已登录的邮箱账户。会话只存内存，不写盘。 */
+    emailAccount: EmailAccountSession | null = null;
+
+    /** 发送邮箱验证码（登录/注册共用）。 */
+    async requestEmailCode(email: string): Promise<{ ok: boolean; message: string }> {
+        const value = email.trim();
+        if (!value) return { ok: false, message: "请输入邮箱地址" };
+        if (this.isMock) return { ok: true, message: "MOCK 模式：已模拟发送验证码" };
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
+        const { status } = await this.call("/api/email/send-code", "POST", {
+            email: value,
+            purpose: "login",
+        });
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status) };
+        return { ok: true, message: `验证码已发送至 ${value}，5 分钟内有效` };
+    }
+
+    /**
+     * 邮箱验证码登录（首次即注册）。
+     *
+     * 账户已关联卡密时后端直接签发设备 token —— 邮箱因此成为高于卡密的身份锚点：
+     * 换设备只要邮箱 + 验证码，不用再找回卡密。
+     */
+    async loginWithEmail(email: string, code: string): Promise<{ ok: boolean; message: string }> {
+        const mail = email.trim();
+        const pin = code.trim();
+        if (!mail || !pin) return { ok: false, message: "请输入邮箱地址与验证码" };
+        if (this.isMock) return { ok: true, message: "MOCK 模式：已模拟邮箱登录" };
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
+        const { status, data } = await this.call("/api/email/verify", "POST", {
+            email: mail,
+            code: pin,
+            device_id: this.deviceId,
+            device_name: this.deviceId,
+        });
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status) };
+        const res = data as {
+            account?: { email_masked?: string };
+            cards?: EmailCardRef[];
+            token?: string;
+            card_key?: string;
+            registered?: boolean;
+            session_token?: string;
+        } | null;
+        this.emailAccount = {
+            masked: res?.account?.email_masked ?? mail,
+            cards: res?.cards ?? [],
+            session: res?.session_token ?? "",
+        };
+        if (res?.token) {
+            this.settings.token = res.token;
+            this.state.update((s) => ({ ...s, activated: true }));
+            await this.refreshStatus();
+            return { ok: true, message: `邮箱登录成功，已载入卡密 ${res.card_key ?? ""}` };
+        }
+        return { ok: true, message: "邮箱已验证；绑定卡密后即可开始使用" };
+    }
+
+    /** 把卡密并入当前邮箱账户（凭邮箱会话，不依赖可猜的设备标识）。 */
+    async bindCardToEmail(cardKey: string): Promise<{ ok: boolean; message: string }> {
+        const key = cardKey.trim().toUpperCase();
+        if (!key) return { ok: false, message: "请输入卡密" };
+        if (this.isMock) return { ok: true, message: "MOCK 模式：已模拟绑定卡密" };
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
+        const session = this.emailAccount?.session ?? "";
+        if (!session) return { ok: false, message: "请先用邮箱验证码登录，再绑定卡密" };
+        const { status, data } = await this.call("/api/account/bind-card", "POST", {
+            card_key: key,
+            session_token: session,
+            device_id: this.deviceId,
+            device_name: this.deviceId,
+        });
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status) };
+        const res = data as {
+            cards?: EmailCardRef[];
+            token?: string;
+            card_key?: string;
+            device_limit_reached?: boolean;
+            message?: string;
+        } | null;
+        if (this.emailAccount && res?.cards) this.emailAccount.cards = res.cards;
+        if (res?.token) {
+            this.settings.token = res.token;
+            this.state.update((s) => ({ ...s, activated: true }));
+            await this.refreshStatus();
+        }
+        if (res?.device_limit_reached) {
+            return { ok: false, message: res.message ?? "本设备已达该卡密上限，请先解绑旧设备" };
+        }
+        return { ok: true, message: "卡密已并入邮箱账户" };
+    }
+
+    /** 邮箱相关接口的失败文案（后端状态码语义固定）。 */
+    private describeEmailError(status: number): string {
+        if (status === 400) return "验证码无效或已过期";
+        if (status === 401) return "邮箱会话已失效，请重新验证邮箱";
+        if (status === 403) return "本设备已达该卡密上限，请先解绑旧设备";
+        if (status === 404) return "卡密无效";
+        if (status === 429) return "操作过于频繁，请稍后再试";
+        if (status === 501) return "服务端未开启邮箱登录，请联系管理员";
+        if (status === 503) return "验证码邮件发送失败，请稍后再试";
+        return this.describeError(status);
     }
 
     // ---------- 定时任务 ----------
