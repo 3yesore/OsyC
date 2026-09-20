@@ -12,6 +12,10 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.13
+
+20th September, 2026
+
 - OsyC `2.0.13` is a build-hygiene release with no runtime change. Two unchecked type assertions were removed: one in the LiveSync remote-configuration reroute (`planCouchDbRemoteConfigurationReroute`), where the surrounding `typeof === "string"` guard already proves the type, and one in the AI Agent UI settings reader (`useAIAgentUI`), where `currentSettings()` is already assignable. Activation, synchronisation and the AI Agent behave exactly as in `2.0.12`.
 - OsyC `2.0.13` brings the lint gate back to zero errors (the nine pre-existing warnings are unchanged), so the review gate stays green for the next feature release.
 - OsyC `2.0.13` publishes no 2.0.12 regression: the release contract, `tsc`, the unit suite and the five versioned assets are re-verified against the same source tree that produced the build.
