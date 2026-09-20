@@ -1,7 +1,7 @@
 import { Modal, Notice, Setting, type App, type ButtonComponent } from "@/deps.ts";
 import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
-import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState } from "./CmdAIAgent";
+import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState, ProNamespaceState } from "./CmdAIAgent";
 
 const PLAN_LABEL: Record<PlanType, string> = {
     base: "基础版",
@@ -59,6 +59,19 @@ function formatSyncTime(value: number | null): string {
     if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "—";
     const ts = value < 100_000_000_000 ? Math.round(value * 1000) : Math.round(value);
     return new Date(ts).toLocaleString("zh-CN");
+}
+
+/** 把 Pro 空间状态转成一行中文文案；非 Pro 原样回传服务端 403 detail。 */
+function describeProNamespace(state: ProNamespaceState): string {
+    if (!state.available) return state.message || "Pro 会员专属权益";
+    const parts = [
+        state.namespace ? `库名 ${state.namespace}` : "库名 —",
+        state.enabled ? "已开通" : "未开通",
+        state.ready ? "就绪" : "未就绪",
+        state.read_only ? "只读保留" : "可读写",
+        `已用 ${state.used_mb} MB`,
+    ];
+    return parts.join(" · ");
 }
 
 /**
@@ -124,6 +137,7 @@ export class AIAgentAccountModal extends Modal {
             this.renderEmailLogin(body);
             this.renderRecharge(body);
             this.renderReactivation(body);
+            this.renderProNamespace(body);
             this.renderUpgradeHint(body, plan);
         });
 
@@ -506,6 +520,69 @@ export class AIAgentAccountModal extends Modal {
                 if (result.ok) this.onOpen();
             })
         );
+    }
+
+    /**
+     * Pro「独立同步空间」区块：显式开通 + 迁移进度回显。
+     *
+     * 打开弹窗只做一次 GET 状态回显（只读）；真正切换同步目标只发生在用户点击
+     * 「开通并切换到独立空间」时。非 Pro 卡服务端返回 403，这里原样展示 detail，
+     * 并把按钮保持在不可用状态。
+     */
+    private renderProNamespace(contentEl: HTMLElement) {
+        const box = contentEl.createDiv({ cls: "ai-account-pro-namespace" });
+        new Setting(box).setName("独立同步空间").setHeading();
+        box.createEl("p", {
+            text: "Pro 专属能力「独立同步空间」是一个独立数据库。切换后本 vault 同步到独立空间，旧空间数据保留、可随时切回。",
+            cls: "ai-account-hint",
+        });
+        const statusEl = box.createEl("p", { text: "空间状态：加载中…", cls: "ai-account-hint" });
+
+        let button: ButtonComponent | null = null;
+        const renderStatus = (state: ProNamespaceState | null) => {
+            if (!state) {
+                statusEl.setText("空间状态：读取失败，请稍后重试");
+                button?.setDisabled(true);
+                return;
+            }
+            statusEl.setText(`空间状态：${describeProNamespace(state)}`);
+            // 非 Pro（403）时 available=false，按钮保持不可用。
+            button?.setDisabled(!state.available);
+        };
+
+        new Setting(box)
+            .setName("当前空间")
+            .setDesc("切换会改变本 vault 的同步目标；旧空间数据不会被删除，可切回。")
+            .addButton((btn) => {
+                button = btn;
+                btn.setButtonText("开通并切换到独立空间")
+                    .setIcon("database")
+                    .setCta()
+                    .setDisabled(true);
+                // 仅用户点击才切换档案；onOpen 里绝不调用开通。
+                btn.onClick(async () => {
+                    const state = this.agent.proNamespace;
+                    if (!state?.available) return;
+                    btn.setDisabled(true);
+                    btn.setButtonText("正在开通并切换…");
+                    const result = await this.agent.requestProNamespace();
+                    new Notice(result.message);
+                    if (result.ok) {
+                        // 完成后整块重绘，回显新空间、用量与只读状态。
+                        this.onOpen();
+                        return;
+                    }
+                    renderStatus(this.agent.proNamespace);
+                    btn.setButtonText("开通并切换到独立空间");
+                });
+            });
+
+        if (!get(this.agent.state).activated) {
+            statusEl.setText("空间状态：激活账户后可查看 Pro 专属空间");
+            return;
+        }
+        // 只读回显服务端状态，不切换任何档案。
+        void this.agent.proNamespaceStatus().then(() => renderStatus(this.agent.proNamespace));
     }
 
     override onClose() {

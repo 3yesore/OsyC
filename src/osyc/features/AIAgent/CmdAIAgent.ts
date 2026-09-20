@@ -396,6 +396,80 @@ export interface EmailAccountSession {
     session: string;
 }
 
+/** Pro「独立同步空间」的可展示条目（GET/POST /api/pro/namespace 下发）。 */
+export interface ProNamespaceInfo {
+    /** 服务端是否认为该空间已开通。 */
+    enabled: boolean;
+    /** 服务端状态串（如 pending / ready / expired）。 */
+    status: string;
+    /** 是否就绪可读写。 */
+    ready: boolean;
+    /** Pro 到期只读保留期间为 true。 */
+    read_only: boolean;
+    /** 已用空间（MB）。 */
+    used_mb: number;
+    /** 独立库名，形如 t_<uuid32>_pro。 */
+    namespace: string;
+}
+
+/** 账户弹窗展示用的完整状态：在 ProNamespaceInfo 之上补 HTTP 结果与提示。 */
+export interface ProNamespaceState extends ProNamespaceInfo {
+    /** 最近一次接口 HTTP 状态；403 表示非 Pro。 */
+    httpStatus: number;
+    /** 是否具备 Pro 权益（403 时为 false，UI 据此禁用开通按钮）。 */
+    available: boolean;
+    /** 最近一次动作的用户可见提示；非 Pro 时为 403 detail 原文。 */
+    message: string;
+    /** 是否正在查询/开通（UI 据此显示进行中）。 */
+    busy: boolean;
+}
+
+/** 空白状态，避免各处重复字面量。 */
+export function emptyProNamespaceState(): ProNamespaceState {
+    return {
+        enabled: false,
+        status: "",
+        ready: false,
+        read_only: false,
+        used_mb: 0,
+        namespace: "",
+        httpStatus: 0,
+        available: false,
+        message: "",
+        busy: false,
+    };
+}
+
+/**
+ * 防御式解析 GET/POST 的响应体。
+ *
+ * 后端字段一律当作未知 JSON 处理：类型不对、缺失都折叠成安全默认值，
+ * 绝不信任 `await res.json` 的结果（Obsidian 审查同样要求）。
+ */
+export function normalizeProNamespaceInfo(raw: unknown): ProNamespaceInfo {
+    const record = asJsonRecord(raw);
+    const usedRaw = record?.used_mb;
+    const statusRaw = record?.status;
+    const namespaceRaw = record?.namespace ?? record?.db_name;
+    return {
+        enabled: record?.enabled === true,
+        status: typeof statusRaw === "string" ? statusRaw.trim() : "",
+        ready: record?.ready === true,
+        read_only: record?.read_only === true,
+        used_mb: typeof usedRaw === "number" && Number.isFinite(usedRaw) && usedRaw > 0 ? usedRaw : 0,
+        namespace: typeof namespaceRaw === "string" ? namespaceRaw.trim() : "",
+    };
+}
+
+/** 非 Pro 403 的 detail / message 原文（原样呈现，不改写服务端文案）。 */
+export function readProNamespaceDetail(raw: unknown): string | null {
+    const record = asJsonRecord(raw);
+    const detail = record?.detail ?? record?.message ?? record?.error;
+    if (typeof detail !== "string") return null;
+    const safe = detail.trim().replace(/[\r\n]+/g, " ").slice(0, 240);
+    return safe || null;
+}
+
 export class CmdAIAgent {
     tasks: Writable<AITask[]> = writable([]);
     schedules: Writable<AISchedule[]> = writable([]);
@@ -461,6 +535,8 @@ export class CmdAIAgent {
     configure(apiBase: string, token: string) {
         this.settings.apiBase = normaliseApiBase(apiBase);
         this.settings.token = token;
+        // 换服务地址/重新配置后旧卡密不再可信，清掉会话里的那份。
+        this.sessionCardKey = "";
         this.runtimeInfo = null;
         this.runtimeInfoLoaded = false;
         this.stopped = false;
@@ -554,6 +630,7 @@ export class CmdAIAgent {
         };
         if (res?.token) {
             this.settings.token = res.token;
+            if (res.card_key) this.sessionCardKey = res.card_key.trim();
             this.state.update((s) => ({ ...s, activated: true }));
             await this.refreshStatus();
             return { ok: true, message: `邮箱登录成功，已载入卡密 ${res.card_key ?? ""}` };
@@ -586,6 +663,7 @@ export class CmdAIAgent {
         if (this.emailAccount && res?.cards) this.emailAccount.cards = res.cards;
         if (res?.token) {
             this.settings.token = res.token;
+            this.sessionCardKey = key;
             this.state.update((s) => ({ ...s, activated: true }));
             await this.refreshStatus();
         }
@@ -605,6 +683,167 @@ export class CmdAIAgent {
         if (status === 501) return "服务端未开启邮箱登录，请联系管理员";
         if (status === 503) return "验证码邮件发送失败，请稍后再试";
         return this.describeError(status);
+    }
+
+    // ---------- Pro 独立同步空间 ----------
+
+    /**
+     * Pro「独立同步空间」当前状态。与 emailAccount 同级，只留内存、不落盘：
+     * 它是服务端状态的快照，重启后重新 GET 即可。UI 只读展示，不做权限判断
+     * （非 Pro 由服务端 403 表达）。
+     */
+    proNamespace: ProNamespaceState | null = null;
+
+    /**
+     * 本次会话输入过的卡密，**只在内存**、绝不写进 settings / data.json。
+     *
+     * Pro 空间的 setup URI 与原空间一样按「钥匙就是卡密本身」的约定解密，而开通
+     * 动作发生在激活之后；插件不持久化卡密，只能记住本次会话刚输入过的那一份。
+     * 服务端若在开通响应里直接回传 setup_passphrase / passphrase，则优先用那一把。
+     */
+    private sessionCardKey = "";
+
+    /**
+     * 查询 Pro 独立同步空间状态（GET /api/pro/namespace）。
+     *
+     * 纯只读：不写档案、不切同步目标。非 Pro 卡服务端返回 403，这里把它如实
+     * 回传给 UI，并把 available 置 false，按钮据此保持不可用。
+     */
+    async proNamespaceStatus(): Promise<{ ok: boolean; message: string }> {
+        if (!this.hasApiBase && !this.isMock) return { ok: false, message: this.configurationError() };
+        if (!get(this.state).activated || !this.settings.token) return { ok: false, message: "请先激活卡密" };
+        if (this.isMock) {
+            this.proNamespace = {
+                ...emptyProNamespaceState(),
+                httpStatus: 200,
+                available: true,
+                enabled: false,
+                status: "ready",
+                ready: true,
+                namespace: "t_mock00000000000000000000000000_pro",
+                message: "MOCK 模式：已模拟独立同步空间状态",
+            };
+            return { ok: true, message: "MOCK 模式：已模拟独立同步空间状态" };
+        }
+        let status = 0;
+        let data: unknown = null;
+        try {
+            ({ status, data } = await this.call("/api/pro/namespace", "GET"));
+        } catch {
+            return { ok: false, message: this.networkErrorMessage() };
+        }
+        if (status === 403) {
+            const detail = readProNamespaceDetail(data) ?? "Pro 会员专属权益";
+            this.proNamespace = { ...emptyProNamespaceState(), httpStatus: 403, available: false, message: detail };
+            return { ok: false, message: detail };
+        }
+        if (status >= 400) return { ok: false, message: this.describeError(status) };
+        this.proNamespace = {
+            ...normalizeProNamespaceInfo(data),
+            httpStatus: status,
+            available: true,
+            message: "",
+            busy: false,
+        };
+        return { ok: true, message: "已获取独立同步空间状态" };
+    }
+
+    /**
+     * 显式开通/切换到 Pro 独立同步空间（POST /api/pro/namespace）。
+     *
+     * **只在用户点击时调用**：不在启动、激活或后台自动执行，绝不自动把用户切到
+     * Pro 档案（口径：显式开通）。
+     *
+     * 取回该层 setup URI 后走既有 applySetupUri —— 它内部在 applySettings() 之后
+     * 回读 currentSettings() 并用 verifyActivatedRemote 校验活动档案；写回不等于成功，
+     * 能读回可用的 couchdb 目标才算成功，否则这里如实报失败，绝不静默成功。
+     *
+     * 迁移本身（数据搬运）由服务端负责，客户端只切换同步目标，不另造搬运逻辑。
+     */
+    async requestProNamespace(passphrase?: string): Promise<{ ok: boolean; message: string }> {
+        if (!this.hasApiBase && !this.isMock) return { ok: false, message: this.configurationError() };
+        if (!get(this.state).activated || !this.settings.token) return { ok: false, message: "请先激活卡密" };
+        if (this.isMock) return { ok: false, message: "MOCK 模式：未连接服务端，不能真实开通独立同步空间" };
+        // 已确认非 Pro：不再发无意义的开通请求，直接原样回传 403 文案。
+        if (this.proNamespace?.httpStatus === 403) {
+            return { ok: false, message: this.proNamespace.message || "Pro 会员专属权益" };
+        }
+        let status = 0;
+        let data: unknown = null;
+        try {
+            ({ status, data } = await this.call("/api/pro/namespace", "POST", { device_id: this.deviceId }));
+        } catch {
+            return { ok: false, message: this.networkErrorMessage() };
+        }
+        if (status === 403) {
+            const detail = readProNamespaceDetail(data) ?? "Pro 会员专属权益";
+            this.proNamespace = { ...emptyProNamespaceState(), httpStatus: 403, available: false, message: detail };
+            return { ok: false, message: detail };
+        }
+        if (status >= 400) return { ok: false, message: this.describeError(status) };
+        const record = asJsonRecord(data);
+        const setupUri = typeof record?.setup_uri === "string" ? record.setup_uri.trim() : "";
+        if (!setupUri) {
+            return { ok: false, message: "服务端已受理开通，但没有返回该空间的同步配置，请稍后重试" };
+        }
+        const serverPassphrase =
+            typeof record?.setup_passphrase === "string"
+                ? record.setup_passphrase.trim()
+                : typeof record?.passphrase === "string"
+                  ? record.passphrase.trim()
+                  : "";
+        const key = (passphrase ?? "").trim() || this.sessionCardKey || serverPassphrase;
+        if (!key) {
+            return {
+                ok: false,
+                message: "缺少同步口令，无法在本机应用该空间：请先重新输入一次卡密（钥匙就是卡密本身），再开通",
+            };
+        }
+        if (!this.applySetupUri) {
+            return { ok: false, message: "同步配置接线未就绪，无法切换到独立同步空间" };
+        }
+        let applied = false;
+        try {
+            // applySetupUri 内部在写入后回读 currentSettings() 并用 verifyActivatedRemote
+            // 校验活动档案；只有拿到可用的 couchdb 目标才返回 true。
+            applied = await this.applySetupUri(setupUri, key);
+        } catch {
+            applied = false;
+        }
+        if (!applied) {
+            this.proNamespace = {
+                ...(this.proNamespace ?? emptyProNamespaceState()),
+                httpStatus: status,
+                available: true,
+                busy: false,
+                message: "开通已完成，但本机同步档案回读自检失败",
+            };
+            return {
+                ok: false,
+                message: "已开通独立空间，但本机同步档案回读自检失败：没有读到可用的同步目标，请稍后重试或手动配置同步",
+            };
+        }
+        this.syncConfigured = true;
+        const posted = normalizeProNamespaceInfo(data);
+        this.proNamespace = {
+            ...posted,
+            httpStatus: status,
+            available: true,
+            enabled: true,
+            message: "当前使用独立同步空间",
+            busy: false,
+        };
+        // 回读服务端状态，把真实库名/用量/只读态回显给 UI（失败则保留 POST 响应里的字段）。
+        try {
+            await this.proNamespaceStatus();
+            if (this.proNamespace) this.proNamespace.message = "当前使用独立同步空间";
+        } catch {
+            // 状态回读失败不影响「已切换成功」的结论：档案已经过回读自检。
+        }
+        const handshake = await this.runSyncHandshake(this.newSyncActivationId());
+        if (handshake) this.state.update((s) => ({ ...s, syncState: handshake }));
+        const namespace = this.proNamespace?.namespace ?? posted.namespace;
+        return { ok: true, message: namespace ? `已切换到独立同步空间（${namespace}）` : "已切换到独立同步空间" };
     }
 
     // ---------- 定时任务 ----------
@@ -1030,6 +1269,8 @@ export class CmdAIAgent {
                 return { ok: false, message: "服务端返回格式无效，请稍后重试" };
             }
             this.settings.token = data.token;
+            // 记住本次会话的卡密：Pro 独立空间的 setup URI 用它解密（只在内存，不落盘）。
+            this.sessionCardKey = cardKey.trim();
             this.state.set({
                 activated: true,
                 credits: typeof data.credits === "number" ? data.credits : 0,
