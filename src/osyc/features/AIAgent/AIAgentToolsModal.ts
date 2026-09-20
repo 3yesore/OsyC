@@ -1,6 +1,8 @@
 import { Modal, Notice, Setting, setIcon, type App } from "@/deps.ts";
 import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
+import { OsycAccountSectionModal, type OsycAccountSectionKind } from "./OsycAccountSectionModal";
+import { describeEmailEntryStatus, describeProNamespaceEntryStatus } from "./osycAccountSections";
 import type { CmdAIAgent } from "./CmdAIAgent";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
@@ -29,6 +31,8 @@ const PLAN_LABEL: Record<string, string> = {
 export class AIAgentToolsModal extends Modal {
     private tab: ToolsTab = "account";
     private recharging = false;
+    /** Pro 空间状态只读回显只发一次 GET，避免每次重绘都打服务端。 */
+    private proStatusRequested = false;
 
     constructor(
         app: App,
@@ -93,6 +97,11 @@ export class AIAgentToolsModal extends Modal {
                 this.openAccountDetails();
             }));
 
+        // 账户身份入口：两个入口放在一起，只负责打开对应界面。
+        // 渲染入口不登录、不发码、不切换同步空间（显式动作口径）。
+        this.renderEmailEntry(contentEl);
+        this.renderProNamespaceEntry(contentEl);
+
         if (state.cloudVault.available) {
             new Setting(contentEl)
                 .setName("Cloud-Vault 备份")
@@ -119,6 +128,59 @@ export class AIAgentToolsModal extends Modal {
                     new Notice("无法打开 OsyC 设置");
                 }
             }));
+    }
+
+    /** 邮箱账户入口：显示登录/绑定状态，点击只打开邮箱界面。 */
+    private renderEmailEntry(contentEl: HTMLElement): void {
+        new Setting(contentEl)
+            .setName("邮箱账户")
+            .setDesc(describeEmailEntryStatus(this.agent.emailAccount))
+            .addButton((button) => button
+                .setButtonText("打开")
+                .setIcon("log-in")
+                .setCta()
+                .onClick(() => this.openAccountSection("email")));
+    }
+
+    /**
+     * 独立同步空间（Pro）入口：显示是否开通/只读/用量，点击只打开 Pro 界面。
+     *
+     * 已激活且尚未读过状态时做一次**只读 GET** 回显；入口本身绝不切换同步空间。
+     */
+    private renderProNamespaceEntry(contentEl: HTMLElement): void {
+        const activated = get(this.agent.state).activated;
+        const setting = new Setting(contentEl)
+            .setName("独立同步空间（Pro）")
+            .setDesc(activated
+                ? describeProNamespaceEntryStatus(this.agent.proNamespace)
+                : "激活账户后可查看 Pro 专属空间")
+            .addButton((button) => button
+                .setButtonText("打开")
+                .setIcon("database")
+                .onClick(() => this.openAccountSection("pro")));
+        if (!activated || this.agent.proNamespace || this.proStatusRequested) return;
+        this.proStatusRequested = true;
+        void this.agent.proNamespaceStatus().then(() => {
+            if (setting.settingEl.isConnected) {
+                setting.setDesc(describeProNamespaceEntryStatus(this.agent.proNamespace));
+            }
+        });
+    }
+
+    /**
+     * 打开共享的账户区块界面（邮箱 / Pro）。
+     *
+     * 与账户详情、设置弹窗一样先收起工具中心，避免弹窗叠加；入口不做任何登录
+     * 或开通动作。
+     */
+    private openAccountSection(kind: OsycAccountSectionKind): void {
+        this.close();
+        try {
+            new OsycAccountSectionModal(this.app, this.agent, kind).open();
+        } catch (error) {
+            console.error("打开账户设置界面失败", error);
+            new Notice("无法打开账户设置界面");
+        }
     }
 
     private renderRecharge(contentEl: HTMLElement): void {

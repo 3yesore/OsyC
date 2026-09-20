@@ -6,6 +6,11 @@ const modalSource = readFileSync(
     fileURLToPath(new URL("./AIAgentAccountModal.ts", import.meta.url)),
     "utf8"
 );
+// 邮箱区块已抽到共享模块：账户弹窗与工具中心入口共用同一份实现。
+const sectionSource = readFileSync(
+    fileURLToPath(new URL("./osycAccountSections.ts", import.meta.url)),
+    "utf8"
+);
 
 describe("AI 账户移动端摘要", () => {
     it("积分账本不在插件端自行折算", () => {
@@ -79,24 +84,28 @@ describe("AI 账户移动端摘要", () => {
 
     it("邮箱登录是真实可用流程，不再有禁用预览残留", () => {
         expect(modalSource).toContain("this.renderEmailLogin(body)");
+        expect(modalSource).toContain("renderEmailAccountSection(contentEl, this.sectionContext())");
         expect(modalSource).not.toContain("feature_disabled");
         expect(modalSource).not.toContain("邮箱登录将在后续版本开放");
         expect(modalSource).not.toContain("renderEmailLoginTemplate");
-        expect(modalSource).toContain('setName("邮箱地址")');
-        expect(modalSource).toContain('setName("验证码")');
-        expect(modalSource).toContain("this.agent.requestEmailCode");
-        expect(modalSource).toContain("this.agent.loginWithEmail");
+        // 实施细节在共享模块里，账户弹窗只做委托，避免第二套邮箱逻辑。
+        expect(sectionSource).toContain('setName("邮箱地址")');
+        expect(sectionSource).toContain('setName("验证码")');
+        expect(sectionSource).toContain("ctx.agent.requestEmailCode");
+        expect(sectionSource).toContain("ctx.agent.loginWithEmail");
         // 发码按钮带 60s 倒计时，避免用户连点触发后端限流
-        expect(modalSource).toContain("重新发送");
-        expect(modalSource).toContain("startCountdown(60)");
+        expect(sectionSource).toContain("重新发送");
+        expect(sectionSource).toContain("startCountdown(60)");
     });
 
     it("提供绑定卡密入口，且邮箱会话只留在内存", () => {
-        expect(modalSource).toContain('setName("绑定卡密")');
-        expect(modalSource).toContain("this.agent.bindCardToEmail");
+        expect(sectionSource).toContain('setName("绑定卡密")');
+        expect(sectionSource).toContain("ctx.agent.bindCardToEmail");
         // 会话 token 不落盘：插件里没有持久化邮箱会话的字段
         expect(modalSource).not.toContain("settings.emailSession");
         expect(modalSource).not.toContain("saveData");
+        expect(sectionSource).not.toContain("settings.emailSession");
+        expect(sectionSource).not.toContain("saveData");
     });
 
     it("账户操作区顺序：邮箱 → 充值 → 重新激活", () => {
