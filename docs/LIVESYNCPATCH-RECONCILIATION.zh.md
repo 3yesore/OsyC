@@ -117,29 +117,36 @@
 - `livesyncPatch.ts`：删除 `customChunkSize` 写入；新增 `doctorProcessedVersion: DoctorRegulation.version` 与 `keepReplicationActiveInBackground: true`；`liveSync: true`、`remoteType: ""`、档案 reroute 全部保留。
 - `livesyncPatch.unit.spec.ts`：19 个用例，锁总开关、remoteType、Doctor 静默、后台复制、must-match 不变量、sanitize 边界。
 - `livesyncPatch.remoteConfig.unit.spec.ts`：9 个用例，锁 da64efe 的档案创建与回读自检。
+- `livesyncActivation.ts`：`planProvisionedReplicationRepair` 增加 `customChunkSize === 60 → 0` 的**启动自愈纠正**（见第 8 节）。
 
 ## 7. 未验证 / 待确认
 
 - 未在真机重启后验证 `doctorProcessedVersion` 对「冷启动不弹窗」的端到端效果（只有单元级 `performDoctorConsultation` 集成测试）。
-- 未验证同时存在旧版 OsyC 设备（`customChunkSize=0`，由 R 写坏为 60 的历史设备）时的互操作；归一只能防止**新的**激活再制造该偏差，不能自动修复已经写成 60 的设备。此类设备的纠正方案见第 8 节（提案，未实现）。
+- 未验证同时存在旧版 OsyC 设备（`customChunkSize=0`，由 R 写坏为 60 的历史设备）时的互操作；归一只能防止**新的**激活再制造该偏差，不能自动修复已经写成 60 的设备。此类设备的纠正方案见第 8 节（已实现为启动自愈）。
 - 手机故障的现场日志未逐条插桩，因果链属高置信度推断（见 3.1 节）。
 - `keepReplicationActiveInBackground` 的耗电/流量影响未量化（上游描述为 desktop only、更耗电）。
 
-## 8. 对已用 2.0.13 激活过的设备的修复方案（提案，未实现）
+## 8. 对已用 2.0.13 激活过的设备的修复（已实现，单独一笔提交）
 
-问题：归一只能保证**将来**的激活不再写 60；`applyPartial` 不会主动清掉设备上已经存在的 60，所以历史设备不会被 2.0.14 自动纠正。
+问题：归一只能保证**将来**的激活不再写 60；`applyPartial` 不会主动清掉设备上已经存在的 60，所以历史设备不会被自动纠正。
 
-**结论：建议做一次最小的一次性纠正性写入，但不擅自实现。**
+**结论：已按最小方案实现一次性的启动自愈纠正写入**（`src/osyc/features/AIAgent/livesyncActivation.ts`，单独一笔提交）。
 
-推荐做法（最小、可单测）：扩展已有的启动自愈入口 `planProvisionedReplicationRepair`（`src/osyc/features/AIAgent/livesyncActivation.ts`，插件加载时运行、已有单测），在它已经检查的「OsyC provisioner 租户账号（`couchDB_USER` 以 `osyc_sync_` 开头）+ `isConfigured`」基础上增加一条精确的缺陷签名：
+### 8.1 哪些设备需要自愈、时机与用户观感
 
-- 条件：`customChunkSize === 60`（激活补丁写下的确切缺陷值，不是「任意非 0」）。
-- 动作：补丁额外返回 `customChunkSize: 0`（`liveSync: true` 保留）。
-- 安全性：只命中由 OsyC 激活路径写坏的设备；用户自配的 CouchDB / S3 / P2P（无 `osyc_sync_` 前缀）不受影响；0 是 schema 默认值与 must-match 模板基线，是「正确」值。
-- 风险/边界：若某租户的 `PREFERRED` 真的已经是 60（一台故障设备最先写入里程碑，`ensureRemoteIsCompatible` 只写一次 `PREFERRED`），把本机改成 0 会反向制造一次 mismatch。由于 `customChunkSize` 属于 `CompatibleButLossyChanges`，插件层的 `ModuleResolveMismatchedTweaks` 会自动/交互地对齐，但仍有一次波动。若要完全避免，可把动作升级为「读取远端里程碑的 `PREFERRED.customChunkSize` 并对齐到它」——那需要一次远端读，比最小方案重。
+- **需要自愈的设备**：用 2.0.13（或任何带 da64efe 的构建）激活过、`data.json` 里 `customChunkSize` 被写成 60 的设备（主要是手机等走激活路径的新设备）。判据是精确签名 `customChunkSize === 60`。
+- **自愈时机**：**插件加载时的启动自愈**。`useAIAgentUI` 初始化时调用 `planProvisionedReplicationRepair(currentSettings())`；命中就 `applyPartial(repair, true)` + `control.applySettings()`，随后复制器按已纠正的 `0` 重新握手（0 与远端 `PREFERRED` 一致，不再 MISMATCHED）。它与既有的「补开 `liveSync` 总开关」共用同一入口、同一套安全阀。
+- **用户侧现象**：**无需任何手动操作**。升级到 2.0.14 后，插件在加载时自动把 60 改回 0；用户不需要重新激活、不需要重输卡密，也不会看到需要处理的弹窗。
+- **安全阀不变**：只有 `isConfigured === true` + `couchDB_USER` 以 `osyc_sync_` 开头 + 当前没有切到别的远端配置时才动手；用户自配的 CouchDB / S3 / P2P 一律不碰。
 
-次选（不改设置值，走既有恢复器）：把 `autoAcceptCompatibleTweak` 显式钉为 `true`，并确保激活不因写 `usePluginSyncV2` 等 tweak 键而把 `tweakModified` 顶到最新（否则自动对齐会按「本地更新」选择保留 60）。该路径依赖插件层启发式，确定性不如上面的精确写入。
+### 8.2 实现与测试
 
-不推荐：写 `disableCheckingConfigMismatch = true` 绕过检查（削弱跨设备保护）；或在 `buildSetupPatch` 里无条件把 `customChunkSize` 归零（会覆盖用户的显式选择，且仍可能对抗 `PREFERRED=60`）。
+- `planProvisionedReplicationRepair` 返回的补丁字段改为可选：`{ liveSync?: true; customChunkSize?: number }`，按缺陷签名逐项补齐，都不需要修时返回 `null`（避免无谓写盘）。
+- 精确签名：`customChunkSize === 60`（`BUGGY_ACTIVATION_CHUNK_SIZE`）→ 写 `customChunkSize: 0`（`COMPATIBLE_CHUNK_SIZE_BASELINE`）。不是「任意非 0」：0 是正常基线，用户自配的其它值不动。
+- 单测（`livesyncActivation.unit.spec.ts`）：命中 60 时改 0（且与补开 `liveSync` 合并成一笔）；总开关已开但仍是 60 时只纠正分块；0 / 55 / 100 / 1024 / 字符串 / true / null 一律不动；并断言 `couchDB_USER` 前缀、`isConfigured`、`activeConfigurationId` 三个安全阀对分块纠正同样生效。
 
-这一步需要改 `livesyncActivation.ts`（不在本次归一改动范围内），且直接作用于线上设备，故**只给方案、不实现**，等确认后再单独提交。
+### 8.3 已知边界与后续增强
+
+- 若某租户的 `PREFERRED` 真的已经是 60（一台故障设备最先写入里程碑；`ensureRemoteIsCompatible` 只写一次 `PREFERRED`），把本机改成 0 会反向制造一次 mismatch。由于 `customChunkSize` 属于 `CompatibleButLossyChanges`，插件层的 `ModuleResolveMismatchedTweaks` 会自动/交互地再对齐；本版接受这一次波动。
+- **后续增强项（本版不做）**：把自愈升级为「读取远端里程碑的 `PREFERRED.customChunkSize` 并对齐到它」，可完全消除上述波动；但需要一次远端读，复杂度和失败面都更大，故不在本版实施。
+- 明确禁止：用 `disableCheckingConfigMismatch = true` 绕过检查（削弱跨设备保护）；或在 `buildSetupPatch` 里无条件把 `customChunkSize` 归零（覆盖用户显式选择，且仍可能对抗 `PREFERRED=60`）。

@@ -13,6 +13,9 @@ import {
  *
  * 背景见 livesyncActivation.ts：setup_uri 载荷不含 liveSync，默认 false，
  * 复制器永不启动，vault 一条都传不上云。
+ *
+ * 自愈同时纠正 2.0.13 激活补丁写坏的 customChunkSize=60（must-match 参数，
+ * 会让 ensureRemoteIsCompatible 返回 MISMATCHED，复制器静默中止）。
  */
 describe("planProvisionedReplicationRepair", () => {
     const provisioned = {
@@ -52,6 +55,52 @@ describe("planProvisionedReplicationRepair", () => {
 
     it("还没完成配置：不动", () => {
         expect(planProvisionedReplicationRepair({ ...provisioned, isConfigured: false })).toBeNull();
+    });
+
+    it("命中 2.0.13 缺陷签名 customChunkSize===60：改回 0，并与补开总开关合并成一笔", () => {
+        expect(planProvisionedReplicationRepair({ ...provisioned, customChunkSize: 60 })).toEqual({
+            liveSync: true,
+            customChunkSize: 0,
+        });
+    });
+
+    it("总开关已开、但 customChunkSize 仍是 60：只纠正分块参数", () => {
+        expect(
+            planProvisionedReplicationRepair({ ...provisioned, liveSync: true, customChunkSize: 60 })
+        ).toEqual({ customChunkSize: 0 });
+    });
+
+    it("customChunkSize 是 0（正常基线）：不动", () => {
+        expect(
+            planProvisionedReplicationRepair({ ...provisioned, liveSync: true, customChunkSize: 0 })
+        ).toBeNull();
+        expect(planProvisionedReplicationRepair({ ...provisioned, customChunkSize: 0 })).toEqual({
+            liveSync: true,
+        });
+    });
+
+    it("customChunkSize 是用户自配的其它值：不动（只有精确的缺陷值 60 才纠正）", () => {
+        for (const value of [55, 100, 1024, "60", true, null]) {
+            expect(
+                planProvisionedReplicationRepair({ ...provisioned, liveSync: true, customChunkSize: value })
+            ).toBeNull();
+        }
+    });
+
+    it("安全阀不得被分块纠正绕过：非 OsyC 账号 / 未配置 / 切到别的远端时 60 也不动", () => {
+        expect(
+            planProvisionedReplicationRepair({ ...provisioned, customChunkSize: 60, couchDB_USER: "myuser" })
+        ).toBeNull();
+        expect(
+            planProvisionedReplicationRepair({ ...provisioned, customChunkSize: 60, isConfigured: false })
+        ).toBeNull();
+        expect(
+            planProvisionedReplicationRepair({
+                ...provisioned,
+                customChunkSize: 60,
+                activeConfigurationId: "mine",
+            })
+        ).toBeNull();
     });
 
     it("空/畸形输入：安全返回 null", () => {

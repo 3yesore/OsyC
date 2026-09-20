@@ -40,9 +40,27 @@ export const OSYC_SYNC_USER_PREFIX = "osyc_sync_";
 /** 激活流程可能写入的远端配置 id（CLI 侧使用；插件侧载荷里没有）。 */
 export const OSYC_REMOTE_CONFIG_ID = "osyc";
 
-/** 自愈补丁：只开总开关，不碰任何身份类字段。 */
+/**
+ * 2.0.13 激活补丁写下的缺陷值：`buildSetupPatch` 无条件写 `customChunkSize: 60`。
+ * 该键属于 `TweakValuesShouldMatchedTemplate`（模板基线 0），写成 60 后只要远端里程碑
+ * 的 `PREFERRED.customChunkSize` 还是 0，`ensureRemoteIsCompatible` 就返回
+ * `["MISMATCHED", ...]`，复制器静默中止。因果链见
+ * docs/LIVESYNCPATCH-RECONCILIATION.zh.md。
+ */
+export const BUGGY_ACTIVATION_CHUNK_SIZE = 60;
+
+/** customChunkSize 的正确基线：schema 默认值，也是 must-match 模板值。 */
+export const COMPATIBLE_CHUNK_SIZE_BASELINE = 0;
+
+/**
+ * 自愈补丁：补开总开关 + 纠正 2.0.13 写坏的分块参数，不碰任何身份类字段。
+ *
+ * 字段都是可选的：不同历史设备的缺陷形态不同（有的只差 `liveSync`，有的只差
+ * `customChunkSize`，有的两者都差），都不需要修时返回 null。
+ */
 export interface ReplicationRepair {
-    liveSync: true;
+    liveSync?: true;
+    customChunkSize?: number;
 }
 
 type SettingsShape = {
@@ -50,6 +68,7 @@ type SettingsShape = {
     liveSync?: unknown;
     activeConfigurationId?: unknown;
     couchDB_USER?: unknown;
+    customChunkSize?: unknown;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -57,22 +76,27 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * 判断是否需要补开同步开关。纯函数，方便单测。
+ * 判断启动自愈需要写下什么补丁。纯函数，方便单测。
  *
- * 返回补丁的条件（全部满足）：
+ * 先过安全阀（全部满足才考虑修）：
  * 1. 这份配置已经完成过配置（`isConfigured === true`）—— 没配过的安装不动；
- * 2. 总开关当前不是打开状态 —— 已经是 true 就没什么可修；
- * 3. `couchDB_USER` 是 OsyC provisioner 创建的 `osyc_sync_*` 账号
+ * 2. `couchDB_USER` 是 OsyC provisioner 创建的 `osyc_sync_*` 账号
  *    —— 用户自己配的 CouchDB / 对象存储 / P2P 不会命中；
- * 4. 当前激活的不是别的远端配置。
+ * 3. 当前激活的不是别的远端配置。
  *
- * 第 3、4 条是安全阀：只修「由激活流程配置、且用户没有切到别的远端」的安装，
+ * 第 2、3 条是安全阀：只修「由激活流程配置、且用户没有切到别的远端」的安装，
  * 不会覆盖用户自己的同步选择。
+ *
+ * 再按缺陷签名补齐：
+ * - `liveSync !== true` → 补 `liveSync: true`（2.0.11 前的载荷不含该键）；
+ * - `customChunkSize === 60` → 改回 `0`。**精确匹配 60**，不是「任意非 0」：
+ *   0 是正常基线，用户自配的其它值是用户选择，都不动。
+ *
+ * 都不需要修时返回 null（避免无谓写盘）。
  */
 export function planProvisionedReplicationRepair(settings: SettingsShape | null | undefined): ReplicationRepair | null {
     if (!isRecord(settings)) return null;
     if (settings.isConfigured !== true) return null;
-    if (settings.liveSync === true) return null;
 
     const user = settings.couchDB_USER;
     if (typeof user !== "string") return null;
@@ -81,7 +105,16 @@ export function planProvisionedReplicationRepair(settings: SettingsShape | null 
     const active = typeof settings.activeConfigurationId === "string" ? settings.activeConfigurationId : "";
     if (active && active !== OSYC_REMOTE_CONFIG_ID) return null;
 
-    return { liveSync: true };
+    const repair: ReplicationRepair = {};
+    if (settings.liveSync !== true) {
+        repair.liveSync = true;
+    }
+    if (settings.customChunkSize === BUGGY_ACTIVATION_CHUNK_SIZE) {
+        // 2.0.13 的激活补丁写下的缺陷值：改回 must-match 基线，让复制器不再 MISMATCHED。
+        repair.customChunkSize = COMPATIBLE_CHUNK_SIZE_BASELINE;
+    }
+    if (repair.liveSync === undefined && repair.customChunkSize === undefined) return null;
+    return repair;
 }
 
 
