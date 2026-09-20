@@ -1,3 +1,5 @@
+import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
+
 /**
  * 激活自愈：保证「输入卡密后 vault 真的能上云」。
  *
@@ -80,4 +82,86 @@ export function planProvisionedReplicationRepair(settings: SettingsShape | null 
     if (active && active !== OSYC_REMOTE_CONFIG_ID) return null;
 
     return { liveSync: true };
+}
+
+
+/** 激活回读自检的结果。`reason` 为可直接拼进日志的中文原因。 */
+export interface ActivatedRemoteVerification {
+    ok: boolean;
+    reason?: string;
+}
+
+/**
+ * 激活回读自检：确认刚写进去的设置在**读回来之后**仍然指向一个可用的 couchdb 远端。
+ *
+ * ## 为什么需要这个自检（2026-09-20 现场元问题）
+ *
+ * 激活流程此前只保证「applyPartial 没抛异常」，从不回读验证结果。现场：
+ * 插件报告激活成功，但客户端 LiveSync 的 data.json 里
+ * `couchDB_URI/USER/PASSWORD/DBNAME` 全空、`remoteConfigurations={}`、
+ * `activeConfigurationId=""`，客户端没有任何可用远端，一条笔记都读不到
+ * （服务端库里其实有 2954 个 doc）。
+ *
+ * ## 为什么判定必须看档案 uri，而不是顶层 couchDB_*
+ *
+ * `SettingService` 保存时会把明文凭据加密进 `encryptedCouchDBConnection`
+ * 并**清空**顶层 `couchDB_URI/USER/PASSWORD/DBNAME`，所以顶层字段为空
+ * 完全可能是正常状态，不能作为失败判据。真正决定下次启动能否连上的，是
+ * `activeConfigurationId` 指向的 `remoteConfigurations[id].uri` ——
+ * `loadSettings()` 存在该档案时会用它的 uri 覆盖顶层字段。
+ * 反过来，顶层字段即使还有残留值，只要活动档案缺失 / 不是 couchdb，
+ * 下次启动就会被覆盖回空或旧端点。
+ *
+ * ## 行为
+ *
+ * 纯函数，**不抛异常**：任何缺失、类型不对、解析失败都折叠成
+ * `{ ok: false, reason }`，由调用方决定 console.warn 与返回值。
+ */
+export function verifyActivatedRemote(settings: unknown): ActivatedRemoteVerification {
+    if (!isRecord(settings)) {
+        return { ok: false, reason: "读回的设置为空或不是对象" };
+    }
+    const activeConfigurationId =
+        typeof settings.activeConfigurationId === "string" ? settings.activeConfigurationId.trim() : "";
+    if (!activeConfigurationId) {
+        return { ok: false, reason: "activeConfigurationId 为空" };
+    }
+    const remoteConfigurations = settings.remoteConfigurations;
+    if (!isRecord(remoteConfigurations)) {
+        return { ok: false, reason: "remoteConfigurations 为空或不是对象" };
+    }
+    const configuration = remoteConfigurations[activeConfigurationId];
+    if (!isRecord(configuration)) {
+        return {
+            ok: false,
+            reason: `activeConfigurationId「${activeConfigurationId}」在 remoteConfigurations 里不存在`,
+        };
+    }
+    const uri = typeof configuration.uri === "string" ? configuration.uri.trim() : "";
+    if (!uri) {
+        return { ok: false, reason: `活动档案「${activeConfigurationId}」的 uri 为空` };
+    }
+    let parsed: ReturnType<typeof ConnectionStringParser.parse>;
+    try {
+        parsed = ConnectionStringParser.parse(uri);
+    } catch {
+        return { ok: false, reason: `活动档案「${activeConfigurationId}」的 uri 无法解析为连接串` };
+    }
+    if (parsed.type !== "couchdb") {
+        return {
+            ok: false,
+            reason: `活动档案「${activeConfigurationId}」不是 couchdb 远端（实际为 ${String(parsed.type)}）`,
+        };
+    }
+    // 只用档案 uri 解析出的值：顶层明文 couchDB_* 会被保存时清空。
+    const couchDB_URI = typeof parsed.settings.couchDB_URI === "string" ? parsed.settings.couchDB_URI.trim() : "";
+    const couchDB_DBNAME =
+        typeof parsed.settings.couchDB_DBNAME === "string" ? parsed.settings.couchDB_DBNAME.trim() : "";
+    if (!couchDB_URI) {
+        return { ok: false, reason: `活动档案「${activeConfigurationId}」解析出的 couchDB_URI 为空` };
+    }
+    if (!couchDB_DBNAME) {
+        return { ok: false, reason: `活动档案「${activeConfigurationId}」解析出的 couchDB_DBNAME 为空` };
+    }
+    return { ok: true };
 }

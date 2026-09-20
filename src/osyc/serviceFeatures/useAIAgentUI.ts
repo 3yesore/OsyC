@@ -12,7 +12,7 @@ import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interf
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
 import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { planProvisionedReplicationRepair } from "@/osyc/features/AIAgent/livesyncActivation";
+import { planProvisionedReplicationRepair, verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";
 import { resolveServiceUrl } from "@/osyc/features/AIAgent/serviceDefaults";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
@@ -368,6 +368,22 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                 : patch;
             await core.services.setting.applyPartial(mergedPatch, true);
             await core.services.control.applySettings();
+
+            // 回读自检（2026-09-20 现场元问题）：此前只保证「applyPartial 没抛异常」，
+            // 从不验证「读回来之后能不能用」。新 vault 上 applyPartial 报告成功、
+            // UI 也提示「同步已自动配置」，但 data.json 里 activeConfigurationId=""、
+            // remoteConfigurations={}，客户端没有任何可用远端，一条笔记都读不到
+            // （服务端库里其实有 2954 个 doc）。
+            //
+            // 判定一律以**活动档案 uri 解析出的值**为准：SettingService 保存时会把
+            // 明文顶层 couchDB_* 加密进 encryptedCouchDBConnection 并清空，
+            // 用顶层字段判空会把正常保存误判成失败；而 loadSettings() 下次启动
+            // 本来就会用档案 uri 覆盖顶层字段。所以档案缺失/非 couchdb 才是真失败。
+            const verification = verifyActivatedRemote(core.services.setting.currentSettings());
+            if (!verification.ok) {
+                console.warn(`激活后未生成可用的同步档案：${verification.reason}`);
+                return false;
+            }
             return true;
         } catch {
             // 配置失败不该让激活失败 —— 记在返回值里，由 UI 提示手动配置
