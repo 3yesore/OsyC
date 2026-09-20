@@ -175,33 +175,37 @@ export function buildSetupPatch(decoded: Record<string, unknown>): Partial<Obsid
         // 复制器按那个类型去找远端，表现为「激活成功但同步到别处 / 根本不同步」。
         // 激活的语义是「切到 OsyC 的 CouchDB 后端」，所以这里显式钉死为空。
         remoteType: "",
-        // 分块参数必须与「配置诊断」（Doctor）规章的要求值一致，否则激活后的**冷启动**会被
-        // 问诊弹窗拦住，同步静默停摆。
+        // 启动闸门：把 Doctor 规章版本预先标记为「已处理」，等价于用户点了问诊
+        // 对话框上的「Dismiss this version」。这是 2.0.13/da64efe「写 customChunkSize=60」
+        // 做法的替代实现，决策依据见 docs/LIVESYNCPATCH-RECONCILIATION.zh.md。
         //
-        // setup_uri 的载荷同样**不含 customChunkSize**：它的 schema 默认值就是 0
-        // （setting.const.defaults.js:96），而 encodeSettingsToSetupURI 以
-        // skipDefaultValue=true 编码，与默认值相同的键会被整条剥掉，于是设备上留的就是 0。
-        //
-        // 但 DoctorRegulation 对「自建 CouchDB + v3-rabin-karp」要求的是 60
-        // （其 customChunkSize 规则，也是 PREFERRED_SETTING_SELF_HOSTED 的取值）。
-        // 判定时它走不到数值容差分支：容差要求 `"min" in rule && "max" in rule` 同时成立，
-        // 而上游把该规则的 `max` 注释掉了 —— min:55 因此形同虚设，0 一律判违规。
-        //
-        // 后果不是「弹个提示」那么轻：问诊发生在启动链中途且 await 用户作答
+        // 为什么必须过这道闸门：Doctor 问诊发生在启动链中途且 await 用户作答
         // （ModuleLiveSyncMain → onFirstInitialise → runDoctor → performDoctorConsultation），
-        // 不作答就永远走不到紧随其后的 applySettings()，复制器不会启动 ——
-        // 表现为「激活当下能同步，一重启就静默停摆，用户毫不知情」。
+        // 它排在 control.applySettings() 之前 —— 不作答就永远走不到 applySettings，
+        // 复制器不会启动。表现为「激活当下能同步，一重启就静默停摆」。
+        // setup_uri 载荷不含 customChunkSize（等于 schema 默认值 0，被
+        // encodeSettingsToSetupURI 的 skipDefaultValue=true 整条剥掉），而
+        // DoctorRegulation 对「自建 CouchDB + v3-rabin-karp」要求 60；该规则的
+        // `max` 被上游注释掉，容差分支又要求 min 与 max 同时存在，于是 0 一律判违规。
         //
-        // 为什么是「写值」而不是用 doctorProcessedVersion 静音整版：
-        // 那个开关的静音是**整版、不分等级**的（连 hashAlg 等 Necessary 规则一起静音，
-        // 见 configForDoc.js 的 performDoctorConsultation 早退分支），代价远大于收益。
-        // 写 60 只消掉这一条违规，其余规则照常评估、该提示时照常提示。
+        // 为什么不写 customChunkSize=60：它同时是 TweakValuesShouldMatchedTemplate
+        // 里的 must-match 参数，模板基线与 schema 默认值都是 0。写成 60 后，只要远端
+        // 里程碑的 PREFERRED.customChunkSize 还是 0（旧 OsyC 设备、或任何先写入里程碑
+        // 的设备都会留下 0），ensureRemoteIsCompatible 就返回 ["MISMATCHED", ...]，
+        // 复制器直接中止 —— 那不是弹窗，而是静默永不同步，比要修的问题更糟。
+        // 归一后的 buildSetupPatch 不制造任何 must-match 分歧，这条不变量由
+        // livesyncPatch.unit.spec.ts 锁定。
         //
-        // 副作用已知且可接受：把分块上限从「1×」调到「61×」，会改变去重粒度。
-        // 已有数据不受影响（分块是内容寻址的，旧块照常可读），只是后续修订按新粒度切分。
-        // 对空库/新租户完全无代价；对已经以 0 同步过的 vault 属「兼容但有损」变更，
-        // 而这正是问诊弹窗自己给出的默认修法（点 Yes 后再点 Fix 写下的就是同一个值）。
-        customChunkSize: DoctorRegulation.rules.customChunkSize?.value ?? 60,
+        // 代价：本版 Doctor 咨询被整体静音（含 Necessary 的 hashAlg 建议）—— 这正是
+        // 上游「Dismiss this version」的语义；规章版本升级后咨询会重新出现。
+        doctorProcessedVersion: DoctorRegulation.version,
+        // 窗口隐藏时保持复制不断开。
+        // 默认值 false 会在 Obsidian 失去可见性时 onSuspending()，
+        // 把在途的 _bulk_docs 一并中止 —— 首次上云时会让 vault 只同步到一半。
+        // OsyC 的目标是无人值守的 vault，这里按需常开。
+        // 该键既不在 TweakValuesShouldMatchedTemplate 也不在 DoctorRegulation 里，
+        // 只影响后台行为，不制造远端分歧。
+        keepReplicationActiveInBackground: true,
     };
 }
 

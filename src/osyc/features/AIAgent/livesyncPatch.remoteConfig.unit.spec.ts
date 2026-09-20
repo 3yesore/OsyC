@@ -8,6 +8,7 @@ import type {
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import type { RemoteConfiguration } from "@vrtmrz/livesync-commonlib/compat/common/models/setting.type";
 import { planCouchDbRemoteConfigurationReroute } from "@/osyc/features/AIAgent/livesyncPatch";
+import { verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";
 
 /**
  * 激活时不仅要写顶层 couchDB_*，还要把活动远程配置档案的 uri 一起改到新目标。
@@ -230,12 +231,19 @@ describe("planCouchDbRemoteConfigurationReroute：激活时改写远程配置档
         expect(result!.changed).toBe(true);
     });
 
-    it("没有档案时当场新建 legacy-couchdb 档案并激活（否则新设备等于没配远端）", () => {
-        // 现场回归：新 vault 激活后 data.json 里 couchDB_* 全空、remoteConfigurations={}，
-        // activeConfigurationId=""，只剩 encryptedCouchDBConnection —— 顶层明文凭据被
-        // 保存时加密清空，下次启动的 migrateLegacyRemoteConfigurationsInPlace 因
-        // hasText(couchDB_URI)=false 拒绝重建，客户端从此没有任何远端，一条笔记都读不到。
-        const result = planCouchDbRemoteConfigurationReroute(TARGET, {});
+    it("无档案 + 完整解码：当场新建 legacy-couchdb 并激活，且不依赖 migration", () => {
+        // 现场回归（2026-09-20）：新 vault 激活后 data.json 里 couchDB_* 全空、
+        // remoteConfigurations={}、activeConfigurationId=""，只剩 encryptedCouchDBConnection
+        // —— 顶层明文凭据被保存时加密清空，下次启动的 migrateLegacyRemoteConfigurationsInPlace
+        // 因 hasText(couchDB_URI)=false 拒绝重建，客户端从此没有任何远端，一条笔记都读不到。
+        // 这里用事故现场的 current（空档案 + 空活动 id + 已加密凭据）复现，证明仅凭本次
+        // 解码结果就足以当场建出可用档案，无需等下一次启动的 migration。
+        const incidentCurrent = {
+            remoteConfigurations: {},
+            activeConfigurationId: "",
+        };
+
+        const result = planCouchDbRemoteConfigurationReroute(TARGET, incidentCurrent);
         expect(result.changed).toBe(true);
         expect(result.activeConfigurationId).toBe("legacy-couchdb");
 
@@ -246,5 +254,16 @@ describe("planCouchDbRemoteConfigurationReroute：激活时改写远程配置档
         expect(parsed.type).toBe("couchdb");
         expect((parsed.settings as CouchDBConnection).couchDB_URI).toBe("https://new.sync.example.com");
         expect((parsed.settings as CouchDBConnection).couchDB_DBNAME).toBe("t_newdb");
+        expect((parsed.settings as CouchDBConnection).couchDB_USER).toBe(TARGET.couchDB_USER);
+        expect((parsed.settings as CouchDBConnection).couchDB_PASSWORD).toBe(TARGET.couchDB_PASSWORD);
+
+        // 与 7b01b28 的回读自检串起来：把归一后的档案读回去必须通过。
+        // 顶层明文 couchDB_* 保持为空，模拟 SettingService 保存后的状态。
+        const verification = verifyActivatedRemote({
+            ...incidentCurrent,
+            remoteConfigurations: result.remoteConfigurations,
+            activeConfigurationId: result.activeConfigurationId,
+        });
+        expect(verification).toEqual({ ok: true });
     });
 });
