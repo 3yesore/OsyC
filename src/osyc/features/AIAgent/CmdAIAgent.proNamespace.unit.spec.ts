@@ -5,7 +5,7 @@ vi.mock("@/deps.ts", () => ({
     requestUrl: (...args: unknown[]) => requestUrlMock(...args),
 }));
 
-import { CmdAIAgent, normalizeProNamespaceInfo, readProNamespaceDetail } from "./CmdAIAgent";
+import { CmdAIAgent, isProNamespaceReadOnly, normalizeProNamespaceInfo, readProNamespaceDetail } from "./CmdAIAgent";
 
 const okJson = (data: unknown) => ({ status: 200, json: data });
 
@@ -178,5 +178,99 @@ describe("CmdAIAgent Pro 独立同步空间", () => {
         });
         expect(readProNamespaceDetail({ detail: " a\nb " })).toBe("a b");
         expect(readProNamespaceDetail({})).toBeNull();
+    });
+
+    it("解析生产嵌套形状（namespace 对象优先）", () => {
+        const nested = {
+            namespace: {
+                enabled: true,
+                status: "ready",
+                read_only: false,
+                used_mb: 3,
+                db: "t_bbbb00000000000000000000000000_pro",
+            },
+            setup_uri: "obsidian://setuplivesync?settings=AAA",
+            provisioning_status: "ready",
+        };
+        expect(normalizeProNamespaceInfo(nested)).toEqual({
+            enabled: true,
+            status: "ready",
+            ready: true,
+            read_only: false,
+            used_mb: 3,
+            namespace: "t_bbbb00000000000000000000000000_pro",
+        });
+    });
+
+    it("解析扁平形状（兼容回退）", () => {
+        expect(normalizeProNamespaceInfo(PRO_STATUS)).toEqual({
+            enabled: true,
+            status: "ready",
+            ready: true,
+            read_only: false,
+            used_mb: 3,
+            namespace: PRO_STATUS.namespace,
+        });
+    });
+
+    it("嵌套过期：200 + status=expired + read_only=true，available 保持 true", async () => {
+        routeMock({
+            getStatus: {
+                status: 200,
+                data: {
+                    namespace: {
+                        enabled: true,
+                        status: "expired",
+                        read_only: true,
+                        used_mb: 3,
+                        db: "t_cccc00000000000000000000000000_pro",
+                    },
+                    setup_uri: "",
+                    provisioning_status: "ready",
+                },
+            },
+        });
+
+        const result = await agent.proNamespaceStatus();
+
+        expect(result.ok).toBe(true);
+        expect(result.message).toContain("只读保留");
+        expect(agent.proNamespace).toMatchObject({
+            httpStatus: 200,
+            available: true,
+            status: "expired",
+            read_only: true,
+            ready: false,
+            namespace: "t_cccc00000000000000000000000000_pro",
+        });
+        expect(isProNamespaceReadOnly(agent.proNamespace)).toBe(true);
+    });
+
+    it("已知过期后 requestProNamespace 不再 POST，返回续费引导", async () => {
+        routeMock({
+            getStatus: {
+                status: 200,
+                data: {
+                    namespace: {
+                        enabled: true,
+                        status: "expired",
+                        read_only: true,
+                        used_mb: 3,
+                        db: "t_dddd00000000000000000000000000_pro",
+                    },
+                    setup_uri: "",
+                    provisioning_status: "ready",
+                },
+            },
+        });
+        await agent.proNamespaceStatus();
+        requestUrlMock.mockClear();
+
+        const result = await agent.requestProNamespace("card-key");
+
+        expect(result.ok).toBe(false);
+        expect(result.message).toContain("续费");
+        expect(requestUrlMock).not.toHaveBeenCalled();
+        expect(applySetupUri).not.toHaveBeenCalled();
     });
 });

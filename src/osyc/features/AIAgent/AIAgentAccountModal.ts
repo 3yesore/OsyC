@@ -1,6 +1,7 @@
 import { Modal, Notice, Setting, type App, type ButtonComponent } from "@/deps.ts";
 import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
+import { isProNamespaceReadOnly } from "./CmdAIAgent";
 import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState, ProNamespaceState } from "./CmdAIAgent";
 
 const PLAN_LABEL: Record<PlanType, string> = {
@@ -508,7 +509,8 @@ export class AIAgentAccountModal extends Modal {
      *
      * 打开弹窗只做一次 GET 状态回显（只读）；真正切换同步目标只发生在用户点击
      * 「开通并切换到独立空间」时。非 Pro 卡服务端返回 403，这里原样展示 detail，
-     * 并把按钮保持在不可用状态。
+     * 并把按钮保持在不可用状态；Pro 已过期是 200 + status=expired / read_only=true，
+     * 这里展示「只读保留」并给续费引导，按钮不整块禁用。
      */
     private renderProNamespace(contentEl: HTMLElement) {
         const box = contentEl.createDiv({ cls: "ai-account-pro-namespace" });
@@ -518,6 +520,7 @@ export class AIAgentAccountModal extends Modal {
             cls: "ai-account-hint",
         });
         const statusEl = box.createEl("p", { text: "空间状态：加载中…", cls: "ai-account-hint" });
+        const renewEl = box.createEl("p", { text: "", cls: "ai-account-hint" });
 
         let button: ButtonComponent | null = null;
         const renderStatus = (state: ProNamespaceState | null) => {
@@ -526,9 +529,19 @@ export class AIAgentAccountModal extends Modal {
                 button?.setDisabled(true);
                 return;
             }
-            statusEl.setText(`空间状态：${describeProNamespace(state)}`);
-            // 非 Pro（403）时 available=false，按钮保持不可用。
-            button?.setDisabled(!state.available);
+            const expired = isProNamespaceReadOnly(state);
+            statusEl.setText(`空间状态：${describeProNamespace(state)}${expired ? " · 只读保留" : ""}`);
+            if (expired) {
+                renewEl.setText("Pro 订阅已过期：空间数据只读保留（不会删除，可导出），续费后即可恢复读写。");
+                // 过期不等于无权限：按钮保留可点，点击给续费引导，整块不禁用。
+                button?.setDisabled(false);
+                button?.setButtonText("去续费");
+            } else {
+                renewEl.setText("");
+                button?.setButtonText("开通并切换到独立空间");
+                // 非 Pro（403）时 available=false，按钮保持不可用。
+                button?.setDisabled(!state.available);
+            }
         };
 
         new Setting(box)
@@ -543,6 +556,10 @@ export class AIAgentAccountModal extends Modal {
                 // 仅用户点击才切换档案；onOpen 里绝不调用开通。
                 btn.onClick(async () => {
                     const state = this.agent.proNamespace;
+                    if (state && isProNamespaceReadOnly(state)) {
+                        new Notice("Pro 订阅已过期：空间处于只读保留，请先续费（重新激活卡密）后再开通或切换；数据不会删除。");
+                        return;
+                    }
                     if (!state?.available) return;
                     btn.setDisabled(true);
                     btn.setButtonText("正在开通并切换…");

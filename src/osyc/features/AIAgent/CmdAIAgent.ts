@@ -441,24 +441,44 @@ export function emptyProNamespaceState(): ProNamespaceState {
 }
 
 /**
- * 防御式解析 GET/POST 的响应体。
+ * 防御式解析 GET/POST 的响应体，兼容两种服务端形状：
  *
- * 后端字段一律当作未知 JSON 处理：类型不对、缺失都折叠成安全默认值，
+ * - **嵌套（生产真实返回）**：`{ namespace: { enabled, status, read_only, used_mb, db, ... },
+ *   setup_uri, provisioning_status }`；
+ * - **扁平（历史/兼容回退）**：`{ enabled, status, read_only, used_mb, namespace }`。
+ *
+ * 嵌套优先，扁平作为回退；字段一律当未知 JSON，类型不对折叠成安全默认值，
  * 绝不信任 `await res.json` 的结果（Obsidian 审查同样要求）。
  */
 export function normalizeProNamespaceInfo(raw: unknown): ProNamespaceInfo {
     const record = asJsonRecord(raw);
-    const usedRaw = record?.used_mb;
-    const statusRaw = record?.status;
-    const namespaceRaw = record?.namespace ?? record?.db_name;
+    const nested = asJsonRecord(record?.namespace);
+    const state = nested ?? record;
+    const statusRaw = state?.status;
+    const usedRaw = state?.used_mb;
+    const namespaceRaw = nested ? state?.db : (record?.namespace ?? record?.db_name);
+    const status = typeof statusRaw === "string" ? statusRaw.trim() : "";
+    const readOnly = state?.read_only === true;
     return {
-        enabled: record?.enabled === true,
-        status: typeof statusRaw === "string" ? statusRaw.trim() : "",
-        ready: record?.ready === true,
-        read_only: record?.read_only === true,
+        enabled: state?.enabled === true,
+        status,
+        // 服务端未下发 ready 时按 status 推导；expired / read_only 一律视为未就绪。
+        ready: state?.ready === true || (status === "ready" && !readOnly),
+        read_only: readOnly,
         used_mb: typeof usedRaw === "number" && Number.isFinite(usedRaw) && usedRaw > 0 ? usedRaw : 0,
         namespace: typeof namespaceRaw === "string" ? namespaceRaw.trim() : "",
     };
+}
+
+/**
+ * 只读保留（Pro 到期/退订）：服务端已经改成 HTTP 200 + status=expired 或
+ * read_only=true，客户端据这个机器可读状态分流，不靠 403，也不靠中文文案。
+ */
+export function isProNamespaceReadOnly(
+    state: Pick<ProNamespaceInfo, "status" | "read_only"> | null | undefined
+): boolean {
+    if (!state) return false;
+    return state.read_only === true || String(state.status ?? "").trim().toLowerCase() === "expired";
 }
 
 /** 非 Pro 403 的 detail / message 原文（原样呈现，不改写服务端文案）。 */
@@ -738,14 +758,21 @@ export class CmdAIAgent {
             return { ok: false, message: detail };
         }
         if (status >= 400) return { ok: false, message: this.describeError(status) };
+        const info = normalizeProNamespaceInfo(data);
+        const readOnlyRetention = isProNamespaceReadOnly(info);
         this.proNamespace = {
-            ...normalizeProNamespaceInfo(data),
+            ...info,
             httpStatus: status,
             available: true,
-            message: "",
+            message: readOnlyRetention
+                ? "Pro 订阅已过期：空间进入只读保留（数据保留、可导出），续费后恢复读写。"
+                : "",
             busy: false,
         };
-        return { ok: true, message: "已获取独立同步空间状态" };
+        return {
+            ok: true,
+            message: readOnlyRetention ? this.proNamespace.message : "已获取独立同步空间状态",
+        };
     }
 
     /**
@@ -764,6 +791,13 @@ export class CmdAIAgent {
         if (!this.hasApiBase && !this.isMock) return { ok: false, message: this.configurationError() };
         if (!get(this.state).activated || !this.settings.token) return { ok: false, message: "请先激活卡密" };
         if (this.isMock) return { ok: false, message: "MOCK 模式：未连接服务端，不能真实开通独立同步空间" };
+        // 已过期（只读保留）：不发开通请求，给出续费引导（数据不会删除，可导出）。
+        if (isProNamespaceReadOnly(this.proNamespace)) {
+            return {
+                ok: false,
+                message: "Pro 订阅已过期：空间处于只读保留（数据保留、可导出），请先续费（重新激活卡密）后再开通或切换；续费后即可恢复读写。",
+            };
+        }
         // 已确认非 Pro：不再发无意义的开通请求，直接原样回传 403 文案。
         if (this.proNamespace?.httpStatus === 403) {
             return { ok: false, message: this.proNamespace.message || "Pro 会员专属权益" };

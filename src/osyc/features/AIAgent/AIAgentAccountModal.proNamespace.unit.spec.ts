@@ -69,4 +69,15 @@ describe("账户弹窗 · Pro 独立同步空间", () => {
         expect(modalSource).toContain("this.onOpen()");
         expect(modalSource).toContain("new Notice(result.message)");
     });
+
+    it("过期（200 + expired/read_only）展示只读保留与续费引导，按钮不整块禁用", () => {
+        expect(modalSource).toContain("isProNamespaceReadOnly");
+        expect(modalSource).toContain("只读保留");
+        expect(modalSource).toContain("续费后即可恢复读写");
+        // 过期时按钮保留可点，点击给续费引导，不整块禁用
+        expect(modalSource).toContain("button?.setDisabled(false)");
+        expect(modalSource).toContain("去续费");
+        // 非 Pro 仍不可点
+        expect(modalSource).toContain("button?.setDisabled(!state.available)");
+    });
 });
