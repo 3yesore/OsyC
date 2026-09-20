@@ -225,7 +225,7 @@ export function planCouchDbRemoteConfigurationReroute(
 
     const requiredKeys = ["couchDB_URI", "couchDB_USER", "couchDB_PASSWORD", "couchDB_DBNAME"] as const;
     const targetIsComplete = requiredKeys.every(
-        (key) => typeof decoded[key] === "string" && (decoded[key] as string).trim() !== ""
+        (key) => typeof decoded[key] === "string" && decoded[key].trim() !== ""
     );
     if (!targetIsComplete) {
         // 载荷不完整：无法确定新目标，原样返回、不碰任何档案。

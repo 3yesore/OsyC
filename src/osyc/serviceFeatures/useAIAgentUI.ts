@@ -134,7 +134,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     void (async () => {
         try {
             const repair = planProvisionedReplicationRepair(
-                core.services.setting.currentSettings() as unknown as Record<string, unknown>
+                core.services.setting.currentSettings()
             );
             if (!repair) return;
             await core.services.setting.applyPartial(repair, true);
