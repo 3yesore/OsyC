@@ -14,17 +14,17 @@
         "commit": "9b2af60d026a049effcb0071ae12fafff5a17d4f"
     },
     "currentStable": {
-        "version": "2.0.14",
-        "tag": "2.0.14",
+        "version": "2.0.15",
+        "tag": "2.0.15",
         "status": "published",
         "channel": "stable",
-        "sourceBranch": "release/2.0.14",
-        "sourceCommit": "fec3b39",
-        "assetSourceCommit": "fec3b39",
-        "releaseCommit": "d115d72",
-        "releaseRunId": "35553006601",
-        "publishedAt": "2026-09-21T02:05:55Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.14",
+        "sourceBranch": "release/2.0.15",
+        "sourceCommit": "1fbe3e0",
+        "assetSourceCommit": "1fbe3e0",
+        "releaseCommit": "88a218e",
+        "releaseRunId": "35555019299",
+        "publishedAt": "2026-09-21T02:41:59Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.15",
         "deviceAcceptance": "pending-desktop",
         "assets": [
             "main.js",
@@ -34,28 +34,19 @@
             "versions.json"
         ],
         "assetSha256": {
-            "main.js": "b650c5dafc11224a2e061c30319e3aa7094a344c20559f425ea941761c20c88e",
-            "manifest.json": "ad14789ee7dac37cb5b990541e04f32aa656276fefb599cd199c1baff6067a03",
-            "manifest-beta.json": "ad14789ee7dac37cb5b990541e04f32aa656276fefb599cd199c1baff6067a03",
+            "main.js": "cc7c40d42f13f70e147670a6d15947cf00437f5f2766656153d407d9d870e58f",
+            "manifest.json": "63bf8cf338a7d4e688523394e5ecbe633d1002018ac9d853c03b67e10a0a00a9",
+            "manifest-beta.json": "63bf8cf338a7d4e688523394e5ecbe633d1002018ac9d853c03b67e10a0a00a9",
             "styles.css": "cbc4e6da4f47579ce5158a75e5e96c275f107423b3b201c296d509aafd6f03fa",
-            "versions.json": "398b27c4e2a43ccbdb9466a8c8e8953c6d5b3ed3ace7448e694acf272cb2c353"
+            "versions.json": "dd3d28e54fdfbf61497b762d6fdd0749368c6e407eb72ace207b6e2d26bc5180"
         }
     },
     "previousStable": {
-        "version": "2.0.13",
-        "tag": "2.0.13",
+        "version": "2.0.14",
+        "tag": "2.0.14",
         "status": "superseded",
-        "publishedAt": "2026-09-20T10:06:46Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.13"
-    },
-    "candidate": {
-        "version": "2.0.15",
-        "status": "reserved",
-        "channel": "stable",
-        "sourceBranch": "release/2.0.15",
-        "sourceCommit": "1fbe3e0",
-        "assetSourceCommit": "1fbe3e0",
-        "deviceAcceptance": "pending-desktop"
+        "publishedAt": "2026-09-21T02:05:55Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.14"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -95,7 +86,10 @@
         "Ledger promotion on 2026-09-21: currentStable moves from 2.0.13 (now previousStable, superseded, tag 2.0.13 at a50eb4b) to 2.0.14, and the reserved 2.0.14 candidate line is consumed. The 2.0.12 record stays in previousCandidate.",
         "2.0.15 is reserved by the branch release/2.0.15 at cut commit 1fbe3e0; the rebuilt main.js is committed separately as bb0322f, so tag 2.0.15 will point at the pushed default-branch HEAD rather than at the cut commit (the 2.0.13/2.0.14 pattern). The candidate intentionally carries no tag, releaseUrl or publishedAt. It closes the card-key -> email binding loop (the bind-purpose code on POST /api/email/send-code and the POST /api/account/bind-email consumer, which issues no device token and does not rewrite the local settings.token), separates the two opposite binding directions in the shared tools-centre email block (email -> card key and card key -> email, with bind-purpose and login codes not interchangeable), states that the email session is in-memory only and needs fresh verification after a restart, prefers the server-supplied detail in the email error copy (control characters folded, 240-character cap, status-code fallback retained), clears the two 2.0.14 lint errors (no-base-to-string on the endpoint-failover log call and no-unnecessary-type-assertion on the profile read after the isRecord() guard) with the nine pre-existing warnings unchanged, makes the start-up self-heal log name the repair actually applied (the LiveSync master switch and/or customChunkSize), and adds the 2.0.15 device acceptance checklist docs/DEVICE-ACCEPTANCE-2.0.15.zh.md.",
         "The five versioned assets were rebuilt and re-hashed after the 2.0.15 cut: main.js cc7c40d4, manifest.json and manifest-beta.json 63bf8cf3, styles.css cbc4e6da (unchanged from 2.0.14), versions.json dd3d28e5. release-info.json names the cut commit 1fbe3e0. The candidate gate on the cut tree was tsc --noEmit --skipLibCheck (0 errors), eslint (0 errors / 9 warnings), svelte-check (0 errors / 0 warnings), tsc-check:apps (0 errors), the full unit suite (146 files / 1144 tests green) and the sync acceptance self-test (8/8 OK). Build products follow in a separate commit.",
-        "Known boundaries recorded with the 2.0.15 reservation: bind-email authorises only the currently activated card key and leaves the local identity unchanged; a bind-purpose verification code is not interchangeable with a login code; the email session is deliberately in-memory, so a restart requires fresh verification; currentStable.deviceAcceptance remains pending-desktop until the 2.0.15 device checklist passes; and lint still reports the nine pre-existing warnings unchanged."
+        "Known boundaries recorded with the 2.0.15 reservation: bind-email authorises only the currently activated card key and leaves the local identity unchanged; a bind-purpose verification code is not interchangeable with a login code; the email session is deliberately in-memory, so a restart requires fresh verification; currentStable.deviceAcceptance remains pending-desktop until the 2.0.15 device checklist passes; and lint still reports the nine pre-existing warnings unchanged.",
+        "2.0.15 was published on 2026-09-21T02:41:59Z by fast-forwarding main from da37be1 to 88a218e, which triggered publish-release-assets.yml run 35555019299 (run #86, conclusion success). The workflow created tag 2.0.15 and the GitHub Release OsyC 2.0.15 as a normal (non-prerelease) release, so no pre-release promotion was needed. GET /releases/latest resolves to 2.0.15 and manifest.json on the default branch reads 2.0.15. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js cc7c40d4, manifest.json 63bf8cf3, manifest-beta.json 63bf8cf3, styles.css cbc4e6da, versions.json dd3d28e5.",
+        "Note on the 2.0.15 tag target: release-info.json names the cut commit 1fbe3e0, and the rebuilt main.js was committed separately as bb0322f before the release-info (4adbf1b) and ledger reservation (88a218e) commits, so tag 2.0.15 points at the pushed default-branch HEAD 88a218e rather than at the cut commit. This follows the 2.0.13/2.0.14 pattern.",
+        "Ledger promotion on 2026-09-21: currentStable moves from 2.0.14 (now previousStable, superseded, tag 2.0.14 at d115d72) to 2.0.15, and the reserved 2.0.15 candidate line is consumed. The 2.0.13 record that previously sat in previousStable is preserved together with 2.0.12 in previousCandidate, which is now a list of historical records ordered newest first."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
@@ -111,29 +105,38 @@
         },
         "bratStableValidationRequired": true
     },
-    "previousCandidate": {
-        "version": "2.0.12",
-        "status": "stable-published",
-        "channel": "stable",
-        "sourceBranch": "codex-activation-remote-config-reroute",
-        "stablePromotionOwner": "release-captain",
-        "sourceCommit": "5dd2644",
-        "assetSourceCommit": "5dd2644",
-        "tag": "2.0.12",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.12",
-        "publishedAt": "2026-09-18T04:10:43Z",
-        "deviceAcceptance": "pending-desktop",
-        "publishedAssets": [
-            "main.js",
-            "manifest.json",
-            "styles.css"
-        ],
-        "assetSha256": {
-            "main.js": "ef188aa8f353fc715859d750af05fa1c8183b14883e53c6d122464283ecaf114",
-            "manifest.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
-            "manifest-beta.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
-            "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121",
-            "versions.json": "5b7d0ff2bbba52ba2ca44814f03df79cc2b687fb7665dfb2939716f76a12de57"
+    "previousCandidate": [
+        {
+            "version": "2.0.13",
+            "tag": "2.0.13",
+            "status": "superseded",
+            "publishedAt": "2026-09-20T10:06:46Z",
+            "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.13"
+        },
+        {
+            "version": "2.0.12",
+            "status": "stable-published",
+            "channel": "stable",
+            "sourceBranch": "codex-activation-remote-config-reroute",
+            "stablePromotionOwner": "release-captain",
+            "sourceCommit": "5dd2644",
+            "assetSourceCommit": "5dd2644",
+            "tag": "2.0.12",
+            "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.12",
+            "publishedAt": "2026-09-18T04:10:43Z",
+            "deviceAcceptance": "pending-desktop",
+            "publishedAssets": [
+                "main.js",
+                "manifest.json",
+                "styles.css"
+            ],
+            "assetSha256": {
+                "main.js": "ef188aa8f353fc715859d750af05fa1c8183b14883e53c6d122464283ecaf114",
+                "manifest.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
+                "manifest-beta.json": "51153cdb0b139190ed8bcac8fc418209b295536c0eae151dc3d3f700aae0a0ea",
+                "styles.css": "63af2cd29cb978990549a1b7cd18624abeea2136b57dda1eed4fa1eae1a6c121",
+                "versions.json": "5b7d0ff2bbba52ba2ca44814f03df79cc2b687fb7665dfb2939716f76a12de57"
+            }
         }
-    }
+    ]
 }
