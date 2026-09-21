@@ -48,6 +48,15 @@
         "publishedAt": "2026-09-20T10:06:46Z",
         "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.13"
     },
+    "candidate": {
+        "version": "2.0.15",
+        "status": "reserved",
+        "channel": "stable",
+        "sourceBranch": "release/2.0.15",
+        "sourceCommit": "1fbe3e0",
+        "assetSourceCommit": "1fbe3e0",
+        "deviceAcceptance": "pending-desktop"
+    },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
         "This file was corrected on 2026-09-16 against the GitHub API; it had been left at the 1.0.75 era and no longer described the published state.",
@@ -83,7 +92,10 @@
         "Known boundaries recorded with the 2.0.14 reservation: the start-up self-heal corrects exactly customChunkSize === 60 back to 0 and leaves 0 or any other user-set value untouched (the known PREFERRED=60 boundary is documented in docs/LIVESYNCPATCH-RECONCILIATION.zh.md); Cloudflare-tunnelled endpoints are migration sources only, and no Cloudflare candidate may enter the runtime fallback list (DIRECT_FALLBACK_SERVICE_URLS stays empty); and the Pro quota surface reports usage only and does not refuse a request.",
         "2.0.14 was published on 2026-09-21T02:05:55Z by fast-forwarding main from 2c5f83a to d115d72, which triggered publish-release-assets.yml run 35553006601 (run #84, conclusion success). The workflow created tag 2.0.14 and the GitHub Release OsyC 2.0.14 as a normal (non-prerelease) release, so no pre-release promotion was needed. GET /releases/latest resolves to 2.0.14 and manifest.json on the default branch reads 2.0.14. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js b650c5da, manifest.json ad14789e, manifest-beta.json ad14789e, styles.css cbc4e6da, versions.json 398b27c4.",
         "Note on the 2.0.14 tag target: release-info.json names the cut commit fec3b39, and the rebuilt main.js was committed separately as 4d6aac3 before the release-info (aa741ce) and ledger (d115d72) commits, so tag 2.0.14 points at the pushed default-branch HEAD d115d72 rather than at the cut commit. This follows the 2.0.13 pattern recorded above.",
-        "Ledger promotion on 2026-09-21: currentStable moves from 2.0.13 (now previousStable, superseded, tag 2.0.13 at a50eb4b) to 2.0.14, and the reserved 2.0.14 candidate line is consumed. The 2.0.12 record stays in previousCandidate."
+        "Ledger promotion on 2026-09-21: currentStable moves from 2.0.13 (now previousStable, superseded, tag 2.0.13 at a50eb4b) to 2.0.14, and the reserved 2.0.14 candidate line is consumed. The 2.0.12 record stays in previousCandidate.",
+        "2.0.15 is reserved by the branch release/2.0.15 at cut commit 1fbe3e0; the rebuilt main.js is committed separately as bb0322f, so tag 2.0.15 will point at the pushed default-branch HEAD rather than at the cut commit (the 2.0.13/2.0.14 pattern). The candidate intentionally carries no tag, releaseUrl or publishedAt. It closes the card-key -> email binding loop (the bind-purpose code on POST /api/email/send-code and the POST /api/account/bind-email consumer, which issues no device token and does not rewrite the local settings.token), separates the two opposite binding directions in the shared tools-centre email block (email -> card key and card key -> email, with bind-purpose and login codes not interchangeable), states that the email session is in-memory only and needs fresh verification after a restart, prefers the server-supplied detail in the email error copy (control characters folded, 240-character cap, status-code fallback retained), clears the two 2.0.14 lint errors (no-base-to-string on the endpoint-failover log call and no-unnecessary-type-assertion on the profile read after the isRecord() guard) with the nine pre-existing warnings unchanged, makes the start-up self-heal log name the repair actually applied (the LiveSync master switch and/or customChunkSize), and adds the 2.0.15 device acceptance checklist docs/DEVICE-ACCEPTANCE-2.0.15.zh.md.",
+        "The five versioned assets were rebuilt and re-hashed after the 2.0.15 cut: main.js cc7c40d4, manifest.json and manifest-beta.json 63bf8cf3, styles.css cbc4e6da (unchanged from 2.0.14), versions.json dd3d28e5. release-info.json names the cut commit 1fbe3e0. The candidate gate on the cut tree was tsc --noEmit --skipLibCheck (0 errors), eslint (0 errors / 9 warnings), svelte-check (0 errors / 0 warnings), tsc-check:apps (0 errors), the full unit suite (146 files / 1144 tests green) and the sync acceptance self-test (8/8 OK). Build products follow in a separate commit.",
+        "Known boundaries recorded with the 2.0.15 reservation: bind-email authorises only the currently activated card key and leaves the local identity unchanged; a bind-purpose verification code is not interchangeable with a login code; the email session is deliberately in-memory, so a restart requires fresh verification; currentStable.deviceAcceptance remains pending-desktop until the 2.0.15 device checklist passes; and lint still reports the nine pre-existing warnings unchanged."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
