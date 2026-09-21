@@ -25,7 +25,9 @@ type ApiResponse = Awaited<ReturnType<typeof requestUrl>>;
 export type AITaskStatus =
     | "queued" | "running" | "done" | "failed"
     | "awaiting_confirmation" | "conflict" | "interrupted"
-    | "failed_zero_cost" | "delivery_failed" | "cancelled";
+    | "failed_zero_cost" | "delivery_failed" | "cancelled"
+    /** 用户主动从工具中心上传诊断时构造的合成任务，不进入任务列表、不参与轮询。 */
+    | "manual";
 export type ArtifactDeliveryStatus = "pending" | "delivered" | "failed" | "conflict";
 
 export interface ArtifactMetadata {
@@ -104,6 +106,22 @@ export function normaliseApiBase(value: string): string {
         // Preserve non-URL values for the existing validation/error path.
     }
     return trimmed;
+}
+
+/**
+ * 只保留服务地址的「协议 + 主机(:端口)」。
+ *
+ * 自建部署可能在路径里带库名或查询串，日志与诊断载荷都不该把它们带出去。
+ */
+export function maskServiceBase(value: string): string {
+    const raw = typeof value === "string" ? value.trim() : "";
+    if (!raw) return "";
+    try {
+        const parsed = new URL(raw);
+        return `${parsed.protocol}//${parsed.hostname}${parsed.port ? ":" + parsed.port : ""}`;
+    } catch {
+        return raw.split(/[?#]/)[0].slice(0, 120);
+    }
 }
 
 /**
@@ -697,7 +715,11 @@ export class CmdAIAgent {
             email: value,
             purpose,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
+        if (status >= 400) {
+            osycLogger.warn("OsyC 邮箱验证码发送失败", { status, purpose });
+            return { ok: false, message: this.describeEmailError(status, data) };
+        }
+        osycLogger.info("OsyC 邮箱验证码已发送", { purpose });
         return { ok: true, message: `验证码已发送至 ${value}，5 分钟内有效` };
     }
 
@@ -719,7 +741,10 @@ export class CmdAIAgent {
             device_id: this.deviceId,
             device_name: this.deviceId,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
+        if (status >= 400) {
+            osycLogger.warn("OsyC 邮箱登录失败", { status });
+            return { ok: false, message: this.describeEmailError(status, data) };
+        }
         const res = data as {
             account?: { email_masked?: string };
             cards?: EmailCardRef[];
@@ -737,9 +762,11 @@ export class CmdAIAgent {
             this.settings.token = res.token;
             if (res.card_key) this.sessionCardKey = normalizeCardKey(res.card_key);
             this.state.update((s) => ({ ...s, activated: true }));
+            osycLogger.info("OsyC 邮箱登录成功", { hasCard: true });
             await this.refreshStatus();
             return { ok: true, message: `邮箱登录成功，已载入卡密 ${res.card_key ?? ""}` };
         }
+        osycLogger.info("OsyC 邮箱登录成功", { hasCard: false });
         return { ok: true, message: "邮箱已验证；绑定卡密后即可开始使用" };
     }
 
@@ -758,7 +785,10 @@ export class CmdAIAgent {
             device_id: this.deviceId,
             device_name: this.deviceId,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
+        if (status >= 400) {
+            osycLogger.warn("OsyC 卡密并入邮箱失败", { status });
+            return { ok: false, message: this.describeEmailError(status, data) };
+        }
         const res = data as {
             cards?: EmailCardRef[];
             token?: string;
@@ -774,8 +804,10 @@ export class CmdAIAgent {
             await this.refreshStatus();
         }
         if (res?.device_limit_reached) {
+            osycLogger.warn("OsyC 卡密并入邮箱失败", { deviceLimitReached: true });
             return { ok: false, message: res.message ?? "本设备已达该卡密上限，请先解绑旧设备" };
         }
+        osycLogger.info("OsyC 卡密并入邮箱成功");
         return { ok: true, message: "卡密已并入邮箱账户" };
     }
 
@@ -802,7 +834,10 @@ export class CmdAIAgent {
             email: mail,
             code: pin,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
+        if (status >= 400) {
+            osycLogger.warn("OsyC 卡密绑定邮箱失败", { status });
+            return { ok: false, message: this.describeEmailError(status, data) };
+        }
         const res = data as {
             email_masked?: string;
             cards?: EmailCardRef[];
@@ -818,6 +853,7 @@ export class CmdAIAgent {
             if (res?.cards) this.emailAccount.cards = res.cards;
         }
         this.emailBindSummary = `已把当前卡密绑定到 ${masked}`;
+        osycLogger.info("OsyC 卡密绑定邮箱成功", { email: masked });
         return { ok: true, message: res?.message?.trim() || "邮箱已绑定" };
     }
 
@@ -938,6 +974,7 @@ export class CmdAIAgent {
         if (this.proNamespace?.httpStatus === 403) {
             return { ok: false, message: this.proNamespace.message || "Pro 会员专属权益" };
         }
+        osycLogger.info("OsyC Pro 独立空间开通开始", { base: maskServiceBase(this.settings.apiBase) });
         let status = 0;
         let data: unknown = null;
         try {
@@ -981,6 +1018,7 @@ export class CmdAIAgent {
             applied = false;
         }
         if (!applied) {
+            osycLogger.warn("OsyC Pro 独立空间回读自检失败", { status });
             this.proNamespace = {
                 ...(this.proNamespace ?? emptyProNamespaceState()),
                 httpStatus: status,
@@ -1013,6 +1051,7 @@ export class CmdAIAgent {
         const handshake = await this.runSyncHandshake(this.newSyncActivationId());
         if (handshake) this.state.update((s) => ({ ...s, syncState: handshake }));
         const namespace = this.proNamespace?.namespace ?? posted.namespace;
+        osycLogger.info("OsyC Pro 独立空间已切换", { namespace: namespace ?? "" });
         return { ok: true, message: namespace ? `已切换到独立同步空间（${namespace}）` : "已切换到独立同步空间" };
     }
 
@@ -1073,6 +1112,11 @@ export class CmdAIAgent {
         if (base !== this.settings.apiBase && isOfficialServiceUrl(base)) {
             osycLogger.warn("OsyC 端点已自动切换", { from: this.settings.apiBase, to: base });
             this.settings.apiBase = base;
+        }
+        // 4xx/5xx 统一留一条摘要：路径 + 状态码，绝不记响应正文（正文可能含用户数据）。
+        if (value.status >= 400) {
+            osycLogger.recordApiFailure(path, value.status);
+            osycLogger.warn("OsyC API 请求失败", { path, status: value.status });
         }
         return value;
     }
@@ -1432,6 +1476,8 @@ export class CmdAIAgent {
         // 后端却会 strip + upper，客户端统一口径后三个入口行为一致。
         const key = normalizeCardKey(cardKey);
         const deviceId = this.deviceId;
+        // 激活是「能不能用」的分水岭：开始与结果都必须留痕，但不记卡密本身。
+        osycLogger.info("OsyC 激活开始", { base: maskServiceBase(this.settings.apiBase) });
         if (this.isMock) {
             this.settings.token = "mock-token";
             this.state.set({
@@ -1471,7 +1517,9 @@ export class CmdAIAgent {
             if (res.status >= 400) {
                 // D4：激活失败同样优先回显服务端 detail（401 卡密无效 / 402 已过期 /
                 // 426 版本过旧的最低版本指引），detail 缺失时才用状态码兜底文案。
-                return { ok: false, message: await this.describeResponseError(res, res.status) };
+                const message = await this.describeResponseError(res, res.status);
+                osycLogger.warn("OsyC 激活失败", { status: res.status, message });
+                return { ok: false, message };
             }
             const raw = (await res.json) as unknown;
             const data = asJsonRecord(raw);
@@ -1513,7 +1561,8 @@ export class CmdAIAgent {
                     // 钥匙就是卡密本身，必须用规范化后的同一份，否则解码不出配置。
                     this.syncConfigured = (await this.applySetupUri?.(setupUri, key)) ?? false;
                     suffix = this.syncConfigured ? "，同步已自动配置" : "，但同步配置失败，请手动设置";
-                } catch {
+                } catch (error) {
+                    osycLogger.warn("OsyC setup URI 应用异常", error);
                     suffix = "，但同步配置失败，请手动设置";
                 }
             } else if (provisioningStatus === "pending") {
@@ -1529,6 +1578,11 @@ export class CmdAIAgent {
                 this.state.update((s) => ({ ...s, syncState: handshake }));
             }
             void this.refreshStatus();
+            osycLogger.info("OsyC 激活成功", {
+                plan: get(this.state).plan,
+                syncConfigured: this.syncConfigured,
+                provisioningStatus: provisioningStatus || "ready",
+            });
             return { ok: true, message: `激活成功${suffix}` };
         } catch {
             return { ok: false, message: this.networkErrorMessage() };

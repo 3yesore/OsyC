@@ -252,6 +252,83 @@ export function readConfiguredRemote(settings: unknown): ConfiguredRemoteInfo {
     return { configurationId, configurationName, endpoint, remoteType };
 }
 
+export interface LiveSyncSettingsFingerprint {
+    customChunkSize: number | null;
+    hashAlg: string | null;
+    chunkSplitterVersion: string | null;
+    remoteType: string | null;
+}
+
+/**
+ * 关键同步设置指纹。
+ *
+ * 这几个键决定「两台设备能不能对同一个远端握手」：customChunkSize / hashAlg /
+ * chunkSplitterVersion 是 must-match 参数，remoteType 决定走 CouchDB 还是对象存储。
+ * 全部是非敏感配置，可随诊断上传；凭据键（couchDB_USER / couchDB_PASSWORD /
+ * 完整 couchDB_URI）一律不进这里。
+ */
+export function buildSettingsFingerprint(settings: unknown): LiveSyncSettingsFingerprint {
+    const record = isRecord(settings) ? settings : {};
+    return {
+        customChunkSize:
+            typeof record.customChunkSize === "number" && Number.isFinite(record.customChunkSize)
+                ? Math.round(record.customChunkSize)
+                : null,
+        hashAlg: text(record.hashAlg) || null,
+        chunkSplitterVersion: text(record.chunkSplitterVersion) || null,
+        remoteType: text(record.remoteType) || null,
+    };
+}
+
+/**
+ * 可上传的 LiveSync 诊断摘要。
+ *
+ * 与 UI 展示模型（LiveSyncDiagnosticView）刻意分开：UI 用中文标签，上传用稳定字段名，
+ * 且端点只留域名、node id 只留 8 位短标识、accepted 只留布尔判断 —— 完整连接串与
+ * 设备标识原件都不外发。
+ */
+export interface LiveSyncDiagnosticSummary {
+    configuration: string | null;
+    endpoint: string | null;
+    remote_type: string | null;
+    protocol_version: string | number | null;
+    node_id_short: string | null;
+    milestone_accepted: boolean | null;
+    last_pull_at: number | null;
+    last_push_at: number | null;
+    settings_fingerprint: LiveSyncSettingsFingerprint;
+    error: string | null;
+}
+
+function toEpoch(value: unknown): number | null {
+    return typeof value === "number" && Number.isFinite(value) && value > 0 ? Math.round(value) : null;
+}
+
+/** 把 LiveSync 诊断输入压成可上传的脱敏摘要。 */
+export function buildLiveSyncDiagnosticSummary(
+    input: LiveSyncDiagnosticInput,
+    settings: unknown
+): LiveSyncDiagnosticSummary {
+    const localNodeId = text(input.localNodeId);
+    const acceptedNodes = Array.isArray(input.acceptedNodes)
+        ? input.acceptedNodes.map((node) => text(node)).filter(Boolean)
+        : null;
+    const milestoneAccepted = acceptedNodes && localNodeId ? acceptedNodes.includes(localNodeId) : null;
+    const protocolVersion = input.protocolVersion === undefined ? null : input.protocolVersion;
+    return {
+        configuration: text(input.configurationName) || text(input.configurationId) || null,
+        endpoint: maskEndpoint(text(input.endpoint)) || null,
+        remote_type: text(input.remoteType) || null,
+        protocol_version: protocolVersion === "" ? null : protocolVersion,
+        node_id_short: localNodeId ? localNodeId.slice(0, 8) : null,
+        milestone_accepted: milestoneAccepted,
+        last_pull_at: toEpoch(input.lastPullAt),
+        last_push_at: toEpoch(input.lastPushAt),
+        settings_fingerprint: buildSettingsFingerprint(settings),
+        error: text(input.error) || null,
+    };
+}
+
 /**
  * 汇总 LiveSync 诊断。
  *

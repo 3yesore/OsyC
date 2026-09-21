@@ -24,6 +24,9 @@
         failed_zero_cost: { icon: "⚠️", label: "未完成" },
         delivery_failed: { icon: "⚠️", label: "交付失败" },
         cancelled: { icon: "○", label: "已取消" },
+        // 工具中心「上传脱敏诊断」构造的合成任务（不进入任务列表）。沿用本表既有字形，
+        // 不新增 Unicode 图文字符；仅为让 STATUS_META 覆盖完整的 AITaskStatus。
+        manual: { icon: "❔", label: "诊断上报" },
     } as const;
 
     let meta = $derived(STATUS_META[task.status]);

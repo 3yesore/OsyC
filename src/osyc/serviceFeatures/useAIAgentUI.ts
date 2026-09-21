@@ -5,7 +5,7 @@ import { AIAgentFloating } from "@/osyc/features/AIAgent/AIAgentFloating";
 import { AIAgentAccountModal } from "@/osyc/features/AIAgent/AIAgentAccountModal";
 import { AIAgentToolsModal } from "@/osyc/features/AIAgent/AIAgentToolsModal";
 import { CmdAIAgent } from "@/osyc/features/AIAgent/CmdAIAgent";
-import type { AISnippet, ArtifactMetadata } from "@/osyc/features/AIAgent/CmdAIAgent";
+import type { AISnippet, AITask, ArtifactMetadata } from "@/osyc/features/AIAgent/CmdAIAgent";
 import { get, writable } from "svelte/store";
 import type { LiveSyncCore } from "@/main";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
@@ -14,7 +14,7 @@ import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyn
 import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { planProvisionedReplicationRepair, verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";
 import { LiveSyncCouchDBReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
-import { describeLiveSyncError, readConfiguredRemote, type LiveSyncControlPort, type LiveSyncDiagnosticInput } from "@/osyc/features/AIAgent/livesyncSyncActions";
+import { buildLiveSyncDiagnosticSummary, describeLiveSyncError, readConfiguredRemote, type LiveSyncControlPort, type LiveSyncDiagnosticInput } from "@/osyc/features/AIAgent/livesyncSyncActions";
 import { resolveServiceUrl } from "@/osyc/features/AIAgent/serviceDefaults";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
@@ -23,7 +23,7 @@ import { syncMarkdownThemeScope } from "@/osyc/theme/themeScope";
 import { FONT_RESOURCE_DIR, createFontFaceDescriptor, fontResourcePath, type FontResource } from "@/osyc/theme/fontResources";
 import { applyThemePackScope, themePackForId } from "@/osyc/theme/themePack";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
-import { uploadErrorReport } from "@/osyc/features/AIAgent/diagnosticsUpload";
+import { maskEmailAddress, uploadErrorReport, type AccountDiagnosticSummary } from "@/osyc/features/AIAgent/diagnosticsUpload";
 import { AnnouncementClient, type Announcement } from "@/osyc/features/AIAgent/announcements";
 import { AnnouncementModal } from "@/osyc/features/AIAgent/AnnouncementModal";
 import { setOsycSettingsController } from "@/osyc/features/AIAgent/osycSettingsController";
@@ -152,6 +152,9 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     })();
 
     const agent = new CmdAIAgent();
+    // 本会话最近一次由 OsyC 发起的 LiveSync 拉取/推送时刻，供诊断摘要使用。
+    let lastPullAt: number | null = null;
+    let lastPushAt: number | null = null;
     const announcements = writable<Announcement[]>([]);
     const announcementClient = new AnnouncementClient({ apiBase: "", token: "", request: requestUrl });
     // 未读数**只**用于铃铛角标：列表始终是全部公告，标记已读不会让它消失（2026-09-20）。
@@ -199,7 +202,12 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
 
     // 「我的账户」弹窗：展示后端下发的档位与权益。按需打开，复用同一个实例。
     const accountModal = new AIAgentAccountModal(app, agent);
-    const toolsModal = new AIAgentToolsModal(app, agent, () => accountModal.open());
+    // 诊断上传端口在 livesyncControl 之后才装配（需要 core.services）：这里先用惰性
+    // 转发，装配完成前点击只回一句明确提示，绝不静默失败。
+    let uploadDiagnostics: ((task: AITask) => Promise<{ ok: boolean; message: string }>) | null = null;
+    const toolsModal = new AIAgentToolsModal(app, agent, () => accountModal.open(), (task) =>
+        uploadDiagnostics ? uploadDiagnostics(task) : Promise.resolve({ ok: false, message: "诊断上传尚未就绪，请稍后重试" })
+    );
     const announcementsModal = new AnnouncementModal(
         app,
         announcements,
@@ -346,9 +354,13 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
      * 现在只覆盖后端实际下发的那几个键，其余一律保持用户现状。
      */
     agent.applySetupUri = async (setupUri: string, passphrase: string): Promise<boolean> => {
+        osycLogger.info("OsyC setup URI 应用开始");
         try {
             const decoded = await decodeSettingsFromSetupURI(setupUri, passphrase);
-            if (!decoded) return false;
+            if (!decoded) {
+                osycLogger.warn("OsyC setup URI 解码失败");
+                return false;
+            }
             const decodedValues = decoded as unknown as Record<string, unknown>;
             // 合并式写入：applyPartial 而非 applyExternalSettings
             const patch = buildSetupPatch(decodedValues);
@@ -394,14 +406,23 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             const verification = verifyActivatedRemote(core.services.setting.currentSettings());
             if (!verification.ok) {
                 console.warn(`激活后未生成可用的同步档案：${verification.reason}`);
+                osycLogger.warn("OsyC setup URI 回读自检失败", { reason: verification.reason });
                 return false;
             }
+            const activatedRemote = readConfiguredRemote(core.services.setting.currentSettings());
+            osycLogger.info("OsyC setup URI 应用成功", {
+                configurationId: activatedRemote.configurationId,
+                configurationName: activatedRemote.configurationName,
+                endpoint: activatedRemote.endpoint,
+                remoteType: activatedRemote.remoteType,
+            });
             return true;
-        } catch {
+        } catch (error) {
             // 配置失败不该让激活失败 —— 记在返回值里，由 UI 提示手动配置；
             // 但也不能静默吞掉：解码/写入/应用设置任一步抛异常时，日志必须留痕，
             // 否则现场只会看到「激活失败」而没有可排查的线索。
             console.warn("激活写入同步配置时异常，已按配置失败处理");
+            osycLogger.warn("OsyC setup URI 应用异常", error);
             return false;
         }
     };
@@ -446,23 +467,33 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const runOneWayReplication = async (mode: "pullOnly" | "pushOnly"): Promise<void> => {
         const settings = currentLiveSyncSettings();
         const replicator = activeLiveSyncReplicator();
+        const label = mode === "pullOnly" ? "osyc-livesync-fetch" : "osyc-livesync-push";
         if (!replicator) throw new Error("LiveSync 复制器未就绪，请稍后重试或重启 Obsidian");
         if (!(replicator instanceof LiveSyncCouchDBReplicator)) {
             throw new Error("当前远端类型不支持单向同步，请在同步设置中使用 CouchDB 远端");
         }
-        await core.services.replicator.runFiniteReplicationActivity(
-            async () => {
-                const ok = await replicator.openOneShotReplication(settings, true, false, mode, true);
-                if (!ok) {
-                    throw new Error(
-                        mode === "pullOnly"
-                            ? "拉取未完成：远端连接失败或同步已取消"
-                            : "推送未完成：远端连接失败或同步已取消"
-                    );
-                }
-            },
-            { label: mode === "pullOnly" ? "osyc-livesync-fetch" : "osyc-livesync-push" }
-        );
+        osycLogger.info(mode === "pullOnly" ? "OsyC LiveSync 拉取开始" : "OsyC LiveSync 推送开始", { label });
+        try {
+            await core.services.replicator.runFiniteReplicationActivity(
+                async () => {
+                    const ok = await replicator.openOneShotReplication(settings, true, false, mode, true);
+                    if (!ok) {
+                        throw new Error(
+                            mode === "pullOnly"
+                                ? "拉取未完成：远端连接失败或同步已取消"
+                                : "推送未完成：远端连接失败或同步已取消"
+                        );
+                    }
+                },
+                { label }
+            );
+        } catch (error) {
+            osycLogger.warn("OsyC LiveSync 同步失败", { mode, reason: describeLiveSyncError(error) });
+            throw error;
+        }
+        if (mode === "pullOnly") lastPullAt = Date.now();
+        else lastPushAt = Date.now();
+        osycLogger.info(mode === "pullOnly" ? "OsyC LiveSync 拉取完成" : "OsyC LiveSync 推送完成", { label });
     };
 
     agent.livesyncControl = {
@@ -533,6 +564,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             } else {
                 await core.services.replication.replicate(true);
             }
+            osycLogger.info("OsyC 已加入远端里程碑");
         },
 
         fetchFromRemote: () => runOneWayReplication("pullOnly"),
@@ -540,6 +572,66 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         rebuildLocalFromRemote: () => core.rebuilder.$performRebuildDB("localOnly"),
         overwriteRemoteWithLocal: () => core.rebuilder.$performRebuildDB("remoteOnly"),
     } satisfies LiveSyncControlPort;
+
+    /**
+     * 采集一份脱敏诊断上下文：账户档位与登录态、LiveSync 摘要（含关键设置指纹）、
+     * 最近 API 失败摘要、以及完整日志缓冲。
+     *
+     * 这里只负责取值，不取任何凭据（卡密 / token / 口令 / 完整 setup URI）；
+     * 每个字段在 buildErrorReportPayload 里还会再过一遍脱敏。
+     */
+    const collectDiagnosticContext = async () => {
+        const state = get(agent.state);
+        const email = agent.emailAccount;
+        const account: AccountDiagnosticSummary = {
+            plan: state.plan,
+            activated: state.activated,
+            login: email ? "email" : state.activated || agent.settings.token ? "card" : "none",
+            email_masked: email ? maskEmailAddress(email.masked) : null,
+        };
+        const settings = currentLiveSyncSettings();
+        const remote = readConfiguredRemote(settings);
+        let input: LiveSyncDiagnosticInput = {
+            ...remote,
+            localNodeId: null,
+            acceptedNodes: null,
+            protocolVersion: null,
+            lastPullAt,
+            lastPushAt,
+            error: null,
+        };
+        try {
+            const control = agent.livesyncControl;
+            if (control) input = { ...(await control.diagnose()), lastPullAt, lastPushAt };
+        } catch (error) {
+            input = { ...input, error: describeLiveSyncError(error) };
+        }
+        return {
+            pluginVersion: typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev",
+            obsidianVersion: (app as unknown as { appVersion?: string }).appVersion ?? "unknown",
+            platform: Platform.isAndroidApp ? "android" : Platform.isIosApp ? "ios" : "desktop",
+            runtimeInfo: agent.runtimeInfo,
+            diagnosticsLog: osycLogger.report(),
+            accountSummary: account,
+            livesyncSummary: buildLiveSyncDiagnosticSummary(
+                {
+                    ...input,
+                    lastPullAt: input.lastPullAt ?? state.syncState.last_pull_at,
+                    lastPushAt: input.lastPushAt ?? state.syncState.last_push_at,
+                },
+                settings
+            ),
+            apiFailures: osycLogger.apiFailures(),
+        };
+    };
+
+    uploadDiagnostics = async (task: AITask) => {
+        const context = await collectDiagnosticContext();
+        return uploadErrorReport(agent.settings.apiBase, agent.settings.token, task, context, {
+            confirm: () => window.confirm("上传脱敏诊断？不会包含 Vault 原文、卡密或 API 密钥。"),
+            request: requestUrl,
+        });
+    };
 
     /**
      * 应用 agent 提出的设置调整建议。
@@ -801,16 +893,9 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             (patch: Record<string, unknown>) => agent.applySettingsPatch?.(patch) ?? Promise.resolve({ applied: 0, rejected: [] }),
             (snippet: AISnippet) => agent.applyThemeSnippet?.(snippet) ?? Promise.resolve({ ok: false, message: "当前不可应用主题片段" }),
             () => agent.markOnboarded(),
-            async (task) => uploadErrorReport(agent.settings.apiBase, agent.settings.token, task, {
-                pluginVersion: typeof MANIFEST_VERSION === "string" ? MANIFEST_VERSION : "dev",
-                obsidianVersion: (app as unknown as { appVersion?: string }).appVersion ?? "unknown",
-                platform: Platform.isAndroidApp ? "android" : Platform.isIosApp ? "ios" : "desktop",
-                runtimeInfo: agent.runtimeInfo,
-                diagnosticsLog: osycLogger.report(),
-            }, {
-                confirm: () => window.confirm("上传脱敏诊断？不会包含 Vault 原文、卡密或 API 密钥。"),
-                request: requestUrl,
-            }),
+            async (task) => uploadDiagnostics
+                ? uploadDiagnostics(task)
+                : { ok: false, message: "诊断上传尚未就绪，请稍后重试" },
             unreadAnnouncements,
             openAnnouncements,
             openAccount,

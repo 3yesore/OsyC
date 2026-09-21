@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
     LIVESYNC_ACTIONS,
+    buildLiveSyncDiagnosticSummary,
+    buildSettingsFingerprint,
     describeLiveSyncError,
     maskEndpoint,
     readConfiguredRemote,
@@ -211,5 +213,59 @@ describe("LiveSync 动作执行门禁", () => {
     it("非 Error 异常也有可展示的中文原因", () => {
         expect(describeLiveSyncError(undefined)).toContain("未知错误");
         expect(describeLiveSyncError(new Error(""))).not.toBe("");
+    });
+});
+
+
+describe("LiveSync 诊断上传摘要（2.0.17）", () => {
+    it("汇总活动档案 / 端点域名 / 协议版本 / 是否被远端接受", () => {
+        const summary = buildLiveSyncDiagnosticSummary(
+            {
+                configurationId: "osyc",
+                configurationName: "OsyC 同步",
+                endpoint: "https://sync.example.com:6984/db",
+                remoteType: "couchdb",
+                protocolVersion: 2,
+                localNodeId: "abcdef1234567890",
+                acceptedNodes: ["abcdef1234567890", "other-node"],
+                lastPullAt: 1700000000,
+                lastPushAt: 1700000100,
+            },
+            { customChunkSize: 0, hashAlg: "xxhash64", chunkSplitterVersion: "v3", remoteType: "couchdb" }
+        );
+        expect(summary.configuration).toBe("OsyC 同步");
+        expect(summary.endpoint).toBe("https://sync.example.com:6984");
+        expect(summary.remote_type).toBe("couchdb");
+        expect(summary.protocol_version).toBe(2);
+        expect(summary.node_id_short).toBe("abcdef12");
+        expect(summary.milestone_accepted).toBe(true);
+        expect(summary.last_pull_at).toBe(1700000000);
+        expect(summary.last_push_at).toBe(1700000100);
+    });
+
+    it("远端未接受本机时明确为 false，里程碑不可读时为 null", () => {
+        const rejected = buildLiveSyncDiagnosticSummary({ localNodeId: "node-local", acceptedNodes: ["node-other"] }, {});
+        expect(rejected.milestone_accepted).toBe(false);
+        const unknown = buildLiveSyncDiagnosticSummary({ localNodeId: "node-local", acceptedNodes: null }, {});
+        expect(unknown.milestone_accepted).toBeNull();
+    });
+
+    it("设置指纹只带非敏感的 must-match 参数", () => {
+        const fingerprint = buildSettingsFingerprint({
+            customChunkSize: 60,
+            hashAlg: "xxhash64",
+            chunkSplitterVersion: "v3",
+            remoteType: "couchdb",
+            couchDB_URI: "https://user:pw@secret.example.com/db",
+            couchDB_PASSWORD: "topsecret",
+        });
+        expect(fingerprint).toEqual({
+            customChunkSize: 60,
+            hashAlg: "xxhash64",
+            chunkSplitterVersion: "v3",
+            remoteType: "couchdb",
+        });
+        expect(JSON.stringify(fingerprint)).not.toContain("topsecret");
+        expect(JSON.stringify(fingerprint)).not.toContain("user:pw@");
     });
 });

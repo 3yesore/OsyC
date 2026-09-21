@@ -3,8 +3,21 @@ import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
 import { OsycAccountSectionModal, type OsycAccountSectionKind } from "./OsycAccountSectionModal";
 import { describeEmailEntryStatus, describeProNamespaceEntryStatus } from "./osycAccountSections";
-import type { CmdAIAgent } from "./CmdAIAgent";
+import type { AITask, CmdAIAgent } from "./CmdAIAgent";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
+
+/** 工具中心「上传脱敏诊断」用的合成任务：没有真实任务也能提交诊断。 */
+export function createManualDiagnosticTask(): AITask {
+    const id = `manual-${Date.now()}`;
+    return {
+        taskId: id,
+        clientId: id,
+        message: "",
+        status: "manual",
+        error: "用户主动上传诊断",
+        createdAt: Date.now(),
+    };
+}
 
 type ToolsTab = "account" | "recharge" | "debug";
 
@@ -31,6 +44,7 @@ const PLAN_LABEL: Record<string, string> = {
 export class AIAgentToolsModal extends Modal {
     private tab: ToolsTab = "account";
     private recharging = false;
+    private uploadingDiagnostics = false;
     /** Pro 空间状态只读回显只发一次 GET，避免每次重绘都打服务端。 */
     private proStatusRequested = false;
 
@@ -38,6 +52,8 @@ export class AIAgentToolsModal extends Modal {
         app: App,
         private agent: CmdAIAgent,
         private openAccountDetails: () => void,
+        /** 诊断上传端口；接线层注入。未接入时按钮给出明确提示，不静默失败。 */
+        private uploadDiagnostics?: (task: AITask) => Promise<{ ok: boolean; message: string }>,
     ) {
         super(app);
     }
@@ -220,6 +236,28 @@ export class AIAgentToolsModal extends Modal {
             .setName("复制 OsyC 日志")
             .setDesc("用于在问题反馈中附上已脱敏的 OsyC 日志。")
             .addButton((button) => button.setButtonText("复制").setIcon("copy").onClick(() => void this.copyLogs()));
+        new Setting(contentEl)
+            .setName("上传脱敏诊断")
+            .setDesc("上传版本、平台、账户档位、LiveSync 摘要、最近日志与 API 失败摘要；不含 Vault 原文、卡密、token 或完整 setup URI。")
+            .addButton((button) =>
+                button
+                    .setButtonText(this.uploadingDiagnostics ? "上传中…" : "上传")
+                    .setIcon("send")
+                    .setDisabled(this.uploadingDiagnostics)
+                    .onClick(async () => {
+                        if (this.uploadingDiagnostics) return;
+                        if (!this.uploadDiagnostics) {
+                            new Notice("当前版本未接入诊断上传");
+                            return;
+                        }
+                        this.uploadingDiagnostics = true;
+                        this.render();
+                        const result = await this.uploadDiagnostics(createManualDiagnosticTask());
+                        this.uploadingDiagnostics = false;
+                        new Notice(result.message);
+                        this.render();
+                    })
+            );
     }
 
     private async copyDiagnostics(): Promise<void> {

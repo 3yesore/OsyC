@@ -1,17 +1,54 @@
 import type { AITask, OsyCRuntimeInfo } from "./CmdAIAgent";
+import { maskEndpoint, type LiveSyncDiagnosticSummary } from "./livesyncSyncActions";
+import { redactSensitiveText, type OsyCApiFailure } from "@/osyc/serviceFeatures/osycLogger";
 
 export type ErrorReportRequest = (options: { url: string; method: string; headers?: Record<string, string>; body?: string; throw?: boolean }) => Promise<{ status: number; json: unknown | (() => Promise<unknown>) }>;
 
 const MAX_FIELD_LENGTH = 600;
+/**
+ * 诊断日志上限。
+ *
+ * 旧值 600 字符（与普通字段共用 bounded）意味着 200 条 ring buffer 永远只能传出
+ * 开头一小段，日志上传实际是摆设。服务端 ErrorReportRequest.diagnostics_log 允许
+ * 12000 字符，这里取 8000，留出其它字段的余量。
+ */
+const MAX_LOG_LENGTH = 8000;
 
 function redact(value: string): string {
-    return value
-        .replace(/((?:api[_-]?key|access[_-]?token|refresh[_-]?token|card[_-]?key|authorization|password|secret)\s*[:=]\s*)(["']?)[^,\s}"']+/gi, "$1$2[REDACTED]")
-        .replace(/\b(?:sk|pk)-[A-Za-z0-9_-]+\b/g, "[REDACTED_KEY]")
-        .replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [REDACTED]");
+    return redactSensitiveText(value);
 }
 
 function bounded(value: string): string { return redact(value).slice(0, MAX_FIELD_LENGTH); }
+function boundedLog(value: string): string { return redact(value).slice(0, MAX_LOG_LENGTH); }
+
+/**
+ * 邮箱脱敏：只保留「用户名首字符 + 域名首字符 + 顶级域」。
+ * 例：`alice@example.com` → `a***@e***.com`。
+ */
+export function maskEmailAddress(value: string | null | undefined): string | null {
+    const raw = typeof value === "string" ? value.trim() : "";
+    if (!raw) return null;
+    const at = raw.lastIndexOf("@");
+    if (at <= 0) return bounded(raw);
+    const local = raw.slice(0, at);
+    const domain = raw.slice(at + 1);
+    const maskedLocal = local.includes("*") ? local : `${local.slice(0, 1)}***`;
+    if (domain.includes("*")) return `${maskedLocal}@${domain}`;
+    const dot = domain.lastIndexOf(".");
+    if (dot <= 0) return `${maskedLocal}@${domain.slice(0, 1)}***`;
+    return `${maskedLocal}@${domain.slice(0, 1)}***${domain.slice(dot)}`;
+}
+
+/** 账户档位与脱敏登录态；不含卡密、token、完整邮箱。 */
+export interface AccountDiagnosticSummary {
+    plan: string;
+    activated: boolean;
+    /** card = 凭卡密激活；email = 本次运行邮箱会话；none = 未登录。 */
+    login: "card" | "email" | "none";
+    email_masked: string | null;
+}
+
+export type ApiFailureSummary = OsyCApiFailure;
 
 export interface ErrorReportContext {
     pluginVersion: string;
@@ -19,6 +56,12 @@ export interface ErrorReportContext {
     platform: string;
     runtimeInfo?: OsyCRuntimeInfo | Record<string, unknown> | null;
     diagnosticsLog: string;
+    /** 账户档位 + 脱敏登录态。 */
+    accountSummary?: AccountDiagnosticSummary | null;
+    /** LiveSync 脱敏诊断摘要（含关键设置指纹）。 */
+    livesyncSummary?: LiveSyncDiagnosticSummary | null;
+    /** 最近 API 失败摘要（路径 + 状态码）。 */
+    apiFailures?: readonly ApiFailureSummary[];
 }
 
 export interface ErrorReportPayload {
@@ -35,6 +78,52 @@ export interface ErrorReportPayload {
     diagnostics_log: string;
     message_summary: string;
     response_summary: string;
+    account_summary: AccountDiagnosticSummary | null;
+    livesync_summary: LiveSyncDiagnosticSummary | null;
+    api_failures: ApiFailureSummary[];
+}
+
+function sanitizeAccountSummary(summary: AccountDiagnosticSummary | null | undefined): AccountDiagnosticSummary | null {
+    if (!summary) return null;
+    return {
+        plan: bounded(String(summary.plan ?? "base")),
+        activated: Boolean(summary.activated),
+        login: summary.login === "email" ? "email" : summary.login === "none" ? "none" : "card",
+        email_masked: maskEmailAddress(summary.email_masked),
+    };
+}
+
+function sanitizeLiveSyncSummary(summary: LiveSyncDiagnosticSummary | null | undefined): LiveSyncDiagnosticSummary | null {
+    if (!summary) return null;
+    return {
+        configuration: summary.configuration ? bounded(summary.configuration) : null,
+        // 兜底再脱敏一次：即使调用方塞进完整连接串（含 user:pass@），上传的也只有域名。
+        endpoint: summary.endpoint ? bounded(maskEndpoint(summary.endpoint)) : null,
+        remote_type: summary.remote_type ? bounded(summary.remote_type) : null,
+        protocol_version:
+            typeof summary.protocol_version === "number" ? summary.protocol_version : summary.protocol_version ? bounded(summary.protocol_version) : null,
+        node_id_short: summary.node_id_short ? bounded(summary.node_id_short).slice(0, 12) : null,
+        milestone_accepted: typeof summary.milestone_accepted === "boolean" ? summary.milestone_accepted : null,
+        last_pull_at: summary.last_pull_at ?? null,
+        last_push_at: summary.last_push_at ?? null,
+        settings_fingerprint: {
+            customChunkSize: summary.settings_fingerprint?.customChunkSize ?? null,
+            hashAlg: summary.settings_fingerprint?.hashAlg ? bounded(summary.settings_fingerprint.hashAlg) : null,
+            chunkSplitterVersion: summary.settings_fingerprint?.chunkSplitterVersion
+                ? bounded(summary.settings_fingerprint.chunkSplitterVersion)
+                : null,
+            remoteType: summary.settings_fingerprint?.remoteType ? bounded(summary.settings_fingerprint.remoteType) : null,
+        },
+        error: summary.error ? bounded(summary.error) : null,
+    };
+}
+
+function sanitizeApiFailures(failures: readonly ApiFailureSummary[] | undefined): ApiFailureSummary[] {
+    return (failures ?? []).slice(-20).map((failure) => ({
+        at: bounded(String(failure.at ?? "")),
+        path: bounded(String(failure.path ?? "")),
+        status: typeof failure.status === "number" ? failure.status : 0,
+    }));
 }
 
 export function isDiagnosticEligible(task: AITask): boolean {
@@ -54,9 +143,12 @@ export function buildErrorReportPayload(task: AITask, context: ErrorReportContex
         platform: bounded(context.platform),
         runtime_info: context.runtimeInfo ?? null,
         progress_events: (task.progressEvents ?? []).slice(-12).map((event) => ({ phase: event.phase, count: event.count })),
-        diagnostics_log: bounded(context.diagnosticsLog),
+        diagnostics_log: boundedLog(context.diagnosticsLog),
         message_summary: `任务描述已省略（${task.message.length} 字）`,
         response_summary: task.responseText ? `模型回复已省略（${task.responseText.length} 字）` : "无模型回复",
+        account_summary: sanitizeAccountSummary(context.accountSummary),
+        livesync_summary: sanitizeLiveSyncSummary(context.livesyncSummary),
+        api_failures: sanitizeApiFailures(context.apiFailures),
     };
 }
 
