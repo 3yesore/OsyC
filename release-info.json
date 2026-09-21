@@ -1,13 +1,13 @@
 {
-  "version": "2.0.16",
+  "version": "2.0.17",
   "channel": "stable",
   "pluginId": "osyc",
-  "sourceCommit": "fa2722d",
+  "sourceCommit": "898c347",
   "assets": {
-    "main.js": "8f189d88e6c2d8da64544ce0c6f10473ddcd66cddc599d006289b7e9b496a4b2",
-    "manifest.json": "b3b72f0fcebcf262a6f22c27aa4085ac84f3e6fe0b025ea5fde387bb597552df",
-    "manifest-beta.json": "b3b72f0fcebcf262a6f22c27aa4085ac84f3e6fe0b025ea5fde387bb597552df",
+    "main.js": "f67ccb7540fc046d710b6c144a71422a4a9376d51f529152fda1ed56192a85c9",
+    "manifest.json": "03dbdc32195fb2f5b029332aef6d65a34f0118a4548049b490ab0952a10539d9",
+    "manifest-beta.json": "03dbdc32195fb2f5b029332aef6d65a34f0118a4548049b490ab0952a10539d9",
     "styles.css": "cbc4e6da4f47579ce5158a75e5e96c275f107423b3b201c296d509aafd6f03fa",
-    "versions.json": "96d17c5a5570d30de42ae8d3d5968123249e4bb55896657ff28a68a51da1760d"
+    "versions.json": "d2fe3604ad4fa1c3972da2e2668e455cef6f7fe79ec8291ba076915b65a7cbe7"
   }
 }
