@@ -414,6 +414,31 @@ export interface EmailAccountSession {
     session: string;
 }
 
+/**
+ * 邮箱验证码用途。服务端 `POST /api/email/send-code` 接受 `login | register | bind`：
+ * `login` 用于登录/注册（同一条流程），`bind` 专用于「卡密 → 邮箱」绑定，
+ * 两种用途的验证码互不通用（`bind-email` 只消费 `purpose="bind"` 的码）。
+ */
+export type EmailCodePurpose = "login" | "register" | "bind";
+
+/**
+ * 服务端错误 `detail` 的安全回显：去掉控制字符、折叠空白，并截断到 240 字符。
+ *
+ * 只用于用户可见文案；返回 null 时调用方回落到状态码固定文案。绝不把原始响应
+ * 直接塞进 UI —— 服务端字段一律当未知 JSON 处理。
+ */
+export function readEmailErrorDetail(raw: unknown): string | null {
+    const record = asJsonRecord(raw);
+    const detail = record?.detail ?? record?.message ?? record?.error;
+    if (typeof detail !== "string") return null;
+    const safe = detail
+        .replace(/[\u0000-\u001f\u007f]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 240);
+    return safe || null;
+}
+
 /** Pro「独立同步空间」的可展示条目（GET/POST /api/pro/namespace 下发）。 */
 export interface ProNamespaceInfo {
     /** 服务端是否认为该空间已开通。 */
@@ -580,6 +605,7 @@ export class CmdAIAgent {
         this.settings.token = token;
         // 换服务地址/重新配置后旧卡密不再可信，清掉会话里的那份。
         this.sessionCardKey = "";
+        this.emailBindSummary = null;
         this.runtimeInfo = null;
         this.runtimeInfoLoaded = false;
         this.stopped = false;
@@ -625,17 +651,31 @@ export class CmdAIAgent {
     /** 已登录的邮箱账户。会话只存内存，不写盘。 */
     emailAccount: EmailAccountSession | null = null;
 
-    /** 发送邮箱验证码（登录/注册共用）。 */
-    async requestEmailCode(email: string): Promise<{ ok: boolean; message: string }> {
+    /**
+     * 最近一次「卡密 → 邮箱」绑定成功的只读回显。故意只留内存：它不代表邮箱登录
+     * 会话（bind-email 不签发 session_token），重启后随之消失，UI 不得当成已登录。
+     */
+    emailBindSummary: string | null = null;
+
+    /**
+     * 发送邮箱验证码。
+     *
+     * `purpose` 默认 `login`（登录/注册同一流程，保持向后兼容）；把当前卡密绑定到
+     * 邮箱时必须传 `bind`，否则服务端 `bind_email` 取不到对应用途的验证码会 400。
+     */
+    async requestEmailCode(
+        email: string,
+        purpose: EmailCodePurpose = "login"
+    ): Promise<{ ok: boolean; message: string }> {
         const value = email.trim();
         if (!value) return { ok: false, message: "请输入邮箱地址" };
         if (this.isMock) return { ok: true, message: "MOCK 模式：已模拟发送验证码" };
         if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
-        const { status } = await this.call("/api/email/send-code", "POST", {
+        const { status, data } = await this.call("/api/email/send-code", "POST", {
             email: value,
-            purpose: "login",
+            purpose,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status) };
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
         return { ok: true, message: `验证码已发送至 ${value}，5 分钟内有效` };
     }
 
@@ -657,7 +697,7 @@ export class CmdAIAgent {
             device_id: this.deviceId,
             device_name: this.deviceId,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status) };
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
         const res = data as {
             account?: { email_masked?: string };
             cards?: EmailCardRef[];
@@ -695,7 +735,7 @@ export class CmdAIAgent {
             device_id: this.deviceId,
             device_name: this.deviceId,
         });
-        if (status >= 400) return { ok: false, message: this.describeEmailError(status) };
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
         const res = data as {
             cards?: EmailCardRef[];
             token?: string;
@@ -716,8 +756,58 @@ export class CmdAIAgent {
         return { ok: true, message: "卡密已并入邮箱账户" };
     }
 
-    /** 邮箱相关接口的失败文案（后端状态码语义固定）。 */
-    private describeEmailError(status: number): string {
+    /**
+     * 把**当前卡密**并入指定邮箱账户（`POST /api/account/bind-email`）。
+     *
+     * 方向是「卡密 → 邮箱」，与 {@link bindCardToEmail} 的「邮箱 → 卡密」相反：
+     * - 需要已激活的卡密 token（`call()` 自带 `Authorization: Bearer`）；未激活不发请求；
+     * - 验证码必须是 `purpose="bind"` 的，先 `requestEmailCode(email, "bind")` 获取，
+     *   登录验证码不通用；
+     * - 服务端不签发设备 token、不改本机 `settings.token`（绑定不改本机身份）；
+     * - 成功只刷新邮箱掩码 / 关联卡密，并留一条只读回显。
+     */
+    async bindEmailToAccount(email: string, code: string): Promise<{ ok: boolean; message: string }> {
+        const mail = email.trim();
+        const pin = code.trim();
+        if (!mail || !pin) return { ok: false, message: "请输入邮箱地址与绑定验证码" };
+        if (this.isMock) return { ok: true, message: "MOCK 模式：已模拟把当前卡密绑定到邮箱" };
+        if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
+        if (!get(this.state).activated || !this.settings.token) {
+            return { ok: false, message: "请先激活卡密，再把当前卡密绑定到邮箱" };
+        }
+        const { status, data } = await this.call("/api/account/bind-email", "POST", {
+            email: mail,
+            code: pin,
+        });
+        if (status >= 400) return { ok: false, message: this.describeEmailError(status, data) };
+        const res = data as {
+            email_masked?: string;
+            cards?: EmailCardRef[];
+            message?: string;
+        } | null;
+        const masked =
+            typeof res?.email_masked === "string" && res.email_masked.trim()
+                ? res.email_masked.trim()
+                : mail;
+        // 已登录同一邮箱时用服务端回执刷新内存会话；未登录时只留只读回显，绝不伪造 session。
+        if (this.emailAccount) {
+            this.emailAccount.masked = masked;
+            if (res?.cards) this.emailAccount.cards = res.cards;
+        }
+        this.emailBindSummary = `已把当前卡密绑定到 ${masked}`;
+        return { ok: true, message: res?.message?.trim() || "邮箱已绑定" };
+    }
+
+    /**
+     * 邮箱相关接口的失败文案。
+     *
+     * G3（2.0.15）：优先回显服务端 `detail`（已做去控制字符 / 折叠空白 / 240 字截断），
+     * 让同一状态码下的不同原因（邮箱格式不正确 / 验证码过期 / 尝试过多）能区分；
+     * `detail` 缺失或非法时才回落到按状态码的固定中文文案。
+     */
+    private describeEmailError(status: number, data?: unknown): string {
+        const detail = readEmailErrorDetail(data);
+        if (detail) return detail;
         if (status === 400) return "验证码无效或已过期";
         if (status === 401) return "邮箱会话已失效，请重新验证邮箱";
         if (status === 403) return "本设备已达该卡密上限，请先解绑旧设备";

@@ -11,7 +11,7 @@ describe("CmdAIAgent 邮箱账户", () => {
     it("邮箱验证码登录走 /api/email/verify 并直接吃下卡密 token", () => {
         expect(source).toContain('"/api/email/send-code"');
         expect(source).toContain('"/api/email/verify"');
-        expect(source).toContain('purpose: "login"');
+        expect(source).toContain('purpose: EmailCodePurpose = "login"');
         expect(source).toContain("device_id: this.deviceId");
         // 登录成功即用后端签发的设备 token 覆盖本地 token
         expect(source).toContain("this.settings.token = res.token");
@@ -43,5 +43,30 @@ describe("CmdAIAgent 邮箱账户", () => {
     it("设备超限时绑卡不整体失败，而是单独提示", () => {
         expect(source).toContain("device_limit_reached");
         expect(source).toContain("本设备已达该卡密上限，请先解绑旧设备");
+    });
+
+    it("requestEmailCode 支持 purpose：默认 login，绑定邮箱用 bind（G1）", () => {
+        expect(source).toContain('export type EmailCodePurpose = "login" | "register" | "bind"');
+        expect(source).toContain('purpose: EmailCodePurpose = "login"');
+        // purpose 必须转发给 send-code，而不是写死 login
+        expect(source).toContain("purpose,");
+    });
+
+    it("新增 bind-email 消费者，走当前卡密 Bearer token 而不是邮箱会话（G1）", () => {
+        expect(source).toContain('"/api/account/bind-email"');
+        expect(source).toContain("async bindEmailToAccount(email: string, code: string)");
+        expect(source).toContain("请先激活卡密，再把当前卡密绑定到邮箱");
+        // 正向绑定不需要 session_token（那是反向 bind-card 的凭据）
+        const start = source.indexOf("async bindEmailToAccount(");
+        const end = source.indexOf("private describeEmailError(", start);
+        expect(start).toBeGreaterThan(-1);
+        expect(end).toBeGreaterThan(start);
+        expect(source.slice(start, end)).not.toContain("session_token");
+    });
+
+    it("邮箱失败文案优先回显服务端 detail，并做截断安全处理（G3）", () => {
+        expect(source).toContain("readEmailErrorDetail");
+        expect(source).toContain(".slice(0, 240)");
+        expect(source).toContain("describeEmailError(status, data)");
     });
 });

@@ -51,10 +51,27 @@ export function describeProNamespaceEntryStatus(state: ProNamespaceState | null)
 }
 
 /**
+ * G2：邮箱会话只留在内存，插件重启后必须重新验证。状态行必须把这件事说清楚，
+ * 否则用户会把「重启后需要重新验证」当成「掉登录」。
+ */
+export const EMAIL_SESSION_HINT = "邮箱会话仅在本次运行有效，重启 Obsidian 后需重新验证";
+
+/** G4：两个绑定方向的显式文案。都叫「绑定」会混淆，界面上必须写清方向。 */
+export const EMAIL_BIND_DIRECTION_FORWARD = "卡密 → 邮箱（绑定当前卡密）";
+export const EMAIL_BIND_DIRECTION_REVERSE = "邮箱 → 卡密（用邮箱账户并入卡密）";
+
+/**
  * 邮箱登录 / 绑定卡密。
  *
  * 邮箱是高于卡密的身份锚点：验证通过后卡密跟着邮箱走，换设备只认邮箱 + 验证码。
  * 会话 token 只留在内存里（不落盘），插件重启后需要重新验证一次邮箱。
+ *
+ * 区块内有两个方向相反的「绑定」，必须分开：
+ * - **邮箱 → 卡密（并入）**：先邮箱验证码登录拿到内存会话，再把已有卡密并入该邮箱；
+ * - **卡密 → 邮箱（绑定）**：当前卡密已激活（Bearer token），把「当前卡密」并入邮箱，
+ *   需要 `purpose="bind"` 的验证码。
+ *
+ * 所有动作（发码 / 登录 / 两种绑定）都只由用户点击触发，渲染时绝不自动执行。
  */
 export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSectionContext): void {
     const box = contentEl.createDiv({ cls: "ai-account-email-login" });
@@ -62,6 +79,8 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
         text: "邮箱是高于卡密的身份锚点：验证邮箱后绑定的卡密会自动载入，换设备只需邮箱验证码。",
         cls: "ai-account-hint",
     });
+    // G2：状态行明说会话只在本进程有效，避免重启后被当成「掉登录」。
+    box.createEl("p", { text: `说明：${EMAIL_SESSION_HINT}。`, cls: "ai-account-hint" });
 
     const emailSetting = new Setting(box).setName("邮箱地址");
     const emailInput = emailSetting.controlEl.createEl("input", {
@@ -71,30 +90,39 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
     });
     emailInput.addClass("ai-account-input");
 
-    const statusEl = box.createEl("p", { text: "状态：尚未验证邮箱", cls: "ai-account-hint" });
+    const statusEl = box.createEl("p", {
+        text: `状态：尚未验证邮箱（${EMAIL_SESSION_HINT}）`,
+        cls: "ai-account-hint",
+    });
     const setStatus = (text: string) => {
         statusEl.setText(`状态：${text}`);
     };
 
-    let sendButton: ButtonComponent | null = null;
-    let countdownTimer: number | null = null;
-    const startCountdown = (seconds: number) => {
-        if (!sendButton) return;
-        let left = seconds;
-        sendButton.setDisabled(true);
-        sendButton.setButtonText(`重新发送（${left}s）`);
-        countdownTimer = window.setInterval(() => {
-            left -= 1;
-            if (left <= 0) {
-                if (countdownTimer !== null) window.clearInterval(countdownTimer);
-                countdownTimer = null;
-                sendButton?.setDisabled(false);
-                sendButton?.setButtonText("发送验证码");
-                return;
-            }
-            sendButton?.setButtonText(`重新发送（${left}s）`);
-        }, 1000);
+    // 倒计时只负责解禁按钮，不自动发码：真正发码仍由各按钮的 onClick 触发。
+    const makeCountdown = (getButton: () => ButtonComponent | null, resetText: string) => {
+        let timer: number | null = null;
+        return (seconds: number) => {
+            const button = getButton();
+            if (!button) return;
+            let left = seconds;
+            button.setDisabled(true);
+            button.setButtonText(`重新发送（${left}s）`);
+            timer = window.setInterval(() => {
+                left -= 1;
+                if (left <= 0) {
+                    if (timer !== null) window.clearInterval(timer);
+                    timer = null;
+                    getButton()?.setDisabled(false);
+                    getButton()?.setButtonText(resetText);
+                    return;
+                }
+                getButton()?.setButtonText(`重新发送（${left}s）`);
+            }, 1000);
+        };
     };
+
+    let sendButton: ButtonComponent | null = null;
+    const startCountdown = makeCountdown(() => sendButton, "发送验证码");
 
     emailSetting.addButton((btn) => {
         sendButton = btn;
@@ -108,7 +136,7 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
                     return;
                 }
                 btn.setDisabled(true);
-                const result = await ctx.agent.requestEmailCode(email);
+                const result = await ctx.agent.requestEmailCode(email, "login");
                 new Notice(result.message);
                 if (result.ok) {
                     startCountdown(60);
@@ -143,14 +171,16 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
 
     const account = ctx.agent.emailAccount;
     if (account) {
-        setStatus(`已登录 ${account.masked}`);
+        setStatus(`已登录 ${account.masked}（${EMAIL_SESSION_HINT}）`);
         const cards = account.cards.map((c) => c.card_key).join("、") || "暂未绑定卡密";
         box.createEl("p", { text: `已关联卡密：${cards}`, cls: "ai-account-hint" });
     }
 
+    // ── 方向一：邮箱 → 卡密（并入）──
+    new Setting(box).setName(EMAIL_BIND_DIRECTION_REVERSE).setHeading();
     const bindSetting = new Setting(box)
         .setName("绑定卡密")
-        .setDesc("把已有卡密并入当前邮箱账户；需要先完成一次邮箱验证。");
+        .setDesc("方向「邮箱 → 卡密」：把已有卡密并入当前邮箱账户；需要先完成一次邮箱验证码登录。");
     const cardInput = bindSetting.controlEl.createEl("input", {
         type: "password",
         placeholder: "输入卡密",
@@ -173,6 +203,72 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
             if (result.ok) ctx.refresh();
         })
     );
+
+    // ── 方向二：卡密 → 邮箱（绑定当前卡密）──
+    new Setting(box).setName(EMAIL_BIND_DIRECTION_FORWARD).setHeading();
+    box.createEl("p", {
+        text: "方向「卡密 → 邮箱」：把当前正在使用的卡密并入上面的邮箱地址。需要先发送「绑定」用途验证码，"
+            + "登录验证码与它不通用；绑定不会切换本机卡密，也不会自动执行。",
+        cls: "ai-account-hint",
+    });
+    const bindCodeSetting = new Setting(box).setName("绑定验证码");
+    const bindCodeInput = bindCodeSetting.controlEl.createEl("input", {
+        type: "text",
+        placeholder: "6 位绑定验证码",
+        attr: { inputmode: "numeric", autocomplete: "one-time-code" },
+    });
+    bindCodeInput.addClass("ai-account-input");
+    let bindSendButton: ButtonComponent | null = null;
+    const startBindCountdown = makeCountdown(() => bindSendButton, "发送绑定验证码");
+    bindCodeSetting.addButton((btn) => {
+        bindSendButton = btn;
+        btn.setButtonText("发送绑定验证码")
+            .setIcon("send")
+            .onClick(async () => {
+                const email = emailInput.value.trim();
+                if (!email) {
+                    new Notice("请输入邮箱地址");
+                    return;
+                }
+                btn.setDisabled(true);
+                // 关键：purpose=bind 与登录验证码分开；否则服务端 bind_email 必然 400。
+                const result = await ctx.agent.requestEmailCode(email, "bind");
+                new Notice(result.message);
+                if (result.ok) {
+                    startBindCountdown(60);
+                    setStatus(`绑定验证码已发送至 ${email}，5 分钟内有效`);
+                } else {
+                    btn.setDisabled(false);
+                    setStatus(result.message);
+                }
+            });
+    });
+    bindCodeSetting.addButton((btn) =>
+        btn.setButtonText("绑定到邮箱").setIcon("link").setCta().onClick(async () => {
+            const email = emailInput.value.trim();
+            const code = bindCodeInput.value.trim();
+            if (!email) {
+                new Notice("请输入邮箱地址");
+                return;
+            }
+            if (!code) {
+                new Notice("请输入绑定验证码");
+                return;
+            }
+            btn.setDisabled(true);
+            const result = await ctx.agent.bindEmailToAccount(email, code);
+            btn.setDisabled(false);
+            if (result.ok) bindCodeInput.value = "";
+            new Notice(result.message);
+            setStatus(result.message);
+            // 成功后才刷新，回显服务端掩码 / 关联卡密与只读绑定回显。
+            if (result.ok) ctx.refresh();
+        })
+    );
+
+    if (ctx.agent.emailBindSummary) {
+        box.createEl("p", { text: `绑定回显：${ctx.agent.emailBindSummary}`, cls: "ai-account-hint" });
+    }
 }
 
 /**

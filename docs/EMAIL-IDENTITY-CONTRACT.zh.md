@@ -1,8 +1,9 @@
 # 邮箱身份口径核对（客户端 ↔ 服务端）
 
-> 基线：`release/2.0.14`（HEAD `1a0306e`）。核对日期 2026-09-20。
-> 目的：在「工具中心 → 账户页」新增邮箱账户入口与 Pro 独立同步空间入口之前，把
-> **服务端已实现的能力**与**客户端已实现的能力**逐条对齐，标出缺口。
+> 基线：`release/2.0.14`（HEAD `da37be1`）。首次核对日期 2026-09-20。
+> 更新（2026-09-21，`release/2.0.15`）：已补上 G1 的 bind-email 客户端消费者与 UI 入口，
+> 并顺带修掉 G2 / G3 / G4；下文每条缺口都标注了「已在 2.0.15 实现」或「仍待办」。
+> 目的：把**服务端已实现的能力**与**客户端已实现的能力**逐条对齐，标出缺口。
 >
 > 本文只记录接口契约与缺口，**不包含**任何真实卡密、口令、setup URI 或邮箱地址。
 
@@ -14,8 +15,9 @@
 |---|---|---|
 | 服务端 | `backend/app/email_auth.py` | `EmailAuthService` 的四个流程：发码 / 校验 / 绑邮箱 / 绑卡密 |
 | 服务端 | `backend/app/api/routes.py` L718–L810 | 四个 HTTP 路由与请求模型 |
-| 客户端 | `src/osyc/features/AIAgent/CmdAIAgent.ts` L606–L712 | 邮箱账户三方法 + 错误码文案 |
-| 客户端 | `src/osyc/features/AIAgent/AIAgentAccountModal.ts` L501–L624 | 邮箱区块 UI（地址 / 发码 60s 倒计时 / 验证码登录 / 绑定卡密） |
+| 客户端 | `src/osyc/features/AIAgent/CmdAIAgent.ts` | 邮箱账户方法 + `purpose` + 错误码文案（2.0.15 增加 bind-email 消费者） |
+| 客户端 | `src/osyc/features/AIAgent/osycAccountSections.ts` | 共享邮箱区块 UI（地址 / 发码 60s 倒计时 / 登录 / 两个方向的绑定） |
+| 客户端 | `src/osyc/features/AIAgent/AIAgentAccountModal.ts` | 账户弹窗委托共享区块 |
 | 客户端 | `src/osyc/features/AIAgent/AIAgentToolsModal.ts` L82–L122 | 「账户」页（新增入口的落点） |
 
 ---
@@ -88,29 +90,35 @@
 
 ## 2. 客户端能力清单
 
-### 2.1 `CmdAIAgent`（L606–L712）
+### 2.1 `CmdAIAgent`（2.0.15）
 
 | 方法 | 行 | 调用 | 说明 |
 |---|---|---|---|
-| `requestEmailCode(email)` | L612 | `POST /api/email/send-code` | **`purpose: "login"` 硬编码**；成功文案「验证码已发送至 X，5 分钟内有效」 |
-| `loginWithEmail(email, code)` | L631 | `POST /api/email/verify` | 传 `device_id/device_name`；把 `res.session_token` 存进 `emailAccount.session`；有 `token` 时覆盖 `settings.token`、`activated=true`、`refreshStatus()` |
-| `bindCardToEmail(cardKey)` | L668 | `POST /api/account/bind-card` | 需要 `emailAccount.session`，否则「请先用邮箱验证码登录，再绑定卡密」；处理 `device_limit_reached` |
-| `emailAccount` | L609 | — | `{ masked, cards[], session }`，**只内存、不落盘**（L394 注释） |
-| `describeEmailError(status)` | L703 | — | 仅按状态码给固定中文，忽略服务端 `detail` |
+| `requestEmailCode(email, purpose = "login")` | L666 | `POST /api/email/send-code` | **2.0.15 起支持 `purpose`**（`login` / `register` / `bind`），默认 `login` 保持向后兼容；绑定邮箱必须传 `bind` |
+| `loginWithEmail(email, code)` | L688 | `POST /api/email/verify` | 传 `device_id/device_name`；把 `res.session_token` 存进 `emailAccount.session`；有 `token` 时覆盖 `settings.token`、`activated=true`、`refreshStatus()`（邮箱 → 卡密） |
+| `bindCardToEmail(cardKey)` | L725 | `POST /api/account/bind-card` | 方向「邮箱 → 卡密」；需要 `emailAccount.session`，否则「请先用邮箱验证码登录，再绑定卡密」；处理 `device_limit_reached` |
+| `bindEmailToAccount(email, code)` | L769 | `POST /api/account/bind-email` | **2.0.15 新增**；方向「卡密 → 邮箱」；需要已激活卡密 token（Bearer），未激活不发请求；成功只刷新内存掩码 / 卡密并留只读回显，不签发 session |
+| `emailAccount` | L652 | — | `{ masked, cards[], session }`，**只内存、不落盘** |
+| `emailBindSummary` | L658 | — | **2.0.15 新增**；最近一次「卡密 → 邮箱」绑定的只读回显，只内存、不代表已登录 |
+| `describeEmailError(status, data)` | L808 | — | **2.0.15 起优先回显服务端 `detail`**（去控制字符 / 折叠空白 / 240 字截断），缺失时按状态码兜底 |
 
-### 2.2 UI：`AIAgentAccountModal.renderEmailLogin`（L507–L624）
+### 2.2 UI：共享邮箱区块 `osycAccountSections.renderEmailAccountSection`
 
-- 说明文案（邮箱是身份锚点）；
-- 「邮箱地址」输入框 + 「发送验证码」按钮，成功后 **60s 倒计时**（`startCountdown(60)`）；
+- 说明文案（邮箱是身份锚点）+ **G2 说明**「邮箱会话仅在本次运行有效，重启 Obsidian 后需重新验证」；
+- 「邮箱地址」输入框 + 「发送验证码」按钮（`requestEmailCode(email, "login")`），成功后 **60s 倒计时**（`startCountdown(60)`）；
 - 「验证码」输入框 + 「登录」按钮（`loginWithEmail`）；
-- 状态行：未登录显示「尚未验证邮箱」；已登录显示「已登录 <masked>」并列出已关联卡密；
-- 「绑定卡密」输入框 + 「绑定」按钮（`bindCardToEmail`）。
-- 该区块位于账户弹窗「账户操作」折叠体内（L140–L146）。
+- 状态行：未登录显示「尚未验证邮箱（含 G2 说明）」；已登录显示「已登录 <masked>（含 G2 说明）」并列出已关联卡密；
+- **方向一 heading「邮箱 → 卡密（用邮箱账户并入卡密）」**：「绑定卡密」输入框 + 「绑定」按钮（`bindCardToEmail`）；
+- **方向二 heading「卡密 → 邮箱（绑定当前卡密）」**：「绑定验证码」输入框 + 「发送绑定验证码」按钮
+  （`requestEmailCode(email, "bind")`，60s 倒计时）+ 「绑定到邮箱」按钮（`bindEmailToAccount`）；成功后 `ctx.refresh()` 回显；
+- 所有动作（发码 / 登录 / 两种绑定）都只在用户点击时执行，渲染区块本身不发任何请求。
+- 该区块同时被账户弹窗「账户操作」折叠体与工具中心入口弹窗复用，不存在第二套实现。
 
-### 2.3 UI：`AIAgentToolsModal`「账户」页（L82–L122）
+### 2.3 UI：`AIAgentToolsModal`「账户」页
 
-- 现有条目：**我的账户**（打开账户详情）、**Cloud-Vault 备份**（条件显示）、**OsyC 设置**。
-- 目前**没有**邮箱入口，也**没有**独立同步空间入口 —— 本次要补的就是这两行。
+- 本节记录的是 2.0.14 引入入口**之前**的基线：当时只有 **我的账户** 一条。
+- 2.0.14 起已加入「邮箱账户」与「独立同步空间（Pro）」两个入口，均复用共享区块（`osycAccountSections.ts`）；
+  点击入口只打开界面，不自动登录 / 发码 / 切换空间。
 
 ---
 
@@ -118,62 +126,69 @@
 
 > 图例：**[硬缺口]** = 当前必然失败或能力不可达；**[软缺口]** = 可用但文案/口径不完整。
 
-### G1 · bind-email 缺 UI，且验证码用途对不上 **[硬缺口]**
+### G1 · bind-email 缺 UI，且验证码用途对不上 **[硬缺口 → 已在 2.0.15 实现]**
 
-- **现状**：服务端 `POST /api/account/bind-email` 完整可用，但客户端**没有**任何方法调用它，也没有入口；
+- **原现状**：服务端 `POST /api/account/bind-email` 完整可用，但客户端**没有**任何方法调用它，也没有入口；
   更关键的是 `bind_email` 只认 `purpose="bind"` 的验证码，而客户端 `requestEmailCode` **固定发 `purpose: "login"`**。
-  因此即使补上 UI 直接调用服务端，`latest_email_code(hash, "bind")` 必然取不到行 → 400「验证码无效或已过期」。
-- **需要补什么**：
-  1. 客户端 `requestEmailCode(email, purpose)` 支持传 `bind`（send-code 已经接受该字段）；
-  2. 新增 `CmdAIAgent.bindEmailToAccount(email, code)` 调 `/api/account/bind-email`；
-  3. 才谈 UI 入口。
-- **本次范围**：不实现（本次入口复用现有邮箱区块的「登录/注册/绑定卡密」，bind-email 是另一条链）。此处显式登记，避免误以为已闭环。
+- **2.0.15 实现**：
+  1. `CmdAIAgent.requestEmailCode(email, purpose = "login")` 支持 `login | register | bind`（默认 `login`，向后兼容）；
+  2. 新增 `CmdAIAgent.bindEmailToAccount(email, code)` 调 `POST /api/account/bind-email`，复用 `call()` 的 Bearer 卡密 token，
+     未激活时直接返回「请先激活卡密，再把当前卡密绑定到邮箱」，不发请求；
+  3. UI 落在共享的 `osycAccountSections.ts` 邮箱区块：「绑定验证码」输入框 + 「发送绑定验证码」
+     （`requestEmailCode(email, "bind")`，60s 倒计时）+ 「绑定到邮箱」（`bindEmailToAccount`）；成功后 `ctx.refresh()`。
+- **仍未做**：无。但**未在真机 Obsidian 上点击验证**，只过了单元测试与 `tsc --noEmit`。
 
-### G2 · 邮箱会话只存内存，重启需重新验证 **[软缺口]**
+### G2 · 邮箱会话只存内存，重启需重新验证 **[软缺口 → 已在 2.0.15 实现（文案）]**
 
-- **现状**：`emailAccount` 刻意不落盘（安全口径，见 L393-L394 与 `CmdAIAgent.email.unit.spec.ts`），插件重启后
-  `emailAccount` 为 `null`，需要重新走一次邮箱验证；UI 状态行只写「尚未验证邮箱」。
-- **需要补什么**：产品确认是否接受「每次重启重新验证」；若接受，在状态行补一句明确说明（否则用户会以为掉登录）。
-  本次入口的状态文案按「未登录」如实显示，不承诺持久会话。
+- **现状**：`emailAccount` 仍刻意不落盘（安全口径，见 `CmdAIAgent.email.unit.spec.ts`），插件重启后为 `null`，
+  需要重新走一次邮箱验证。这是既定口径，本次不改持久会话。
+- **2.0.15 实现**：共享邮箱区块导出 `EMAIL_SESSION_HINT = "邮箱会话仅在本次运行有效，重启 Obsidian 后需重新验证"`，
+  写在说明行与状态行里，避免用户把重启后的重新验证当成「掉登录」。
+- **仍未做**：「是否接受每次重启重新验证」的产品决策未变；若未来要求持久会话，需单独设计安全存储。
 
-### G3 · 错误码文案不分流，忽略服务端 detail **[软缺口]**
+### G3 · 错误码文案不分流，忽略服务端 detail **[软缺口 → 已在 2.0.15 实现]**
 
-- **现状**：`describeEmailError` 仅按状态码给一句固定文案。400 同时覆盖「邮箱格式不正确 / 验证码已过期 /
-  验证码已被使用 / 验证码无效」，统一显示「验证码无效或已过期」，会把「邮箱写错」误导成「验证码不对」；
-  429 同时覆盖「发码过频」与「尝试次数过多」，统一显示「操作过于频繁，请稍后再试」。
-- **需要补什么**：按调用上下文（发码 / 校验 / 绑卡）分流 400/429 文案，或优先透出服务端 `detail`（需脱敏），
-  至少保证「邮箱格式不正确」能单独提示。本次不改动既有文案。
+- **原现状**：`describeEmailError` 仅按状态码给一句固定文案，400 / 429 下多种原因被合并，会把「邮箱写错」误导成「验证码不对」。
+- **2.0.15 实现**：`describeEmailError(status, data)` 先用 `readEmailErrorDetail(data)` 优先回显服务端 `detail`
+  （去控制字符、折叠空白、截断到 240 字），`detail` 缺失或非法时才回落到状态码固定文案；
+  `requestEmailCode` / `loginWithEmail` / `bindCardToEmail` / `bindEmailToAccount` 四个调用点都改传 `data`。
+- **仍未做**：无（「邮箱格式不正确」等已能单独提示）。
 
-### G4 · 两个「绑定」方向容易混淆 **[软缺口]**
+### G4 · 两个「绑定」方向容易混淆 **[软缺口 → 已在 2.0.15 实现]**
 
-- **现状**：`verify` / `bind-card`（反向：邮箱账户并吞卡密）已有 UI；`bind-email`（正向：当前卡密并入邮箱账户）无 UI。
-  两者都叫「绑定」，用户无法区分。
-- **需要补什么**：若未来补 bind-email UI，需明确区分「把卡密绑到邮箱」与「用邮箱登录后并入新卡密」两个方向，
-  并在入口文案中说清前置条件（前者需邮件 bind 用途验证码，后者需先完成邮箱登录）。
+- **原现状**：`verify` / `bind-card`（反向：邮箱账户并吞卡密）已有 UI；`bind-email`（正向：当前卡密并入邮箱账户）无 UI，两者都叫「绑定」。
+- **2.0.15 实现**：共享邮箱区块用两个 heading 与方向描述显式区分：
+  `EMAIL_BIND_DIRECTION_REVERSE = "邮箱 → 卡密（用邮箱账户并入卡密）"`（`bindCardToEmail`，需先邮箱验证码登录）；
+  `EMAIL_BIND_DIRECTION_FORWARD = "卡密 → 邮箱（绑定当前卡密）"`（`bindEmailToAccount`，需已激活卡密 + `purpose="bind"` 验证码）。
+- **仍未做**：无。
 
-### G5 · 设备超限的两个分支文案来源不同 **[软缺口]**
+### G5 · 设备超限的两个分支文案来源不同 **[记录 · 2.0.15 行为有变]**
 
-- **现状**：`verify` 的设备超限是服务端 403「设备数量已达上限」，客户端改写为「本设备已达该卡密上限，请先解绑旧设备」；
-  `bind-card` 的设备超限是 200 + `device_limit_reached`，客户端透出服务端 message。两条路径都在，行为可接受。
-- **需要补什么**：无（仅记录：403 文案是客户端改写，不是服务端原文）。
+- **现状**：`bind-card` 的设备超限仍是 200 + `device_limit_reached`，客户端透出服务端 message，未变。
+- **2.0.15 变化**：G3 改为「优先回显服务端 detail」后，`verify` 的 403 也会先显示服务端原文（「设备数量已达上限」）；
+  客户端固定改写「本设备已达该卡密上限，请先解绑旧设备」只在服务端未给 `detail` 时生效。
+- **需要补什么**：无（两个分支都能给出可读文案）；此处如实记录行为变化。
 
-### G6 · 登录成功会写入 `settings.token` 并置 `activated`（非自动切换空间）
+### G6 · 登录成功会写入 `settings.token` 并置 `activated`（非自动切换空间） **[仍待办：无]**
 
 - **现状**：`loginWithEmail` 在服务端签发设备 token 时直接覆盖本地 token 并激活 —— 这是邮箱登录流程的**必要结果**。
-- **需要补什么**：无。本次新增入口只负责**打开界面**，不在入口渲染时自动调用登录，也不自动切换同步空间，
-  与「显式动作」约束一致。
+- **仍待办**：无。新增的 bind-email 入口只在用户点击时执行；渲染时既不自动登录，也不自动切换同步空间。
 
-### G7 · 防枚举文案与客户端文案不一致
+### G7 · 防枚举文案与客户端文案不一致 **[仍待办]**
 
 - **现状**：服务端成功响应固定「若该邮箱可用，验证码已发送」；客户端在 2xx 时改写为「验证码已发送至 <原文邮箱>，5 分钟内有效」。
-- **需要补什么**：产品确认是否保留客户端改写（会回显用户输入原文，非哈希）。仅为文案口径记录。
+- **仍待办**：产品确认是否保留客户端改写（会回显用户输入原文，非哈希）。2.0.15 未改动该口径。
 
 ---
 
-## 4. 本次入口实现与缺口的边界
+## 4. 入口实现与缺口的边界（2.0.15）
 
-- **邮箱入口**：复用账户弹窗的邮箱区块（发码 60s 倒计时 / 验证码登录 / 绑定卡密），点击只打开界面，
-  **不自动发码、不自动登录**；入口行状态显示「未登录 / 已登录 <masked> · 已绑定 N 个卡密」。
+- **邮箱入口**：复用账户弹窗 / 工具中心的共享邮箱区块（`osycAccountSections.ts`）。点击入口只打开界面，
+  **不自动发码、不自动登录、不自动绑定**；60s 倒计时只解禁按钮，真正发码仍由点击触发。
+- **两个绑定方向**：`卡密 → 邮箱`（`bindEmailToAccount`，需已激活卡密 + `purpose="bind"` 验证码）与
+  `邮箱 → 卡密`（`bindCardToEmail`，需先完成邮箱验证码登录）在 UI 上有独立 heading 与方向说明。
 - **同步空间入口**：复用账户弹窗的 Pro 区块，打开时只做一次**只读 GET** 回显；真正开通/切换仍必须用户点击
-  「开通并切换到独立空间」（`requestProNamespace`）。入口行状态显示「未开通 / 已开通 / 只读保留 + 已用用量」。
-- **不在本次范围**：G1 的 bind-email 全链路（含 `purpose="bind"`）、G3 文案分流、G4 方向区分。
+  「开通并切换到独立空间」（`requestProNamespace`）。
+- **已在 2.0.15 完成**：G1、G2、G3、G4。
+- **仍待办 / 仅记录**：G5（记录行为变化）、G6（无需动作）、G7（防枚举文案口径待产品确认）。
+- **未验证**：真机 Obsidian 点击流程未跑；服务端侧 `backend/` 不在本仓库，未随本次改动一起验证。

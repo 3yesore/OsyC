@@ -108,6 +108,18 @@ describe("AI 账户移动端摘要", () => {
         expect(sectionSource).not.toContain("saveData");
     });
 
+    it("提供「卡密 → 邮箱」的显式入口，且与「邮箱 → 卡密」方向可区分（G1/G4）", () => {
+        expect(sectionSource).toContain("ctx.agent.bindEmailToAccount");
+        expect(sectionSource).toContain('ctx.agent.requestEmailCode(email, "bind")');
+        expect(sectionSource).toContain("发送绑定验证码");
+        expect(sectionSource).toContain("卡密 → 邮箱");
+        expect(sectionSource).toContain("邮箱 → 卡密");
+    });
+
+    it("状态行明说邮箱会话只在本次运行有效（G2）", () => {
+        expect(sectionSource).toContain("邮箱会话仅在本次运行有效，重启 Obsidian 后需重新验证");
+    });
+
     it("账户操作区顺序：邮箱 → 充值 → 重新激活", () => {
         const order = [
             "this.renderEmailLogin(body)",
