@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "updatedAt": "2026-09-20",
+    "updatedAt": "2026-09-21",
     "releaseOwner": "release-captain",
     "sourceRepository": {
         "name": "obsidian-livesync",
@@ -42,6 +42,16 @@
         "publishedAt": "2026-09-18T00:50:24Z",
         "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.11"
     },
+    "candidate": {
+        "version": "2.0.14",
+        "status": "reserved",
+        "channel": "stable",
+        "sourceBranch": "release/2.0.14",
+        "stablePromotionOwner": "release-captain",
+        "sourceCommit": "fec3b39",
+        "assetSourceCommit": "fec3b39",
+        "deviceAcceptance": "pending-desktop"
+    },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
         "This file was corrected on 2026-09-16 against the GitHub API; it had been left at the 1.0.75 era and no longer described the published state.",
@@ -72,7 +82,9 @@
         "2.0.13 was cut again on 2026-09-20 as commit c555adf on release/2.0.13, superseding 2ec9368 as the candidate fingerprint. This cut merges the Pro independent sync-space client entry (explicit activation from the account dialog plus a read-back self-check before success is reported), the activation-path repair that creates a legacy-couchdb remote database when no profile exists, the mobile first-run keyboard fix, the extended release gates and docs, and another agent's i18n and BYOK changes (Doctor-dialog placeholders restored across es/ru/zh with a placeholder-contract sentinel test, and the BYOK entry hidden in the account dialog while the production backend does not honour devices.byo_key). release-info.json records the rebuilt main.js fingerprint 8eccab6a93232e37b8441fe78c4247d72423ff601d2ba073f0b43796e4280233 and the new styles.css fingerprint d96d205b051ce2868dace8b7698958444cf55b38290f349baea148541ff7f4cb; manifest.json, manifest-beta.json and versions.json are unchanged (a3af3f53, a3af3f53, c319d88e). The gate on the c555adf tree was tsc --noEmit --skipLibCheck (0 errors) and the full unit suite (141 files / 1062 tests green). Ledger drift still stands and needs release-captain confirmation: currentStable still names 2.0.11 while 2.0.12 was published as a normal release on 2026-09-18T04:10:43Z. Promoting currentStable to 2.0.12, and every publication action, remain with the release-captain.",
         "2.0.13 was published on 2026-09-20T10:06:46Z by fast-forwarding main from b7fd1e3 to a50eb4b, which triggered publish-release-assets.yml run 35504140301 (run #82, conclusion success). The workflow created tag 2.0.13 and the GitHub Release OsyC 2.0.13 as a normal (non-prerelease) release, so the release-channel guard held and no pre-release promotion was needed. GET /releases/latest resolves to 2.0.13 and manifest.json on the default branch reads 2.0.13. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js 8eccab6a, manifest.json a3af3f53, manifest-beta.json a3af3f53, styles.css d96d205b, versions.json c319d88e.",
         "2.0.13 contains the Pro independent sync-space client entry (explicit activation from the account dialog with a read-back self-check before success is reported), the activation-path repair that creates a legacy-couchdb remote database when no profile exists, the mobile first-run keyboard fix, and the extended release gates and closure documentation.",
-        "Note on the 2.0.13 tag target: release-info.json names the cut commit c555adf, but the publisher tags the pushed default-branch HEAD, so tag 2.0.13 points at a50eb4b, the release commit that records the c555adf fingerprint. The five asset blobs are identical in c555adf and a50eb4b; only release-info.json and this ledger differ between them. This differs from the 2.0.11/2.0.12 pattern, where the tag sat exactly on the reviewed cut commit, and it is recorded here so the next release does not read it as drift."
+        "Note on the 2.0.13 tag target: release-info.json names the cut commit c555adf, but the publisher tags the pushed default-branch HEAD, so tag 2.0.13 points at a50eb4b, the release commit that records the c555adf fingerprint. The five asset blobs are identical in c555adf and a50eb4b; only release-info.json and this ledger differ between them. This differs from the 2.0.11/2.0.12 pattern, where the tag sat exactly on the reviewed cut commit, and it is recorded here so the next release does not read it as drift.",
+        "2.0.14 is reserved by the branch release/2.0.14 at cut commit fec3b39; it is unpublished and the candidate intentionally carries no tag, releaseUrl or publishedAt. It carries the account-dialog LiveSync panel with milestone diagnostics and one-click fetch/push/accept/rebuild actions, the direct-only endpoint migration (api.sacu3.cn and osyctest.sacu3.cn are LEGACY migration sources only and never runtime fallbacks), the livesyncPatch reconciliation with the activation read-back self-check and the no-profile legacy-couchdb creation, the start-up self-heal for the 2.0.13 customChunkSize=60 defect, expired-Pro read-only retention (server contract HTTP 200 with namespace.status=expired and read_only=true), the tools-centre email and Pro entries that share osycAccountSections.ts, and the carried-forward mobile first-run keyboard fix. The five versioned assets were rebuilt and re-hashed after the cut: main.js b650c5da, manifest.json and manifest-beta.json ad14789e, styles.css cbc4e6da, versions.json 398b27c4; release-info.json names the cut commit fec3b39, and the rebuilt main.js is committed separately as 4d6aac3, so the tag will point at the pushed HEAD rather than at the cut commit. The gate on the cut tree was tsc --noEmit --skipLibCheck (0 errors), the full unit suite (144 files / 1120 tests green) and the sync acceptance self-test (8/8 OK).",
+        "Known boundaries recorded with the 2.0.14 reservation: the start-up self-heal corrects exactly customChunkSize === 60 back to 0 and leaves 0 or any other user-set value untouched (the known PREFERRED=60 boundary is documented in docs/LIVESYNCPATCH-RECONCILIATION.zh.md); Cloudflare-tunnelled endpoints are migration sources only, and no Cloudflare candidate may enter the runtime fallback list (DIRECT_FALLBACK_SERVICE_URLS stays empty); and the Pro quota surface reports usage only and does not refuse a request."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
