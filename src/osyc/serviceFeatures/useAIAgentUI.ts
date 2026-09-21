@@ -141,7 +141,11 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             if (!repair) return;
             await core.services.setting.applyPartial(repair, true);
             await core.services.control.applySettings();
-            osycLogger.info("已补开 LiveSync 同步开关（激活自愈）");
+            // 自愈可能只纠正 customChunkSize（不补开关），日志要按本次实际修补内容拼接。
+            const repairs: string[] = [];
+            if (repair.liveSync === true) repairs.push("补开 LiveSync 同步开关");
+            if (repair.customChunkSize !== undefined) repairs.push(`纠正 customChunkSize 为 ${repair.customChunkSize}`);
+            osycLogger.info(`激活自愈：${repairs.join("；")}`);
         } catch (error) {
             osycLogger.warn("激活自愈失败", error);
         }

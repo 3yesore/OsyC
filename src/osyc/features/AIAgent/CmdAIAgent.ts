@@ -951,7 +951,7 @@ export class CmdAIAgent {
             },
             ({ base: skipped, status, error }) => {
                 if (error) {
-                    osycLogger.warn("OsyC 端点网络失败，尝试下一个端点", { base: skipped, error: String(error) });
+                    osycLogger.warn("OsyC 端点网络失败，尝试下一个端点", { base: skipped, error });
                 } else {
                     osycLogger.warn("OsyC 端点返回可重试状态，尝试下一个端点", { base: skipped, status });
                 }

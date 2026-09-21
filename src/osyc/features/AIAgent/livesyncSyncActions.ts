@@ -242,7 +242,7 @@ export function readConfiguredRemote(settings: unknown): ConfiguredRemoteInfo {
     let endpoint: string | null = null;
     const configurations = isRecord(settings.remoteConfigurations) ? settings.remoteConfigurations : null;
     if (configurationId && configurations && isRecord(configurations[configurationId])) {
-        const profile = configurations[configurationId] as Record<string, unknown>;
+        const profile = configurations[configurationId];
         configurationName = text(profile.name) || null;
         endpoint = maskEndpoint(text(profile.uri)) || null;
     }

@@ -212,3 +212,14 @@ describe("激活流程的回读自检", () => {
         expect(failAt).toBeGreaterThan(warnAt);
     });
 });
+
+describe("启动自愈的日志文案", () => {
+    it("按本次实际修补内容拼接，不再固定写「已补开 LiveSync 同步开关」", () => {
+        // 自愈现在也可能只纠正 customChunkSize（不补开关）；固定文案会把
+        // 「只改了分块参数」误报成「补开了总开关」，所以必须按 repair 内容拼。
+        expect(source).not.toContain("已补开 LiveSync 同步开关（激活自愈）");
+        expect(source).toContain("repair.liveSync === true");
+        expect(source).toContain("repair.customChunkSize !== undefined");
+        expect(source).toContain('osycLogger.info(`激活自愈：${repairs.join("；")}`)');
+    });
+});
