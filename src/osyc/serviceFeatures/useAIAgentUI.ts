@@ -900,6 +900,13 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         };
         attachTripleTap();
 
+        // B2（2.0.16 上架阻断）：全新安装时还没有 livesync-aiagent.json，下面的
+        // 加载分支不会命中，settings.apiBase 会一直保持空串 —— activate() 开头的
+        // hasApiBase 检查随即返回「尚未配置服务地址」，买家第一次点激活连请求都
+        // 发不出去。这里先把官方默认地址兜底落下（空值 → https://api4.sacu3.cn），
+        // 有配置文件时再由下面的加载分支用真实值覆盖。
+        agent.configure(resolveServiceUrl(undefined), "");
+
         // 读取持久化配置。放在 onInitialise 而非更早，确保 vault 已就绪。
         if (adapter) {
             try {

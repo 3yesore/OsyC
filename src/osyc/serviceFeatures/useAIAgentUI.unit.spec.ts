@@ -223,3 +223,17 @@ describe("启动自愈的日志文案", () => {
         expect(source).toContain('osycLogger.info(`激活自愈：${repairs.join("；")}`)');
     });
 });
+
+describe("B2 全新安装首启必须落下官方默认服务地址", () => {
+    it("在读取持久化配置之前兜底 configure(resolveServiceUrl(undefined), \"\")", () => {
+        const fallback = 'agent.configure(resolveServiceUrl(undefined), "");';
+        expect(source).toContain(fallback);
+        // 必须早于「有配置文件」的分支，才能覆盖全新安装（livesync-aiagent.json 不存在）的场景：
+        // 否则 settings.apiBase 保持空串，activate() 会被 configurationError 直接拦下。
+        const fallbackAt = source.indexOf(fallback);
+        // deactivateAccount 里也有一次 exists(configPath)，取最后一次（onInitialise 内的读取分支）。
+        const loadAt = source.lastIndexOf("if (await adapter.exists(configPath))");
+        expect(fallbackAt).toBeGreaterThan(-1);
+        expect(loadAt).toBeGreaterThan(fallbackAt);
+    });
+});

@@ -6,7 +6,8 @@ vi.mock("@/deps.ts", () => ({
 }));
 
 import { get } from "svelte/store";
-import { CmdAIAgent, isRuntimeCompatible, isSyncFailed, normaliseApiBase, normaliseExpireAt } from "./CmdAIAgent";
+import { CmdAIAgent, isRuntimeCompatible, isSyncFailed, normaliseApiBase, normaliseExpireAt, normalizeCardKey, sanitiseServerDetail } from "./CmdAIAgent";
+import { DEFAULT_SERVICE_URL, resolveServiceUrl } from "./serviceDefaults";
 
 // 插件运行于 Obsidian 渲染进程，window 一定存在；单测跑在 Node 下需要补一个。
 beforeAll(() => {
@@ -122,7 +123,7 @@ describe("CmdAIAgent", () => {
         expect(get(agent.state).credits).toBeLessThan(creditsBefore);
     });
 
-    it("服务端返回错误码时映射为中文提示", async () => {
+    it("服务端返回错误码时映射为中文提示（402 = 卡密已过期，不再谎报积分不足）", async () => {
         agent.configure("https://api.example.com", "token");
         requestUrlMock.mockResolvedValue({ status: 402, json: {} });
 
@@ -131,7 +132,7 @@ describe("CmdAIAgent", () => {
 
         const task = get(agent.tasks)[0];
         expect(task.status).toBe("failed");
-        expect(task.error).toBe("积分不足，请充值后再试");
+        expect(task.error).toBe("卡密已过期，请续费");
         expect(task.errorCode).toBe(402);
     });
 
@@ -902,5 +903,123 @@ describe("CmdAIAgent", () => {
             expect(agent.settings.apiBase).toBe("https://self-hosted.example.com");
             agent.stop();
         });
+    });
+});
+
+/**
+ * 上架阻断 2.0.16：B2（首启默认地址）/ D4（状态码文案 + detail 优先）/ D5（卡密口径）。
+ * 这组测试覆盖买家首次激活真正会走到的路径。
+ */
+describe("CmdAIAgent · 上架阻断修复 2.0.16", () => {
+    beforeEach(() => {
+        requestUrlMock.mockReset();
+    });
+
+    it("无 configPath 的兜底配置会落到官方默认地址（B2 前半）", () => {
+        // useAIAgentUI 在没有 livesync-aiagent.json 时执行的就是这一句。
+        expect(resolveServiceUrl(undefined)).toBe(DEFAULT_SERVICE_URL);
+    });
+
+    it("用官方默认地址配置后 activate 会真的发出请求，不再被 configurationError 拦下（B2 后半）", async () => {
+        const fresh = new CmdAIAgent();
+        fresh.deviceId = "fresh-device";
+        fresh.configure(resolveServiceUrl(undefined), "");
+        requestUrlMock.mockResolvedValue({ status: 200, json: { token: "issued-token" } });
+
+        const result = await fresh.activate("CARD-KEY");
+
+        expect(result.ok).toBe(true);
+        expect(fresh.settings.apiBase).toBe(DEFAULT_SERVICE_URL);
+        expect(requestUrlMock).toHaveBeenCalled();
+        expect(String(requestUrlMock.mock.calls[0][0].url)).toBe(`${DEFAULT_SERVICE_URL}/api/activate`);
+        fresh.stop();
+    });
+
+    it("401 无 detail 时给出「卡密无效」，不再写成笼统的未激活", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "");
+        requestUrlMock.mockResolvedValue({ status: 401, json: {} });
+
+        expect(await target.activate("K")).toEqual({ ok: false, message: "卡密无效或登录已失效，请重新输入卡密" });
+        target.stop();
+    });
+
+    it("402 无 detail 时给出卡密过期指引，不再谎报积分不足", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "");
+        requestUrlMock.mockResolvedValue({ status: 402, json: {} });
+
+        expect(await target.activate("K")).toEqual({ ok: false, message: "卡密已过期，请续费" });
+        target.stop();
+    });
+
+    it("426 无 detail 时给出「版本过旧」指引，不再落到「服务端错误（426）」", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "");
+        requestUrlMock.mockResolvedValue({ status: 426, json: {} });
+
+        expect(await target.activate("K")).toEqual({ ok: false, message: "当前插件版本过旧，请更新插件" });
+        target.stop();
+    });
+
+    it("426 有 detail 时优先回显服务端的版本指引，并做脱敏与 240 字截断", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "");
+        requestUrlMock.mockResolvedValue({
+            status: 426,
+            json: { detail: "当前插件版本过旧：请升级到 2.0.16 及以上\n最低支持 2.0.16" + "x".repeat(400) },
+        });
+
+        const result = await target.activate("K");
+
+        expect(result.ok).toBe(false);
+        expect(result.message.length).toBe(240);
+        expect(result.message.startsWith("当前插件版本过旧：请升级到 2.0.16 及以上 最低支持 2.0.16")).toBe(true);
+        expect(result.message).not.toContain("\n");
+        target.stop();
+    });
+
+    it("401 有 detail 时优先回显 detail 而不是兜底文案", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "");
+        requestUrlMock.mockResolvedValue({ status: 401, json: { detail: "卡密不存在或已停用" } });
+
+        expect(await target.activate("K")).toEqual({ ok: false, message: "卡密不存在或已停用" });
+        target.stop();
+    });
+
+    it("activate 送出前把卡密规范化为大写并去掉中间空白（D5）", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "");
+        requestUrlMock.mockResolvedValue({ status: 200, json: { token: "t" } });
+
+        await target.activate(" abcd-1234 efgh ");
+
+        expect(JSON.parse(requestUrlMock.mock.calls[0][0].body).card_key).toBe("ABCD-1234EFGH");
+        target.stop();
+    });
+
+    it("recharge 同样先规范化卡密再发送（D5）", async () => {
+        const target = new CmdAIAgent();
+        target.configure("https://api.example.com", "token");
+        requestUrlMock.mockResolvedValue({ status: 200, json: { credits: 10 } });
+
+        await target.recharge(" ab-cd ef ");
+
+        expect(JSON.parse(requestUrlMock.mock.calls[0][0].body).card_key).toBe("AB-CDEF");
+        target.stop();
+    });
+
+    it("normalizeCardKey 只做形状规范化，不判定有效性（D5）", () => {
+        expect(normalizeCardKey("  abcd-1234 efgh  ")).toBe("ABCD-1234EFGH");
+        expect(normalizeCardKey("Already-Upper")).toBe("ALREADY-UPPER");
+        expect(normalizeCardKey("")).toBe("");
+    });
+
+    it("sanitiseServerDetail 去控制字符、折叠空白并截断到 240 字符", () => {
+        expect(sanitiseServerDetail("  a\n\nb\tc  ")).toBe("a b c");
+        expect(sanitiseServerDetail("   ")).toBeNull();
+        expect(sanitiseServerDetail(42 as unknown)).toBeNull();
+        expect(sanitiseServerDetail("x".repeat(500))?.length).toBe(240);
     });
 });

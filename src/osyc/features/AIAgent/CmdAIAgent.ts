@@ -107,6 +107,19 @@ export function normaliseApiBase(value: string): string {
 }
 
 /**
+ * 卡密输入的统一规范化：去掉**所有**空白（首尾与中间）后转为大写。
+ *
+ * 实测（2.0.16 上架验收）：后端 `db.get_card` 对卡密做**精确匹配**，而 activate
+ * 之前只做了 `trim`、没有 `toUpperCase` —— 小写或带内部空格的卡密会被判 401
+ * 「卡密无效」；同一张卡在 recharge / bind-card 两条链路后端却会 strip + upper。
+ * 三个入口对同一张卡给出不同结果。这里在**客户端送出之前**统一口径，UI 提示不变。
+ * 只规范化形状，不校验有效性（有效性仍以后端为准）。
+ */
+export function normalizeCardKey(value: string): string {
+    return value.replace(/\s+/g, "").toUpperCase();
+}
+
+/**
  * 后端写入 progress 的"同步回传失败"标记。
  *
  * 后端（app/agent/syncing.py）在推送失败时写死这段文本，这里靠它判断要不要显示重试按钮。
@@ -422,16 +435,14 @@ export interface EmailAccountSession {
 export type EmailCodePurpose = "login" | "register" | "bind";
 
 /**
- * 服务端错误 `detail` 的安全回显：去掉控制字符、折叠空白，并截断到 240 字符。
+ * 服务端错误文案的统一安全清洗：去掉控制字符、折叠空白，并截断到 240 字符。
  *
- * 只用于用户可见文案；返回 null 时调用方回落到状态码固定文案。绝不把原始响应
+ * 只用于用户可见回显；返回 null 时调用方回落到状态码固定文案。绝不把原始响应
  * 直接塞进 UI —— 服务端字段一律当未知 JSON 处理。
  */
-export function readEmailErrorDetail(raw: unknown): string | null {
-    const record = asJsonRecord(raw);
-    const detail = record?.detail ?? record?.message ?? record?.error;
-    if (typeof detail !== "string") return null;
-    const safe = detail
+export function sanitiseServerDetail(value: unknown): string | null {
+    if (typeof value !== "string") return null;
+    const safe = value
         // 这里的控制字符正是要清除的目标：服务端 detail 可能带 C0/C1 控制符，
         // 必须在回显前丢掉，no-control-regex 对这类主动清洗是误报。
         // eslint-disable-next-line no-control-regex -- 主动清洗服务端回显中的控制字符
@@ -440,6 +451,12 @@ export function readEmailErrorDetail(raw: unknown): string | null {
         .trim()
         .slice(0, 240);
     return safe || null;
+}
+
+/** 邮箱接口失败时优先回显的 `detail` / `message` / `error`。 */
+export function readEmailErrorDetail(raw: unknown): string | null {
+    const record = asJsonRecord(raw);
+    return sanitiseServerDetail(record?.detail ?? record?.message ?? record?.error);
 }
 
 /** Pro「独立同步空间」的可展示条目（GET/POST /api/pro/namespace 下发）。 */
@@ -619,19 +636,21 @@ export class CmdAIAgent {
 
     /** 用新卡密给当前账户续费。额度并进原账户，记忆/vault 全部保留。 */
     async recharge(cardKey: string): Promise<{ ok: boolean; message: string }> {
+        // D5：卡密送出前统一去空白 + 大写，与 activate 保持同一口径。
+        const key = normalizeCardKey(cardKey);
         if (this.isMock) {
             this.state.update((s) => ({ ...s, credits: s.credits + 1000 }));
             return { ok: true, message: "MOCK 模式：已模拟充值 1000 积分" };
         }
         if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
-        const { status, data } = await this.call("/api/recharge", "POST", { card_key: cardKey });
+        const { status, data } = await this.call("/api/recharge", "POST", { card_key: key });
         if (status >= 400) {
             const msg =
                 status === 400
                     ? "卡密无效或已被使用"
                     : status === 409
                       ? "该卡密已被激活过，不能用于充值"
-                      : this.describeError(status);
+                      : await this.describeResponseError({ json: data }, status);
             return { ok: false, message: msg };
         }
         const res = data as { credits?: number; expire_at?: number; bonus_credits?: number } | null;
@@ -716,7 +735,7 @@ export class CmdAIAgent {
         };
         if (res?.token) {
             this.settings.token = res.token;
-            if (res.card_key) this.sessionCardKey = res.card_key.trim();
+            if (res.card_key) this.sessionCardKey = normalizeCardKey(res.card_key);
             this.state.update((s) => ({ ...s, activated: true }));
             await this.refreshStatus();
             return { ok: true, message: `邮箱登录成功，已载入卡密 ${res.card_key ?? ""}` };
@@ -726,7 +745,8 @@ export class CmdAIAgent {
 
     /** 把卡密并入当前邮箱账户（凭邮箱会话，不依赖可猜的设备标识）。 */
     async bindCardToEmail(cardKey: string): Promise<{ ok: boolean; message: string }> {
-        const key = cardKey.trim().toUpperCase();
+        // D5：与 activate / recharge 同一口径（去空白 + 大写）。
+        const key = normalizeCardKey(cardKey);
         if (!key) return { ok: false, message: "请输入卡密" };
         if (this.isMock) return { ok: true, message: "MOCK 模式：已模拟绑定卡密" };
         if (!this.hasApiBase) return { ok: false, message: this.configurationError() };
@@ -1407,6 +1427,10 @@ export class CmdAIAgent {
     /** 激活卡密 */
     async activate(cardKey: string): Promise<{ ok: boolean; message: string }> {
         this.stopped = false;
+        // D5：卡密送出前统一规范化（去首尾与中间空白 + 大写）。后端 activate 精确
+        // 匹配、不做 upper，此前小写/带空格卡密会被误判 401；recharge / bind-card
+        // 后端却会 strip + upper，客户端统一口径后三个入口行为一致。
+        const key = normalizeCardKey(cardKey);
         const deviceId = this.deviceId;
         if (this.isMock) {
             this.settings.token = "mock-token";
@@ -1441,11 +1465,13 @@ export class CmdAIAgent {
             const res = await this.apiRequest("/api/activate", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ card_key: cardKey, device_id: deviceId }),
+                body: JSON.stringify({ card_key: key, device_id: deviceId }),
                 throw: false,
             });
             if (res.status >= 400) {
-                return { ok: false, message: this.describeError(res.status) };
+                // D4：激活失败同样优先回显服务端 detail（401 卡密无效 / 402 已过期 /
+                // 426 版本过旧的最低版本指引），detail 缺失时才用状态码兜底文案。
+                return { ok: false, message: await this.describeResponseError(res, res.status) };
             }
             const raw = (await res.json) as unknown;
             const data = asJsonRecord(raw);
@@ -1454,7 +1480,7 @@ export class CmdAIAgent {
             }
             this.settings.token = data.token;
             // 记住本次会话的卡密：Pro 独立空间的 setup URI 用它解密（只在内存，不落盘）。
-            this.sessionCardKey = cardKey.trim();
+            this.sessionCardKey = key;
             this.state.set({
                 activated: true,
                 credits: typeof data.credits === "number" ? data.credits : 0,
@@ -1484,7 +1510,8 @@ export class CmdAIAgent {
             let suffix = "";
             if (setupUri) {
                 try {
-                    this.syncConfigured = (await this.applySetupUri?.(setupUri, cardKey)) ?? false;
+                    // 钥匙就是卡密本身，必须用规范化后的同一份，否则解码不出配置。
+                    this.syncConfigured = (await this.applySetupUri?.(setupUri, key)) ?? false;
                     suffix = this.syncConfigured ? "，同步已自动配置" : "，但同步配置失败，请手动设置";
                 } catch {
                     suffix = "，但同步配置失败，请手动设置";
@@ -1965,16 +1992,30 @@ export class CmdAIAgent {
         );
     }
 
+    /**
+     * 状态码兜底文案。
+     *
+     * D4（2.0.16 上架阻断）：此前的映射会误导买家 ——
+     * - 401 写成「未激活或登录已失效」，实测应区分**卡密无效**；
+     * - 402 写成「积分不足，请充值」，而服务端 402 实测表示**卡密已过期**，
+     *   写成余额问题会让买家反复充值却始终激活不了；
+     * - 426 落到 default「服务端错误（426）」，把服务端的版本指引丢了，
+     *   买家只看到笼统报错、不知道该更新插件。
+     * 这里只修正兜底语义；服务端 `detail` 由 {@link describeResponseError} 优先回显。
+     */
     private describeError(status: number): string {
         switch (status) {
             case 401:
-                return "未激活或登录已失效，请重新输入卡密";
+                return "卡密无效或登录已失效，请重新输入卡密";
             case 402:
-                return "积分不足，请充值后再试";
+                return "卡密已过期，请续费";
             case 403:
                 // 不写死台数：档位上限随订阅变化（base 2 / member 5 / pro 10），
                 // 硬编码「最多 3 台」会误导用户以为解绑到 3 台就行。
                 return "设备数量已达本档位上限，请在账户弹窗里解绑旧设备";
+            case 426:
+                // 服务端用它表达「插件版本过旧」，detail 里带可操作的最低版本指引。
+                return "当前插件版本过旧，请更新插件";
             case 429:
                 return "请求过于频繁，请稍后再试";
             default:
@@ -1982,19 +2023,21 @@ export class CmdAIAgent {
         }
     }
 
+    /**
+     * 失败响应文案：**优先回显服务端 detail**（统一走 {@link sanitiseServerDetail}：
+     * 去控制字符 / 折叠空白 / 240 字截断），让同一状态码下的不同原因
+     * （卡密无效 / 卡密已过期 / 版本过旧的具体指引）能区分；
+     * detail 缺失、非法或全空白时才回落到 {@link describeError} 的固定文案。
+     */
     private async describeResponseError(res: { json: unknown }, status: number): Promise<string> {
-        const fallback = this.describeError(status);
         try {
             const body = (await res.json) as { detail?: unknown; message?: unknown; error?: unknown } | null;
-            const detail = body?.detail ?? body?.message ?? body?.error;
-            if (typeof detail === "string" && detail.trim()) {
-                const safe = detail.trim().replace(/[\r\n]+/g, " ").slice(0, 240);
-                return `${fallback}：${safe}`;
-            }
+            const detail = sanitiseServerDetail(body?.detail ?? body?.message ?? body?.error);
+            if (detail) return detail;
         } catch {
             // Some gateways return an empty/non-JSON body; keep the stable status text.
         }
-        return fallback;
+        return this.describeError(status);
     }
 
     private isTransientStatus(status: number): boolean {
