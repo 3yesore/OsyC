@@ -14,17 +14,17 @@
         "commit": "9b2af60d026a049effcb0071ae12fafff5a17d4f"
     },
     "currentStable": {
-        "version": "2.0.16",
-        "tag": "2.0.16",
+        "version": "2.0.17",
+        "tag": "2.0.17",
         "status": "published",
         "channel": "stable",
-        "sourceBranch": "release/2.0.16",
-        "sourceCommit": "fa2722d",
-        "assetSourceCommit": "fa2722d",
-        "releaseCommit": "1c87af5",
-        "releaseRunId": "35557812312",
-        "publishedAt": "2026-09-21T03:31:46Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.16",
+        "sourceBranch": "release/2.0.17",
+        "sourceCommit": "898c347",
+        "assetSourceCommit": "898c347",
+        "releaseCommit": "0ce12bb",
+        "releaseRunId": "35562386987",
+        "publishedAt": "2026-09-21T04:50:10Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.17",
         "deviceAcceptance": "pending-desktop",
         "assets": [
             "main.js",
@@ -34,28 +34,19 @@
             "versions.json"
         ],
         "assetSha256": {
-            "main.js": "8f189d88e6c2d8da64544ce0c6f10473ddcd66cddc599d006289b7e9b496a4b2",
-            "manifest.json": "b3b72f0fcebcf262a6f22c27aa4085ac84f3e6fe0b025ea5fde387bb597552df",
-            "manifest-beta.json": "b3b72f0fcebcf262a6f22c27aa4085ac84f3e6fe0b025ea5fde387bb597552df",
+            "main.js": "f67ccb7540fc046d710b6c144a71422a4a9376d51f529152fda1ed56192a85c9",
+            "manifest.json": "03dbdc32195fb2f5b029332aef6d65a34f0118a4548049b490ab0952a10539d9",
+            "manifest-beta.json": "03dbdc32195fb2f5b029332aef6d65a34f0118a4548049b490ab0952a10539d9",
             "styles.css": "cbc4e6da4f47579ce5158a75e5e96c275f107423b3b201c296d509aafd6f03fa",
-            "versions.json": "96d17c5a5570d30de42ae8d3d5968123249e4bb55896657ff28a68a51da1760d"
+            "versions.json": "d2fe3604ad4fa1c3972da2e2668e455cef6f7fe79ec8291ba076915b65a7cbe7"
         }
     },
     "previousStable": {
-        "version": "2.0.15",
-        "tag": "2.0.15",
+        "version": "2.0.16",
+        "tag": "2.0.16",
         "status": "superseded",
-        "publishedAt": "2026-09-21T02:41:59Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.15"
-    },
-    "candidate": {
-        "version": "2.0.17",
-        "status": "reserved",
-        "channel": "stable",
-        "sourceBranch": "release/2.0.17",
-        "sourceCommit": "898c347",
-        "assetSourceCommit": "898c347",
-        "deviceAcceptance": "pending-desktop"
+        "publishedAt": "2026-09-21T03:31:46Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.16"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -108,7 +99,11 @@
         "2.0.17 is reserved by the branch release/2.0.17 at cut commit 898c347; the rebuilt main.js is committed separately as 42e7651, so tag 2.0.17 will point at the pushed default-branch HEAD rather than at the cut commit (the 2.0.13/2.0.14/2.0.15/2.0.16 pattern). The candidate intentionally carries no tag, releaseUrl or publishedAt. 2.0.17 carries two plugin-side changes. First, the email-login tier and entitlement label repair: the server's GET /api/status now returns plan and entitlements alongside the existing fields (the same source as /api/activate), and refreshStatus() writes them into state.plan / state.entitlements; a field that is missing or invalid keeps the previous value instead of falling back to base, so an email code login can no longer downgrade an already-activated member or Pro account to the base label, and the new CmdAIAgent.tierLabel spec locks the mapping with six cases. Second, the redacted diagnostics capability: osycLogger exports redactSensitiveText and keeps a 20-entry API-failure ring buffer; the diagnostics payload carries account_summary, livesync_summary (masked endpoint, node-id prefix, accepted flag, last pull/push and a settings fingerprint over customChunkSize, hashAlg, chunkSplitterVersion and remoteType) and api_failures; the diagnostics_log limit rises 600 -> 8000 characters; activation, setup-URI apply plus read-back self-check, pull/push, milestone accept, API 4xx/5xx, the Pro namespace and email login/bind now log through osycLogger; the tools centre gains a manual upload-redacted-diagnostics entry; and AIAgentTaskCard registers the synthetic manual task status in STATUS_META so the card type-checks.",
         "2.0.17 含诊断能力，用于定位客户端配置不匹配。",
         "The five versioned assets were rebuilt and re-hashed after the 2.0.17 cut: main.js f67ccb75, manifest.json and manifest-beta.json 03dbdc32, styles.css cbc4e6da (unchanged from 2.0.16), versions.json d2fe3604. release-info.json names the cut commit 898c347. The candidate gate on the cut tree was tsc --noEmit --skipLibCheck (0 errors), eslint (0 errors / 9 pre-existing warnings), svelte-check (0 errors / 0 warnings), tsc-check:apps (0 errors), the full unit suite on the threads pool (150 files / 1212 tests green) and the sync acceptance self-test (8/8 OK). Build products follow in a separate commit.",
-        "Known boundaries recorded with the 2.0.17 reservation: the svelte-check gate caught a defect in the diagnostics commit itself (the new synthetic manual AITaskStatus value was not registered in AIAgentTaskCard's STATUS_META, which tsc --noEmit cannot see because it ignores .svelte files); the fix reuses a glyph already present in that table, was made on the source branch codex/diagnostics-2.0.17 (now fe87dba) and was re-integrated before this cut. docs/sellerDocsHygiene.unit.spec.ts is carried by this release and is stricter than the current documentation requires (it forbids every yen sign across docs/ and updates.md outside a small allowlist); it passes on this tree but must be relaxed deliberately in a later change, not edited during a release. The diagnostics payload and the settings fingerprint are covered by unit tests, not by a live read-back from the production service, and the server-side /api/status plan and entitlements fields are taken as already deployed. lint still reports the nine pre-existing warnings unchanged."
+        "Known boundaries recorded with the 2.0.17 reservation: the svelte-check gate caught a defect in the diagnostics commit itself (the new synthetic manual AITaskStatus value was not registered in AIAgentTaskCard's STATUS_META, which tsc --noEmit cannot see because it ignores .svelte files); the fix reuses a glyph already present in that table, was made on the source branch codex/diagnostics-2.0.17 (now fe87dba) and was re-integrated before this cut. docs/sellerDocsHygiene.unit.spec.ts is carried by this release and is stricter than the current documentation requires (it forbids every yen sign across docs/ and updates.md outside a small allowlist); it passes on this tree but must be relaxed deliberately in a later change, not edited during a release. The diagnostics payload and the settings fingerprint are covered by unit tests, not by a live read-back from the production service, and the server-side /api/status plan and entitlements fields are taken as already deployed. lint still reports the nine pre-existing warnings unchanged.",
+        "2.0.17 was published on 2026-09-21T04:50:10Z by fast-forwarding main from e658f0b to 0ce12bb, which triggered publish-release-assets.yml run 35562386987 (run #90, conclusion success). The workflow created tag 2.0.17 and the GitHub Release OsyC 2.0.17 as a normal (non-prerelease) release, so no pre-release promotion was needed. GET /releases/latest resolves to 2.0.17 and manifest.json on the default branch reads 2.0.17. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js f67ccb75, manifest.json 03dbdc32, manifest-beta.json 03dbdc32, styles.css cbc4e6da, versions.json d2fe3604.",
+        "Note on the 2.0.17 tag target: release-info.json names the cut commit 898c347, and the rebuilt main.js was committed separately as 42e7651 before the release-info (4a3c409) and ledger reservation (0ce12bb) commits, so tag 2.0.17 points at the pushed default-branch HEAD 0ce12bb rather than at the cut commit. This follows the 2.0.13/2.0.14/2.0.15/2.0.16 pattern.",
+        "Ledger promotion on 2026-09-21: currentStable moves from 2.0.16 (now previousStable, superseded, tag 2.0.16 at 1c87af5) to 2.0.17, and the reserved 2.0.17 candidate line is consumed. The 2.0.15 record that previously sat in previousStable is preserved together with 2.0.14, 2.0.13 and 2.0.12 in previousCandidate, which remains a list of historical records ordered newest first.",
+        "2.0.17 shipped after the svelte-check gate caught a defect in the diagnostics commit on its source branch (the new synthetic manual AITaskStatus value was missing from AIAgentTaskCard's STATUS_META, and tsc --noEmit does not scan .svelte files); the source branch codex/diagnostics-2.0.17 was amended to fe87dba, the integration branch was rebuilt from e658f0b, and all six candidate gates then passed before the cut."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
@@ -125,6 +120,13 @@
         "bratStableValidationRequired": true
     },
     "previousCandidate": [
+        {
+            "version": "2.0.15",
+            "tag": "2.0.15",
+            "status": "superseded",
+            "publishedAt": "2026-09-21T02:41:59Z",
+            "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.15"
+        },
         {
             "version": "2.0.14",
             "tag": "2.0.14",
