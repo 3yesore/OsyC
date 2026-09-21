@@ -12,6 +12,19 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.15
+
+21st September, 2026
+
+- OsyC `2.0.15` closes the **card-key → email binding loop** that 2.0.14 left without a client consumer. `POST /api/email/send-code` now takes a `purpose` (`login | register | bind`, defaulting to `login` so the sign-in flow is unchanged), and the new `bindEmailToAccount(email, code)` posts a `purpose="bind"` code to `POST /api/account/bind-email` with the activated card key's bearer token. Binding issues no device token and does not rewrite the local `settings.token`, so the device identity is unchanged: a success only refreshes the masked address and the linked card keys and leaves a read-only echo.
+- OsyC `2.0.15` separates the two opposite **binding directions** in the shared tools-centre email block: **email → card key** (verify the mailbox with a login code, then fold an existing card key into it) and **card key → email** (bind the currently activated card key into the mailbox with a bind-purpose code). The bind-purpose and login codes are not interchangeable, so the wrong code now fails with a clear message instead of an unexplained `400`, and every action still needs an explicit click.
+- OsyC `2.0.15` states that the **email session is in-memory only and valid for this run**: the account section and its status line both say that restarting Obsidian requires a fresh email verification, so a restart is no longer read as being signed out. The session token is still never written to disk.
+- OsyC `2.0.15` prefers the **server-supplied `detail`** when an email request fails. `readEmailErrorDetail` folds control characters and whitespace, caps the text at 240 characters and only falls back to the fixed status-code message when the detail is missing or unusable, so causes that share one status code (a malformed address, an expired code, too many attempts) are now distinguishable.
+- OsyC `2.0.15` clears the **two 2.0.14 lint errors**: `@typescript-eslint/no-base-to-string` on the endpoint-failover log call, which now receives the raw error because the logger already formats `Error`/`unknown` safely, and `@typescript-eslint/no-unnecessary-type-assertion` on the profile read that follows an `isRecord()` guard. The gate returns to 0 errors with the nine pre-existing warnings unchanged, and the intentional control-character sanitizer in the email error path is annotated so `no-control-regex` no longer flags it, with no behaviour change.
+- OsyC `2.0.15` makes the **start-up self-heal log exact**: the message is assembled from the repair actually applied (opening the LiveSync master switch and/or correcting `customChunkSize`) instead of always claiming the master switch was turned on, and a unit test locks the wording and forbids the old fixed literal.
+- OsyC `2.0.15` adds the **device acceptance checklist** `docs/DEVICE-ACCEPTANCE-2.0.15.zh.md` (seven steps): the mobile activation card under the soft keyboard, activation with and without an existing CouchDB profile, the activation read-back self-check, the account-dialog LiveSync diagnostics panel, the two tools-centre account entries, switching to the Pro `t_<uuid32>_pro` space, and the `customChunkSize` 60 → 0 start-up self-heal. It carries no card key, passphrase, setup URI or address, and the ledger's `deviceAcceptance` stays `pending-desktop` until it passes.
+- OsyC `2.0.15` re-verifies the release contract on the cut tree: `tsc --noEmit --skipLibCheck`, `eslint` at 0 errors, `svelte-check`, `tsc-check:apps`, the full unit suite and the sync acceptance self-test pass before the five versioned assets are rebuilt and re-hashed for publication.
+
 ## 2.0.14
 
 21st September, 2026
