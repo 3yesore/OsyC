@@ -12,6 +12,15 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.16
+
+21st September, 2026
+
+- OsyC `2.0.16` gives a **fresh install a usable service address on the very first run**, which is the launch blocker 2.0.15 shipped with. When `.obsidian/livesync-aiagent.json` does not exist yet, `onInitialise` only assigned a device id, applied the appearance and persisted, so `CmdAIAgent.settings.apiBase` stayed an empty string and `activate()` short-circuited on `hasApiBase` with the fixed "尚未配置 OsyC 服务地址" notice before any request left the client — the server saw no `/api/activate` call at all. The boot path now unconditionally calls `agent.configure(resolveServiceUrl(undefined), "")` before the persisted-configuration branch, so `apiBase` resolves to the single official direct entry point `https://api4.sacu3.cn` (the settings placeholder is no longer display-only); a saved configuration still overwrites the fallback on load, so an existing user's behaviour is unchanged.
+- OsyC `2.0.16` corrects the **activation and renewal error copy** and prefers the server-supplied `detail`. `describeError` now maps `401` to `卡密无效或登录已失效，请重新输入卡密`, `402` to `卡密已过期，请续费` (the server's 402 means the card key expired, not "insufficient credits", which sent buyers to recharge) and the new `426` branch to `当前插件版本过旧，请更新插件`, instead of letting 426 fall through to the generic `服务端错误（426）` and drop the server's version guidance; `403`, `429` and the default branch are untouched. `activate()` now returns `await this.describeResponseError(res, res.status)` on `status >= 400`, so a server `detail` is echoed verbatim and the fixed status-code text is only a fallback. Redaction and truncation are unified in the new exported `sanitiseServerDetail(value)` (C0/C1 control characters stripped, whitespace folded, 240-character cap), which `readEmailErrorDetail` reuses with its 2.0.15 behaviour unchanged.
+- OsyC `2.0.16` normalises the **card key on every outbound path**: the new exported `normalizeCardKey(value)` removes all whitespace (leading, trailing and internal) and upper-cases, and `activate`, `recharge`, `bindCardToEmail` and the email-login `res.card_key` all run through it. The activation path previously trimmed only, so a lower-case or space-containing card key failed with 401 "卡密无效" while the recharge and bind paths accepted the same input. The same normalised value is passed to `applySetupUri(setupUri, key)` so the setup URI is decrypted with the key that was actually sent. The interface is unchanged: normalisation happens before the key leaves the client, the buyer still sees exactly what they typed, and Pro `passphrase` values are deliberately left alone.
+- OsyC `2.0.16` re-verifies the release contract on the cut tree: `tsc --noEmit --skipLibCheck`, `eslint`, `svelte-check`, `tsc-check:apps`, the full unit suite (threads pool) and the sync acceptance self-test all pass before the five versioned assets are rebuilt and re-hashed for publication.
+
 ## 2.0.15
 
 21st September, 2026
