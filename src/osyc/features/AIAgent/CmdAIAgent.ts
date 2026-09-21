@@ -432,6 +432,9 @@ export function readEmailErrorDetail(raw: unknown): string | null {
     const detail = record?.detail ?? record?.message ?? record?.error;
     if (typeof detail !== "string") return null;
     const safe = detail
+        // 这里的控制字符正是要清除的目标：服务端 detail 可能带 C0/C1 控制符，
+        // 必须在回显前丢掉，no-control-regex 对这类主动清洗是误报。
+        // eslint-disable-next-line no-control-regex -- 主动清洗服务端回显中的控制字符
         .replace(/[\u0000-\u001f\u007f]+/g, " ")
         .replace(/\s+/g, " ")
         .trim()
