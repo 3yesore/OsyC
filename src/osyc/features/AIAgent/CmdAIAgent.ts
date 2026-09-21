@@ -1601,6 +1601,14 @@ export class CmdAIAgent {
                 const data = asJsonRecord((await res.json) as unknown);
                 if (!data) return;
                 const syncStateRaw = data.sync_state;
+                // D6：邮箱验证码登录只回 token，档位/权益只能从 GET /api/status 取回
+                // （服务端已与 /api/activate 同源下发）。字段缺失/非法时保留旧值，
+                // 绝不用默认 base 把已激活的会员档位降级。
+                const planRaw = data.plan;
+                const entitlementsRaw = data.entitlements;
+                const entitlements = entitlementsRaw === undefined
+                    ? null
+                    : this.normalizeEntitlements(entitlementsRaw);
                 this.state.update((s) => ({
                     ...s,
                     credits: typeof data.credits === "number" ? data.credits : s.credits,
@@ -1608,6 +1616,8 @@ export class CmdAIAgent {
                     creditsYuan: typeof data.credits_yuan === "number" ? data.credits_yuan : s.creditsYuan,
                     expireAt: normaliseExpireAt(data.expire_at) ?? s.expireAt,
                     modelQuota: Number(data.model_quota ?? s.modelQuota),
+                    plan: isPlanType(planRaw) ? planRaw : s.plan,
+                    entitlements: entitlements ?? s.entitlements,
                     syncState: syncStateRaw === undefined
                         ? s.syncState
                         : mergeSyncState(s.syncState, normalizeSyncState(syncStateRaw)),
