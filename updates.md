@@ -12,6 +12,15 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.17
+
+21st September, 2026
+
+- OsyC `2.0.17` fixes the **tier and entitlement labels for email-login users**, which had silently fallen back to the base plan. Only `/api/activate` returned `plan` and `entitlements`, while an email code login issues a token and then refreshes through `GET /api/status`; `refreshStatus()` therefore parsed nothing and the account surface kept the base label for an activated member or Pro account. `/api/status` now carries both fields alongside the existing ones, and `refreshStatus()` writes them into `state.plan` / `state.entitlements`. A field that is missing or invalid keeps the previous value rather than degrading to `base`, so a partial response can never downgrade an already-activated tier. The new `CmdAIAgent.tierLabel` unit test locks the mapping with six cases.
+- OsyC `2.0.17` makes the **redacted diagnostics report actually useful for a configuration mismatch**. On a healthy session the log held a single entry, so an operator could not tell which step of activation or synchronisation had diverged. Key flows now write through `osycLogger` (activation, setup-URI apply and its read-back self-check, pull and push, milestone accept, API 4xx/5xx, the Pro namespace and email login/bind), the report limit rises from 600 to 8000 characters, and a 20-entry API-failure ring buffer keeps the status and path of the last failed requests. The payload now also carries `account_summary`, `livesync_summary` — masked endpoint, node-id prefix, accepted flag, last pull/push and a settings fingerprint over `customChunkSize`, `hashAlg`, `chunkSplitterVersion` and `remoteType` — and `api_failures`, all masked on the way out (setup URI, bearer token, card key, passphrase, query credentials and email addresses are redacted), so the report can be read back server-side to locate the mismatch.
+- OsyC `2.0.17` adds a **manual "upload redacted diagnostics" entry to the tools centre**, so a user can send the current report in one click without having to reproduce the failure first.
+- OsyC `2.0.17` re-verifies the release contract on the cut tree: `tsc --noEmit --skipLibCheck`, `eslint`, `svelte-check`, `tsc-check:apps`, the full unit suite (threads pool), the sync acceptance self-test and the seller/buyer documentation hygiene gate all pass before the five versioned assets are rebuilt and re-hashed for publication.
+
 ## 2.0.16
 
 21st September, 2026
