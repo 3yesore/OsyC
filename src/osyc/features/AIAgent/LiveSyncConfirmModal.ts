@@ -17,7 +17,9 @@ export class LiveSyncConfirmModal extends Modal {
 
     constructor(
         app: App,
-        private readonly action: LiveSyncActionDescriptor,
+        // 只依赖 label / risk / confirmKeyword 三个字段：tweak 对齐动作与五个固定动作
+        // 都能复用同一个确认弹窗，不需要伪造一个假的 action id。
+        private readonly action: Pick<LiveSyncActionDescriptor, "label" | "risk" | "confirmKeyword">,
         private readonly message: string,
         private readonly onDecision: (approved: boolean) => void
     ) {

@@ -21,6 +21,41 @@
  * confirm 回调，未确认就不调用任何端口方法。
  */
 
+import {
+    buildTweakDiffRecord,
+    classifyTweakKey,
+    describeTweakValue,
+    tweakKeyLabel,
+    type TweakAlignmentDiff,
+    type TweakAlignmentKind,
+} from "./tweakAlignment";
+
+/** 同步区列表里的一行 tweak 差异（已翻成中文标签与可读值）。 */
+export interface LiveSyncTweakDiffRow {
+    key: string;
+    label: string;
+    local: string;
+    preferred: string;
+    kind: TweakAlignmentKind;
+}
+
+/**
+ * 「与云端对齐同步参数」这一唯一推荐动作。
+ *
+ * 只有在存在 incompatible 差异（尤其是 encrypt）时才会出现：此时禁止静默改写，
+ * 必须由用户显式确认，确认后按 LiveSync 自己的 core.rebuilder.$fetchLocal() 对齐。
+ */
+export interface LiveSyncTweakAlignAction {
+    id: "align-tweaks";
+    label: string;
+    icon: string;
+    description: string;
+    risk: "danger";
+    confirmMessage: string;
+    runningLabel: string;
+    successMessage: string;
+}
+
 /** 五个 LiveSync 动作的稳定 id。 */
 export type LiveSyncActionId =
     | "accept-milestone"
@@ -137,6 +172,12 @@ export interface LiveSyncRepairResult {
     changed: boolean;
     changes: string[];
     message: string;
+    /** 存在 incompatible 差异、必须用户显式确认后才能对齐（此时 changed 一定为 false）。 */
+    requiresUserConfirmation?: boolean;
+    /** 需要确认时列出的完整差异（本机值 vs 云端值）。 */
+    diffs?: LiveSyncTweakDiffRow[];
+    /** 唯一的推荐动作；无需确认时为 null / 省略。 */
+    recommendedAction?: LiveSyncTweakAlignAction | null;
 }
 
 /** 接线层额外提供的只读诊断与同步配置自愈。 */
@@ -150,6 +191,14 @@ export interface LiveSyncControlPort extends LiveSyncActionPort {
     reconcileSyncConfiguration(): Promise<LiveSyncRepairResult>;
     /** 一键修复：先 reconcile，完成后立刻拉取一次；账户弹窗与工具中心两个按钮复用同一实现。 */
     repairSyncConfiguration(): Promise<LiveSyncRepairResult>;
+    /**
+     * 与云端对齐全部 tweak 键：**仅**由用户在差异列表上显式确认后调用。
+     *
+     * 只对 compatible-lossy 键静默对齐；存在 incompatible 键时先写回云端 PREFERRED，
+     * 再走 LiveSync 自己的重建路径（core.rebuilder.$fetchLocal()，与
+     * ModuleResolveMismatchedTweaks._askResolvingMismatchedTweaks 的做法一致）。
+     */
+    alignTweaksToRemote(): Promise<LiveSyncRepairResult>;
 }
 
 /** 诊断原始输入：全部来自 LiveSync（core.services）与后端同步快照。 */
@@ -165,6 +214,12 @@ export interface LiveSyncDiagnosticInput {
     lastPullAt?: number | null;
     lastPushAt?: number | null;
     error?: string | null;
+    /** 远端 PREFERRED 的读取状态（available / unavailable / not-configured / unsupported）。 */
+    remotePreferredStatus?: string | null;
+    /** 本机 vs 云端 PREFERRED 的 must-match 差异；空数组 = 真的没有差异。 */
+    tweakDiff?: readonly TweakAlignmentDiff[] | null;
+    /** 复制器最近一次握手是否被判 MISMATCHED（core.replicator.tweakSettingsMismatched）。 */
+    tweakSettingsMismatched?: boolean | null;
 }
 
 /** 诊断展示模型：renderSyncState 只读这里，不再做判断。 */
@@ -184,6 +239,14 @@ export interface LiveSyncDiagnosticView {
     lastPullLabel: string;
     lastPushLabel: string;
     error: string | null;
+    /** 逐条 tweak 差异（本机值 vs 云端值），供同步区列表展示。 */
+    tweakDiffRows: LiveSyncTweakDiffRow[];
+    /** 远端 PREFERRED 状态的中文标签。 */
+    remotePreferredStatusLabel: string;
+    /** true / false / null（未知）：复制器最近一次是否因 tweak 不一致中止。 */
+    tweakSettingsMismatched: boolean | null;
+    /** 是否存在必须用户显式确认的差异。 */
+    tweakAlignRequired: boolean;
 }
 
 export interface LiveSyncActionResult {
@@ -332,6 +395,12 @@ export interface LiveSyncDiagnosticSummary {
     last_push_at: number | null;
     settings_fingerprint: LiveSyncSettingsFingerprint;
     error: string | null;
+    /** 键 → { local, preferred }；空对象 = 逐键全等。 */
+    tweak_diff: Record<string, { local: string | number | boolean | null; preferred: string | number | boolean | null }>;
+    /** 远端 PREFERRED 读取状态：available / unavailable / not-configured / unsupported。 */
+    remote_preferred_status: string | null;
+    /** 复制器最近一次握手是否被判 tweak 不一致。 */
+    tweak_settings_mismatched: boolean | null;
 }
 
 function toEpoch(value: unknown): number | null {
@@ -360,6 +429,11 @@ export function buildLiveSyncDiagnosticSummary(
         last_push_at: toEpoch(input.lastPushAt),
         settings_fingerprint: buildSettingsFingerprint(settings),
         error: text(input.error) || null,
+        // 诊断必须能自证「为什么复制没开始」：这三个字段就是 tweak 握手阶段的可读证据。
+        tweak_diff: buildTweakDiffRecord(input.tweakDiff ?? []),
+        remote_preferred_status: text(input.remotePreferredStatus) || null,
+        tweak_settings_mismatched:
+            typeof input.tweakSettingsMismatched === "boolean" ? input.tweakSettingsMismatched : null,
     };
 }
 
@@ -408,6 +482,10 @@ export function summarizeSyncDiagnostics(input: LiveSyncDiagnosticInput): LiveSy
         ? "—（未能读取远端 sync_parameters）"
         : String(protocolVersion);
 
+    const tweakDiffRows = buildTweakDiffRows(input.tweakDiff);
+    const tweakSettingsMismatched =
+        typeof input.tweakSettingsMismatched === "boolean" ? input.tweakSettingsMismatched : null;
+
     return {
         configurationLabel: configurationName || configurationId || "未配置",
         endpointLabel: endpoint || "未配置",
@@ -422,6 +500,72 @@ export function summarizeSyncDiagnostics(input: LiveSyncDiagnosticInput): LiveSy
         lastPullLabel: formatDiagnosticTime(input.lastPullAt),
         lastPushLabel: formatDiagnosticTime(input.lastPushAt),
         error,
+        tweakDiffRows,
+        remotePreferredStatusLabel: describeRemotePreferredStatus(input.remotePreferredStatus),
+        tweakSettingsMismatched,
+        tweakAlignRequired: tweakDiffRows.some((row) => row.kind === "incompatible"),
+    };
+}
+
+/**
+ * 把内部差异列表翻成同步区可展示的行。
+ *
+ * kind 由键本身决定（重新分类可避免上游传入不一致的分级）。
+ */
+export function buildTweakDiffRows(
+    diffs: readonly TweakAlignmentDiff[] | null | undefined
+): LiveSyncTweakDiffRow[] {
+    return (diffs ?? []).map((diff) => ({
+        key: diff.key,
+        label: tweakKeyLabel(diff.key),
+        local: describeTweakValue(diff.local),
+        preferred: describeTweakValue(diff.preferred),
+        kind: classifyTweakKey(diff.key),
+    }));
+}
+
+/** 远端 PREFERRED 读取状态的中文标签。 */
+export function describeRemotePreferredStatus(status: string | null | undefined): string {
+    const value = text(status);
+    switch (value) {
+        case "available":
+            return "已读取";
+        case "not-configured":
+            return "云端未保存同步参数";
+        case "unavailable":
+            return "读取失败（网络或版本不可用）";
+        case "unsupported":
+            return "当前远端类型不支持";
+        default:
+            return "未检查";
+    }
+}
+
+/**
+ * 唯一的推荐动作：存在 incompatible 差异时，用户必须显式确认后才能与云端对齐。
+ *
+ * 差异为空、或只有可由自愈静默处理的 compatible-lossy 差异时返回 null ——
+ * 此时不该给用户任何额外按钮。
+ */
+export function tweakAlignmentAction(
+    view: Pick<LiveSyncDiagnosticView, "tweakDiffRows" | "tweakAlignRequired">
+): LiveSyncTweakAlignAction | null {
+    if (!view.tweakAlignRequired) return null;
+    const hasEncrypt = view.tweakDiffRows.some((row) => row.key === "encrypt");
+    const keys = view.tweakDiffRows.map((row) => row.key).join("、");
+    return {
+        id: "align-tweaks",
+        label: hasEncrypt ? "与云端对齐并关闭本机端到端加密" : "与云端对齐同步参数",
+        icon: "shield-alert",
+        description: hasEncrypt
+            ? "本机开启了端到端加密而云端是明文，复制会被中止。对齐会关闭本机 E2EE、按云端参数重建本地同步库。"
+            : "本机与云端的同步参数不一致（" + keys + "），复制会被中止。对齐会按云端参数重建本地同步库。",
+        risk: "danger",
+        confirmMessage: hasEncrypt
+            ? "本地开启了端到端加密，云端是明文，复制会被中止；与云端对齐会关闭本地 E2EE 并重建本地同步库（本地未同步内容会被云端覆盖）。"
+            : "本地与云端的同步参数不一致（" + keys + "），复制会被中止；与云端对齐会按云端参数重建本地同步库（本地未同步内容会被云端覆盖）。",
+        runningLabel: "正在与云端对齐…",
+        successMessage: "已与云端对齐同步参数，并已触发一次拉取。",
     };
 }
 

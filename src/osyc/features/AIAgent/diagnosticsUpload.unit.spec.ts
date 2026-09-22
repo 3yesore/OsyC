@@ -73,6 +73,9 @@ describe("脱敏诊断载荷 2.0.17", () => {
                 remoteType: "couchdb",
             },
             error: null,
+            tweak_diff: { encrypt: { local: true, preferred: false } },
+            remote_preferred_status: "available",
+            tweak_settings_mismatched: true,
         },
         apiFailures: [{ at: "2026-09-21T00:00:00.000Z", path: "/api/send?token=abcd1234", status: 500 }],
     });
@@ -98,6 +101,13 @@ describe("脱敏诊断载荷 2.0.17", () => {
         });
         expect(payload.api_failures).toHaveLength(1);
         expect(payload.api_failures[0]).toMatchObject({ path: "/api/send?token=[REDACTED]", status: 500 });
+    });
+
+    it("carries tweak_diff / remote_preferred_status / tweak_settings_mismatched so a mismatch is self-evident", () => {
+        const payload = buildErrorReportPayload(task, fullContext());
+        expect(payload.livesync_summary?.tweak_diff).toEqual({ encrypt: { local: true, preferred: false } });
+        expect(payload.livesync_summary?.remote_preferred_status).toBe("available");
+        expect(payload.livesync_summary?.tweak_settings_mismatched).toBe(true);
     });
 
     it("masks card keys, tokens, passphrases, full setup URIs and emails", () => {

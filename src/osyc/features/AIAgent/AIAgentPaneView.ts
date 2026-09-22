@@ -27,6 +27,14 @@ export class AIAgentPaneView extends SvelteItemView {
     unreadAnnouncements: Writable<number>;
     onOpenAnnouncements: () => void;
     onOpenAccount: () => void;
+    /**
+     * 面板打开时的同步配置自愈钩子（可选）。
+     *
+     * 「打开插件面板时」是 2.0.19 要求的四个自愈时机之一：设备一上线就先对齐官方
+     * 托管远端的同步参数，用户看不到那句「拉取失败」和 mismatch 提示。
+     * 只做同步配置事务，不参与渲染，失败也不会影响挂载。
+     */
+    onPaneOpened?: () => void;
 
     override icon = "bot";
     // Agent is a first-class page in the main workspace. Keeping navigation=true
@@ -78,6 +86,7 @@ export class AIAgentPaneView extends SvelteItemView {
     }
 
     override async onOpen(): Promise<void> {
+        this.onPaneOpened?.();
         try {
             await super.onOpen();
         } catch (error) {

@@ -165,6 +165,29 @@ export function isOsycProvisionedRemote(settings: Record<string, unknown>): bool
     return isOfficialOsycEndpoint(settings.couchDB_URI);
 }
 
+/**
+ * 是否**确实指向官方托管远端** —— 对 incompatible tweak 键（尤其 encrypt）自动对齐的唯一许可。
+ *
+ * ## 为什么不直接用 isOsycProvisionedRemote
+ *
+ * 那个函数的第一个分支是 `isConfigured === true`。它作为「窄补丁自愈」的许可足够了
+ * （最坏也只是把 customChunkSize 改回基线），但作为「**自动关掉本机 E2EE**」的许可就太宽：
+ * 任何已完成过配置、却把远端换成自建 CouchDB 的设备也会被判为 OsyC 远端，
+ * 用户会在不知情的情况下被改掉加密设置。
+ *
+ * 所以这里只认两个**硬证据**（与需求里写的判定完全一致）：
+ * 1. `couchDB_USER` 是 provisioner 的 `osyc_sync_*` 账号；
+ * 2. 活动档案（或顶层 `couchDB_URI`）指向官方端点域。
+ *
+ * 拿不到硬证据 → 返回 false → 只提示，不自动改。
+ */
+export function isOfficialManagedRemote(settings: Record<string, unknown>): boolean {
+    const user = typeof settings.couchDB_USER === "string" ? settings.couchDB_USER.trim().toLowerCase() : "";
+    if (user.startsWith(OSYC_SYNC_USER_PREFIX)) return true;
+    if (isOfficialOsycEndpoint(activeConfigurationUri(settings))) return true;
+    return isOfficialOsycEndpoint(settings.couchDB_URI);
+}
+
 /** 活动档案能否解析为 couchdb 远端（补 remoteType 的前提）。 */
 function isCouchDbConfiguration(settings: Record<string, unknown>): boolean {
     const uri = activeConfigurationUri(settings);

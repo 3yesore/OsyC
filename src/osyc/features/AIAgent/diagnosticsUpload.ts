@@ -115,7 +115,41 @@ function sanitizeLiveSyncSummary(summary: LiveSyncDiagnosticSummary | null | und
             remoteType: summary.settings_fingerprint?.remoteType ? bounded(summary.settings_fingerprint.remoteType) : null,
         },
         error: summary.error ? bounded(summary.error) : null,
+        // 2.0.19：tweak 握手阶段的可自证证据。键名与布尔/数字原样保留，字符串按字段上限截断。
+        tweak_diff: sanitizeTweakDiff(summary.tweak_diff),
+        remote_preferred_status: summary.remote_preferred_status ? bounded(summary.remote_preferred_status) : null,
+        tweak_settings_mismatched:
+            typeof summary.tweak_settings_mismatched === "boolean" ? summary.tweak_settings_mismatched : null,
     };
+}
+
+type DiagnosticTweakValue = string | number | boolean | null;
+
+function sanitizeTweakValue(value: DiagnosticTweakValue | undefined): DiagnosticTweakValue {
+    if (typeof value === "string") return bounded(value);
+    if (typeof value === "number" || typeof value === "boolean") return value;
+    return null;
+}
+
+/**
+ * tweak_diff 脱敏。
+ *
+ * 值都是 must-match 的同步参数（布尔 / 数字 / 算法名），**不含任何凭据**；
+ * 键名原样保留，字符串值统一走 bounded（内部会再 redact 一次）。
+ * 限长：最多 18 个键（与 must-match 键数一致），防止被塞入超长对象。
+ */
+function sanitizeTweakDiff(
+    diff: LiveSyncDiagnosticSummary["tweak_diff"] | undefined
+): LiveSyncDiagnosticSummary["tweak_diff"] {
+    const out: LiveSyncDiagnosticSummary["tweak_diff"] = {};
+    if (!diff || typeof diff !== "object") return out;
+    for (const [key, value] of Object.entries(diff).slice(0, 18)) {
+        out[bounded(key)] = {
+            local: sanitizeTweakValue(value?.local),
+            preferred: sanitizeTweakValue(value?.preferred),
+        };
+    }
+    return out;
 }
 
 function sanitizeApiFailures(failures: readonly ApiFailureSummary[] | undefined): ApiFailureSummary[] {

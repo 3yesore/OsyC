@@ -6,6 +6,7 @@ import {
     OSYC_COUCHDB_REMOTE_TYPE,
     OSYC_SYNC_USER_PREFIX,
     describeReplicationRepair,
+    isOfficialManagedRemote,
     isOfficialOsycEndpoint,
     planProvisionedReplicationRepair,
     verifyActivatedRemote,
@@ -220,6 +221,28 @@ describe("planProvisionedReplicationRepair：remoteType 补齐", () => {
             describeReplicationRepair({ liveSync: true, customChunkSize: 0, remoteType: OSYC_COUCHDB_REMOTE_TYPE })
         ).toEqual(["补开 LiveSync 同步开关", "纠正 customChunkSize 为 0", "补上 remoteType 为 couchdb"]);
         expect(describeReplicationRepair({})).toEqual([]);
+    });
+});
+
+describe("isOfficialManagedRemote：自动改写本机 E2EE 的唯一许可", () => {
+    it("osyc_sync_ 账号或官方端点域 → true", () => {
+        expect(isOfficialManagedRemote({ couchDB_USER: OSYC_SYNC_USER_PREFIX + "abc" })).toBe(true);
+        expect(isOfficialManagedRemote({ couchDB_URI: "https://osyc3.sacu3.cn" })).toBe(true);
+    });
+
+    it("安全边界：isConfigured 为真但远端是自建 → false（绝不自动关掉用户的 E2EE）", () => {
+        expect(
+            isOfficialManagedRemote({
+                isConfigured: true,
+                couchDB_USER: "myuser",
+                couchDB_URI: "https://sync.example.com",
+            })
+        ).toBe(false);
+        expect(isOfficialManagedRemote({ isConfigured: true })).toBe(false);
+        // 对照：窄补丁自愈的守卫仍然认 isConfigured（放宽是刻意的）。
+        expect(planProvisionedReplicationRepair({ isConfigured: true, liveSync: false })).toEqual({
+            liveSync: true,
+        });
     });
 });
 

@@ -32,7 +32,7 @@ import { DoctorRegulation } from "@vrtmrz/livesync-commonlib/compat/common/confi
  *
  * 这些键只有激活流程能设，且只来自后端用卡密加密下发的 setup URI。
  */
-const FORBIDDEN_KEYS = new Set<keyof ObsidianLiveSyncSettings>([
+export const FORBIDDEN_KEYS = new Set<keyof ObsidianLiveSyncSettings>([
     "couchDB_URI",
     "couchDB_USER",
     "couchDB_PASSWORD",

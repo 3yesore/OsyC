@@ -11,14 +11,41 @@ import type { LiveSyncCore } from "@/main";
 import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interfaces/ServiceModule";
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
-import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
+import {
+    RemotePreferredTweakStatuses,
+    TweakValuesTemplate,
+    type ObsidianLiveSyncSettings,
+    type RemotePreferredTweakResult,
+} from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { extractObject } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import {
     describeReplicationRepair,
+    isOfficialManagedRemote,
     planProvisionedReplicationRepair,
     verifyActivatedRemote,
 } from "@/osyc/features/AIAgent/livesyncActivation";
 import { LiveSyncCouchDBReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
-import { buildLiveSyncDiagnosticSummary, describeLiveSyncError, readConfiguredRemote, type LiveSyncControlPort, type LiveSyncDiagnosticInput } from "@/osyc/features/AIAgent/livesyncSyncActions";
+import {
+    buildLiveSyncDiagnosticSummary,
+    buildTweakDiffRows,
+    describeLiveSyncError,
+    describeRemotePreferredStatus,
+    readConfiguredRemote,
+    tweakAlignmentAction,
+    type LiveSyncControlPort,
+    type LiveSyncDiagnosticInput,
+    type LiveSyncRepairResult,
+    type LiveSyncTweakAlignAction,
+    type LiveSyncTweakDiffRow,
+} from "@/osyc/features/AIAgent/livesyncSyncActions";
+import {
+    buildTweakAlignWarning,
+    describeTweakAlignment,
+    filterAlignmentPatch,
+    listTweakDiffKeys,
+    planTweakAlignment,
+    tweakAlignmentOptionsForRemote,
+} from "@/osyc/features/AIAgent/tweakAlignment";
 import { resolveServiceUrl } from "@/osyc/features/AIAgent/serviceDefaults";
 import { parseAIAgentPersisted, PERSISTED_VERSION, type AIAgentPersisted } from "@/osyc/serviceFeatures/aiAgentPersistence";
 import { DEFAULT_APPEARANCE, parseAppearance, type AppearanceSettings } from "@/osyc/features/AIAgent/appearance";
@@ -36,6 +63,104 @@ declare const MANIFEST_VERSION: string | undefined;
 
 /** 存放在 vault 配置目录下，不参与同步，避免把凭据写进笔记库 */
 const CONFIG_FILE_NAME = "livesync-aiagent.json";
+
+/**
+ * runReplicationRepair 的内部结果。
+ *
+ * 在 LiveSyncRepairResult 之外附带「远端 PREFERRED 读取状态」与用户确认文案，
+ * 供日志、诊断与账号弹窗区分三种结局：真的无差异 / 已静默对齐 / 必须用户确认。
+ */
+interface ReplicationRepairOutcome {
+    changed: boolean;
+    changes: string[];
+    error?: string;
+    requiresUserConfirmation: boolean;
+    diffs: LiveSyncTweakDiffRow[];
+    recommendedAction: LiveSyncTweakAlignAction | null;
+    confirmMessage: string | null;
+    remotePreferredStatus: string;
+    /** 官方托管远端被自动对齐的 should-match 键；空数组 = 无需对齐或未对齐。 */
+    autoAligned: string[];
+}
+
+/**
+ * 官方托管远端自动对齐的结果。
+ *
+ * handled = true 表示这已经是最终结论（无需用户确认）：要么已经把差异对齐，
+ * 要么两端本来就一致。handled = false 表示调用方还要走提示 / 确认流程。
+ */
+interface AutoAlignOutcome {
+    handled: boolean;
+    aligned: string[];
+    rebuild: boolean;
+    remotePreferred: string;
+    changes: string[];
+}
+
+/**
+ * 「远端 PREFERRED 读取状态 → 结论」：
+ * - available：可以逐键比较；
+ * - not-configured：云端里程碑还没有 PREFERRED，本机值就是基线（LiveSync 亦以本机值兜底），不可能 diff；
+ * - unsupported：当前远端类型没有 tweak 概念；
+ * - unavailable：读不到，**不代表无差异**。
+ */
+function isRemotePreferredComparisonPossible(status: string): boolean {
+    return status === RemotePreferredTweakStatuses.AVAILABLE || status === RemotePreferredTweakStatuses.NOT_CONFIGURED;
+}
+
+/**
+ * 把自愈结果翻成给用户看的中文结论。
+ *
+ * 硬性约束：**只要存在差异，就绝不告诉用户「配置已是最新、无需修复」**。
+ * 因此这里的每个分支都显式区分「真的逐键全等」/「有差异但需确认」/「读不到云端」三种结局。
+ */
+function describeRepairResult(outcome: ReplicationRepairOutcome): LiveSyncRepairResult {
+    const base: LiveSyncRepairResult = {
+        ok: !outcome.error,
+        changed: outcome.changed,
+        changes: outcome.changes,
+        message: "",
+        requiresUserConfirmation: outcome.requiresUserConfirmation,
+        diffs: outcome.diffs,
+        recommendedAction: outcome.recommendedAction,
+    };
+    if (outcome.error) {
+        return { ...base, ok: false, message: "同步配置检查失败：" + outcome.error };
+    }
+    if (outcome.requiresUserConfirmation) {
+        return {
+            ...base,
+            ok: false,
+            message:
+                (outcome.confirmMessage ?? "检测到同步参数差异，需要你先确认。") +
+                " 请点下方的推荐动作完成对齐。",
+        };
+    }
+    if (outcome.remotePreferredStatus !== RemotePreferredTweakStatuses.AVAILABLE) {
+        const local = outcome.changed ? "已修复本地同步配置：" + outcome.changes.join("；") + "；" : "";
+        if (outcome.remotePreferredStatus === RemotePreferredTweakStatuses.NOT_CONFIGURED) {
+            return { ...base, message: local + "云端尚未保存同步参数，本机值将作为基线，无需修复。" };
+        }
+        if (outcome.remotePreferredStatus === RemotePreferredTweakStatuses.UNSUPPORTED) {
+            return { ...base, message: local + "当前远端类型不支持同步参数比对，无需修复。" };
+        }
+        return {
+            ...base,
+            ok: false,
+            message:
+                local +
+                "未能读取云端同步参数（" +
+                describeRemotePreferredStatus(outcome.remotePreferredStatus) +
+                "），无法确认两端参数是否一致。",
+        };
+    }
+    return {
+        ...base,
+        message: outcome.changed
+            ? "已修复同步配置：" + outcome.changes.join("；")
+            : "本地与云端的同步参数完全一致，无需修复",
+    };
+}
 
 class OsyCLogModal extends Modal {
     constructor(app: App, private readonly logger = osycLogger) {
@@ -131,38 +256,253 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const configPath = `${app.vault.configDir}/${CONFIG_FILE_NAME}`;
 
     /**
-     * 同步配置自愈（2026-09-18 生产故障 + 2026-09-22 移动端反馈）：
+     * 读取远端里程碑里的 PREFERRED tweak 值。
+     *
+     * 2.0.19 起「修复同步配置」第一次真正看到远端参数。优先用**活动复制器**的
+     * getRemotePreferredTweakValues（即 core.replicator.getRemotePreferredTweakValues），
+     * 它是 LiveSyncReplicator.js:1203 的实现，返回 { status, values?, error?, reason? }；
+     * 活动复制器尚未就绪时退回 LiveSync 官方端口 services.tweakValue.fetchRemotePreferred
+     * （由 ModuleResolveMismatchedTweaks._fetchRemotePreferredTweakValues 注册，内部同样调用
+     * replicator.getRemotePreferredTweakValues）。两条路径都只读远端，绝不写远端。
+     *
+     * 注意：这里用 services.replicator.getActiveReplicator()，而不是本文件后面才定义的
+     * activeLiveSyncReplicator —— runReplicationRepair 在插件启动时就会被调用，
+     * 早于那个 const 的定义，不能依赖它。
+     *
+     * 15 秒缓存：打开同步面板会先自愈再诊断，避免同一次打开重复拉取远端里程碑。
+     */
+    let remotePreferredCache: { at: number; value: RemotePreferredTweakResult } | null = null;
+    const readRemotePreferredTweakValues = async (
+        settings: ObsidianLiveSyncSettings,
+        force = false
+    ): Promise<RemotePreferredTweakResult> => {
+        if (!force && remotePreferredCache && Date.now() - remotePreferredCache.at < 15000) {
+            return remotePreferredCache.value;
+        }
+        const replicator = core.services.replicator.getActiveReplicator();
+        let value: RemotePreferredTweakResult;
+        if (replicator) {
+            try {
+                value = await core.services.replicator.runBoundedRemoteActivity(
+                    () => replicator.getRemotePreferredTweakValues(settings),
+                    { label: "osyc-livesync-remote-tweaks" }
+                );
+            } catch (error) {
+                value = { status: RemotePreferredTweakStatuses.UNAVAILABLE, error };
+            }
+        } else {
+            try {
+                value = await core.services.tweakValue.fetchRemotePreferred(settings);
+            } catch (error) {
+                value = { status: RemotePreferredTweakStatuses.UNAVAILABLE, error };
+            }
+        }
+        remotePreferredCache = { at: Date.now(), value };
+        return value;
+    };
+
+    /**
+     * 官方托管远端的**全自动**对齐（2.0.19 需求变更）。
+     *
+     * ## 为什么可以自动、而且必须自动
+     *
+     * - E2EE 只加密**同步分块**；本地 .md 文件仍在磁盘上，`$fetchLocal()` 重建的是
+     *   同步库，不会删掉用户笔记；
+     * - 本机 `encrypt: true` 对着官方明文远端时，commonlib 的 `ensureRemoteIsCompatible`
+     *   永远返回 MISMATCHED，该设备**根本不可能同步成功** —— 对齐是唯一出路；
+     * - 官方托管远端由 OsyC 自己签发、固定明文，用户不该为它手动操作。
+     *
+     * ## 直接复用 LiveSync 自己的「使用远端」分支
+     *
+     * 与 `src/modules/coreFeatures/ModuleResolveMismatchedTweaks.ts:252-270`
+     * `_askResolvingMismatchedTweaks` 的 conf 分支一致，不自己发明对齐逻辑：
+     *
+     *   1. `Object.assign(settings, extractObject(TweakValuesTemplate, preferred))`
+     *   2. `core.services.setting.saveSettingData()`
+     *   3. `core.replicator.setPreferredRemoteTweakSettings(settings)`
+     *   4. 差异含不兼容键 → `core.rebuilder.$fetchLocal()`
+     *
+     * ## 安全边界
+     *
+     * - 只对官方托管远端（`isOsycProvisionedRemote`：官方端点域或 `osyc_sync_` 账号）
+     *   自动改；自建 / 非托管远端返回 `handled: false`，由调用方走提示 / 确认流程；
+     * - 只写 `TweakValuesTemplate` 里的 tweak 键，并再过一遍 `FORBIDDEN_KEYS`：
+     *   `passphrase` / `encryptedPassphrase` / `encryptedCouchDBConnection` / 各类远端
+     *   凭据永远只能由激活流程写入，任何自动流程都不得碰。
+     */
+    const autoAlignOfficialRemoteTweaks = async (source: string): Promise<AutoAlignOutcome> => {
+        const outcome: AutoAlignOutcome = {
+            handled: false,
+            aligned: [],
+            rebuild: false,
+            remotePreferred: "unknown",
+            changes: [],
+        };
+        try {
+            const settings = core.services.setting.currentSettings();
+            // 只认硬证据（官方端点域 / osyc_sync_ 账号）：isConfigured 这个弱信号绝不能
+            // 作为「自动关掉本机 E2EE」的许可，否则自建远端的用户会被误改。
+            if (!isOfficialManagedRemote(settings as unknown as Record<string, unknown>)) {
+                // 自建 / 非托管远端：只提示，不自动改。
+                return outcome;
+            }
+            const preferred = await readRemotePreferredTweakValues(settings);
+            outcome.remotePreferred = String(preferred.status ?? "unknown");
+            if (preferred.status !== RemotePreferredTweakStatuses.AVAILABLE) return outcome;
+            // 官方远端必须是明文（我们的 setup URI 从不含 passphrase）。
+            if (preferred.values.encrypt !== false) return outcome;
+
+            const plan = planTweakAlignment(
+                settings,
+                preferred.values,
+                tweakAlignmentOptionsForRemote(true)
+            );
+            if (plan.diffs.length === 0) {
+                // 两端本来就一致：这也是终局，无需用户确认。
+                outcome.handled = true;
+                return outcome;
+            }
+
+            const aligned = filterAlignmentPatch(extractObject(TweakValuesTemplate, preferred.values));
+            Object.assign(settings, aligned);
+            await core.services.setting.saveSettingData();
+            await core.services.control.applySettings();
+            const replicator = core.services.replicator.getActiveReplicator();
+            if (replicator) {
+                await core.services.replicator.runBoundedRemoteActivity(
+                    () => replicator.setPreferredRemoteTweakSettings(settings),
+                    { label: "osyc-livesync-remote-tweaks-register" }
+                );
+            }
+            // 写盘成功之后才算 handled：写设置 / 重建失败时不能假装已对齐。
+            outcome.handled = true;
+            outcome.aligned = plan.diffs.map((diff) => diff.key);
+            outcome.rebuild = plan.incompatible.length > 0;
+            outcome.changes = describeTweakAlignment(plan);
+            if (outcome.rebuild) await core.rebuilder.$fetchLocal();
+            // 一条日志说清：改了什么 / 远端状态 / 是否需要重建。
+            osycLogger.info("同步配置自愈", {
+                aligned: outcome.aligned,
+                remote_preferred: outcome.remotePreferred,
+                rebuild: outcome.rebuild,
+            });
+            return outcome;
+        } catch (error) {
+            osycLogger.warn(`官方远端自动对齐失败（${source}）`, error);
+            // 任一步失败就交回调用方按差异提示处理，绝不假装已经对齐。
+            outcome.handled = false;
+            outcome.aligned = [];
+            return outcome;
+        }
+    };
+
+    /**
+     * 同步配置自愈（2026-09-18 生产故障 + 2026-09-22 移动端反馈 + 2026-10 tweak 差异事故）：
      *
      * - 早期激活流程没有打开 `liveSync` 总开关（setup_uri 载荷不含该键，默认 false），
      *   复制器 `liveSync || syncOnStart` 两个都为 false 时永不启动；
      * - 2.0.13 的激活补丁把 `customChunkSize` 写成 60（must-match 模板基线是 0），
      *   `ensureRemoteIsCompatible` 返回 MISMATCHED，复制器**静默中止** ——
      *   服务端 `_changes` 请求数恒为 0；
-     * - `remoteType` 缺失 / 为 null 时复制器同样不会初始化。
+     * - `remoteType` 缺失 / 为 null 时复制器同样不会初始化；
+     * - 2.0.19 新增：远端 PREFERRED 的**全部 18 个 must-match 键**逐键比较。
+     *   - **官方托管远端**：全部差异（含 encrypt）自动对齐，不弹窗、不确认；
+     *   - 自建 / 非托管远端：compatible-lossy 静默对齐，
+     *     incompatible（尤其 encrypt）**禁止静默改写**，只返回 requiresUserConfirmation。
      *
-     * 这里只下窄补丁（`liveSync / customChunkSize / remoteType` 三个键，走 applyPartial
-     * 浅合并，绝不整份替换），两条都不需要修时**零写入**。判定由纯函数
-     * planProvisionedReplicationRepair 负责（2.0.18 起守卫已放宽）。
+     * 窄补丁（`liveSync / customChunkSize / remoteType`）走 applyPartial 浅合并，绝不整份替换；
+     * 都不需要修时**零写入**。判定由纯函数 planProvisionedReplicationRepair 与
+     * planTweakAlignment 负责。
      *
-     * 三个调用时机：插件启动、激活成功后、每次打开账户弹窗/同步面板。
-     * 全程不依赖用户点任何按钮。
+     * 四个调用时机：插件启动、激活成功后、打开插件面板 / 账户弹窗同步面板、以及
+     * 每次发起 pull 之前（runOneWayReplication 的开头）。
+     * 官方托管远端全程零手动（含 encrypt）；只有自建 / 非托管远端的 incompatible
+     * 差异才交给用户确认。
      */
-    const runReplicationRepair = async (
-        source: string
-    ): Promise<{ changed: boolean; changes: string[]; error?: string }> => {
+    const runReplicationRepair = async (source: string): Promise<ReplicationRepairOutcome> => {
+        const outcome: ReplicationRepairOutcome = {
+            changed: false,
+            changes: [],
+            requiresUserConfirmation: false,
+            diffs: [],
+            recommendedAction: null,
+            confirmMessage: null,
+            remotePreferredStatus: "unknown",
+            autoAligned: [],
+        };
         try {
+            const changes: string[] = [];
+            // 第一段：历史缺陷的窄补丁自愈。
             const repair = planProvisionedReplicationRepair(core.services.setting.currentSettings());
-            if (!repair) return { changed: false, changes: [] };
-            await core.services.setting.applyPartial(repair, true);
-            await core.services.control.applySettings();
-            // 日志要含「改了什么值」，供用户上传诊断时与 settings_fingerprint 对照；
-            // repair 只含三个非敏感键，不含任何凭据。
-            const changes = describeReplicationRepair(repair);
-            osycLogger.info(`同步配置自愈（${source}）`, { changes, repair });
-            return { changed: true, changes };
+            if (repair) {
+                await core.services.setting.applyPartial(repair, true);
+                await core.services.control.applySettings();
+                // 日志要含「改了什么值」，供用户上传诊断时与 settings_fingerprint 对照；
+                // repair 只含三个非敏感键，不含任何凭据。
+                changes.push(...describeReplicationRepair(repair));
+                osycLogger.info(`同步配置自愈（${source}）`, { changes: describeReplicationRepair(repair), repair });
+            }
+
+            // 第二段之一：官方托管远端 → 全自动对齐（含 encrypt），不弹窗、不确认。
+            // 「不要每次都让客户手动解决」：设备一旦 online 就先自愈，用户看不到失败。
+            const auto = await autoAlignOfficialRemoteTweaks(source);
+            outcome.autoAligned = auto.aligned;
+            if (auto.handled) {
+                outcome.remotePreferredStatus = auto.remotePreferred;
+                if (auto.aligned.length > 0) {
+                    changes.push("自动对齐同步参数（" + auto.aligned.join("、") + "）");
+                }
+                outcome.changed = changes.length > 0;
+                outcome.changes = changes;
+                return outcome;
+            }
+
+            // 第二段之二：自建 / 非托管远端 → 保持「只提示，不自动改」，仍是用户确认后对齐。
+            const preferred = await readRemotePreferredTweakValues(core.services.setting.currentSettings());
+            outcome.remotePreferredStatus = String(preferred.status ?? "unknown");
+            if (!isRemotePreferredComparisonPossible(outcome.remotePreferredStatus)) {
+                outcome.changed = changes.length > 0;
+                outcome.changes = changes;
+                return outcome;
+            }
+            if (preferred.status === RemotePreferredTweakStatuses.AVAILABLE) {
+                const plan = planTweakAlignment(core.services.setting.currentSettings(), preferred.values);
+                outcome.diffs = buildTweakDiffRows(plan.diffs);
+                if (plan.incompatible.length > 0) {
+                    // 禁止静默改写：尤其 encrypt。把完整差异交给 UI，由用户显式确认；
+                    // 这里**不写任何设置**，也绝不宣称「已是最新」。
+                    outcome.confirmMessage = buildTweakAlignWarning(plan);
+                    outcome.recommendedAction = tweakAlignmentAction({
+                        tweakDiffRows: outcome.diffs,
+                        tweakAlignRequired: true,
+                    });
+                    outcome.requiresUserConfirmation = true;
+                    outcome.changed = changes.length > 0;
+                    outcome.changes = changes;
+                    osycLogger.warn(`检测到不兼容的同步参数差异（${source}）`, {
+                        keys: listTweakDiffKeys(plan),
+                        diffs: describeTweakAlignment(plan),
+                    });
+                    return outcome;
+                }
+                if (plan.compatibleLossy.length > 0) {
+                    // 保持今天的行为：compatible-lossy 静默对齐到远端 PREFERRED 并写回设置。
+                    await core.services.setting.applyPartial(plan.silentPatch, true);
+                    await core.services.control.applySettings();
+                    changes.push("对齐同步参数：" + describeTweakAlignment(plan).join("；"));
+                    osycLogger.info(`同步配置自愈（${source}）`, {
+                        changes: describeTweakAlignment(plan),
+                        keys: listTweakDiffKeys(plan),
+                    });
+                }
+            }
+            outcome.changed = changes.length > 0;
+            outcome.changes = changes;
+            return outcome;
         } catch (error) {
             osycLogger.warn(`同步配置自愈失败（${source}）`, error);
-            return { changed: false, changes: [], error: describeLiveSyncError(error) };
+            outcome.error = describeLiveSyncError(error);
+            return outcome;
         }
     };
 
@@ -486,6 +826,11 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     };
 
     const runOneWayReplication = async (mode: "pullOnly" | "pushOnly"): Promise<void> => {
+        // 「每次发起 pull 之前」都要自愈：设备一 online 就先对齐官方远端参数，
+        // 用户就看不到那句「拉取失败」和 mismatch 提示。对齐失败不影响本次拉取尝试。
+        if (mode === "pullOnly") {
+            await autoAlignOfficialRemoteTweaks("before-pull");
+        }
         const settings = currentLiveSyncSettings();
         const replicator = activeLiveSyncReplicator();
         const label = mode === "pullOnly" ? "osyc-livesync-fetch" : "osyc-livesync-push";
@@ -559,55 +904,116 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                     errors.push("读取 sync_parameters 失败：" + describeLiveSyncError(error));
                 }
             }
+            // 2.0.19：tweak 握手阶段的三项证据。诊断必须能自证「为什么复制没开始」——
+            // 此前 livesync_summary.error 为 null，用户上传的诊断看不出任何原因。
+            const preferred = await readRemotePreferredTweakValues(settings);
+            input.remotePreferredStatus = String(preferred.status ?? "unknown");
+            input.tweakSettingsMismatched = replicator.tweakSettingsMismatched === true;
+            if (preferred.status === RemotePreferredTweakStatuses.AVAILABLE && preferred.values) {
+                input.tweakDiff = planTweakAlignment(settings, preferred.values).diffs;
+            } else if (replicator.preferredTweakValue) {
+                // 远端 PREFERRED 读不到时，用复制器失败时已就位的缓存值兜底。
+                input.tweakDiff = planTweakAlignment(settings, replicator.preferredTweakValue).diffs;
+            }
             if (errors.length > 0) input.error = errors.join("；");
             return input;
         },
 
         // 时机三：每次打开账户弹窗 / 同步面板都会调一次。幂等，不需要修时零写入。
+        // 只有真的对齐过参数时才补一次拉取 —— 如果自愈把设备修好了，同步应当立刻开始，
+        // 而不是等用户再点一次「从远端拉取」。
         async reconcileSyncConfiguration() {
             const outcome = await runReplicationRepair("panel");
-            if (outcome.error) {
+            const result = describeRepairResult(outcome);
+            if (outcome.autoAligned.length === 0) return result;
+            try {
+                await runOneWayReplication("pullOnly");
+                return { ...result, message: result.message + "；已触发一次拉取" };
+            } catch (error) {
+                return {
+                    ...result,
+                    message: result.message + "；拉取失败：" + describeLiveSyncError(error),
+                };
+            }
+        },
+
+        // 「修复同步配置」按钮：一键自愈 + 完成后立刻拉取一次。
+        // 只要存在 incompatible 差异就**不拉取**：复制必定被中止，必须先要用户显式确认。
+        async repairSyncConfiguration() {
+            const outcome = await runReplicationRepair("manual");
+            const result = describeRepairResult(outcome);
+            if (result.requiresUserConfirmation) return result;
+            try {
+                await runOneWayReplication("pullOnly");
+                return { ...result, message: result.message + "；已触发一次拉取" };
+            } catch (error) {
+                return {
+                    ...result,
+                    ok: false,
+                    message: result.message + "；拉取失败：" + describeLiveSyncError(error),
+                };
+            }
+        },
+
+        // 用户在差异列表上显式确认后的对齐：把云端 PREFERRED 的全部分歧键写回本机，
+        // 再走 LiveSync **自己的**重建路径 core.rebuilder.$fetchLocal()（与
+        // ModuleResolveMismatchedTweaks._askResolvingMismatchedTweaks 在「采用远端 +
+        // 需要重建」时的做法一致）。不自己实现任何重建逻辑。
+        async alignTweaksToRemote() {
+            const settings = core.services.setting.currentSettings();
+            const preferred = await readRemotePreferredTweakValues(settings, true);
+            if (preferred.status !== RemotePreferredTweakStatuses.AVAILABLE || !preferred.values) {
                 return {
                     ok: false,
                     changed: false,
                     changes: [],
-                    message: "同步配置检查失败：" + outcome.error,
+                    message:
+                        "无法读取云端同步参数（" +
+                        describeRemotePreferredStatus(preferred.status) +
+                        "），未做任何改动。",
                 };
             }
-            return {
-                ok: true,
-                changed: outcome.changed,
-                changes: outcome.changes,
-                message: outcome.changed
-                    ? "已修复同步配置：" + outcome.changes.join("；")
-                    : "同步配置已是最新，无需修复",
-            };
-        },
-
-        // 「修复同步配置」按钮：一键自愈 + 完成后立刻拉取一次。
-        async repairSyncConfiguration() {
-            const outcome = await runReplicationRepair("manual");
-            const prefix = outcome.error
-                ? "同步配置检查失败：" + outcome.error
-                : outcome.changed
-                  ? "已修复同步配置：" + outcome.changes.join("；")
-                  : "同步配置已是最新，无需修复";
+            const plan = planTweakAlignment(settings, preferred.values);
+            if (plan.diffs.length === 0) {
+                return { ok: true, changed: false, changes: [], message: "本地与云端的同步参数完全一致，无需对齐。" };
+            }
+            const changes = describeTweakAlignment(plan);
             try {
-                await runOneWayReplication("pullOnly");
-                return {
-                    ok: true,
-                    changed: outcome.changed,
-                    changes: outcome.changes,
-                    message: prefix + "；已触发一次拉取",
-                };
+                // 与 _askResolvingMismatchedTweaks 的 conf 分支一致：先用
+                // extractObject(TweakValuesTemplate, preferred) 覆盖 tweak 键，再就地落盘
+                // （复制器与同步面板可能正持有 settings 这个引用），然后登记远端 preferred，
+                // 需要重建时走 LiveSync 自己的 $fetchLocal()。
+                const aligned = filterAlignmentPatch(extractObject(TweakValuesTemplate, preferred.values));
+                Object.assign(settings, aligned);
+                await core.services.setting.saveSettingData();
+                await core.services.control.applySettings();
+                const replicator = activeLiveSyncReplicator();
+                if (replicator) {
+                    await core.services.replicator.runBoundedRemoteActivity(
+                        () => replicator.setPreferredRemoteTweakSettings(settings),
+                        { label: "osyc-livesync-remote-tweaks-register" }
+                    );
+                }
+                if (plan.incompatible.length > 0) await core.rebuilder.$fetchLocal();
             } catch (error) {
+                osycLogger.warn("与云端对齐同步参数失败", error);
                 return {
                     ok: false,
-                    changed: outcome.changed,
-                    changes: outcome.changes,
-                    message: prefix + "；拉取失败：" + describeLiveSyncError(error),
+                    changed: false,
+                    changes,
+                    message: "与云端对齐失败：" + describeLiveSyncError(error),
                 };
             }
+            osycLogger.info("已与云端对齐同步参数", { keys: listTweakDiffKeys(plan), changes });
+            return {
+                ok: true,
+                changed: true,
+                changes,
+                message:
+                    "已与云端对齐同步参数（" +
+                    listTweakDiffKeys(plan).join("、") +
+                    "），并已按云端参数重建本地同步库。",
+            };
         },
 
         async acceptRemoteMilestone(): Promise<void> {
@@ -951,7 +1357,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     });
 
     api.registerWindow(VIEW_TYPE_AI_AGENT, (leaf: WorkspaceLeaf) => {
-        return new AIAgentPaneView(
+        const view = new AIAgentPaneView(
             leaf,
             agent,
             openFile,
@@ -968,6 +1374,12 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             openAnnouncements,
             openAccount,
         );
+        // 「打开插件面板时」自愈：与账户弹窗同步面板共用同一份 reconcile ——
+        // 若真的对齐了参数，reconcile 会顺手补一次拉取，用户不必再点一次。
+        view.onPaneOpened = () => {
+            void agent.livesyncControl?.reconcileSyncConfiguration();
+        };
+        return view;
     });
 
     api.addRibbonIcon("bot", "OC", () => openPane())?.addClass?.("livesync-ribbon-ai-agent");

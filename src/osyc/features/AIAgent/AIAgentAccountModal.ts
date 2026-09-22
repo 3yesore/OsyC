@@ -11,7 +11,14 @@ import {
     type AccountSectionContext,
 } from "./osycAccountSections";
 import { LiveSyncConfirmModal } from "./LiveSyncConfirmModal";
-import { describeLiveSyncError, runLiveSyncAction, summarizeSyncDiagnostics, visibleLiveSyncActions, withBusyButton } from "./livesyncSyncActions";
+import {
+    describeLiveSyncError,
+    runLiveSyncAction,
+    summarizeSyncDiagnostics,
+    tweakAlignmentAction,
+    visibleLiveSyncActions,
+    withBusyButton,
+} from "./livesyncSyncActions";
 import type { LiveSyncActionDescriptor, LiveSyncControlPort, LiveSyncDiagnosticInput, LiveSyncDiagnosticView } from "./livesyncSyncActions";
 
 const PLAN_LABEL: Record<PlanType, string> = {
@@ -355,6 +362,22 @@ export class AIAgentAccountModal extends Modal {
                     }
                     await withBusyButton(btn, "一键修复", "修复中…", async () => {
                         const result = await control.repairSyncConfiguration();
+                        if (result.requiresUserConfirmation) {
+                            // incompatible 差异（尤其 encrypt）禁止静默改写：必须用户显式确认。
+                            const action = result.recommendedAction;
+                            if (!action) {
+                                new Notice(result.message);
+                                return;
+                            }
+                            const approved = await this.confirmLiveSyncAction(action, action.confirmMessage);
+                            if (!approved) {
+                                new Notice("已取消与云端对齐：同步仍会被中止。");
+                                return;
+                            }
+                            const aligned = await control.alignTweaksToRemote();
+                            new Notice(aligned.message);
+                            return;
+                        }
                         new Notice(result.message);
                     });
                     this.onOpen();
@@ -414,6 +437,50 @@ export class AIAgentAccountModal extends Modal {
         // 核心告警放最上面，必须用户一眼能看到。
         if (view.alert) body.createEl("p", { text: view.alert, cls: "ai-account-livesync-alert" });
         this.renderLiveSyncGrid(body, view);
+        body.createEl("p", { text: "远端同步参数：" + view.remotePreferredStatusLabel, cls: "ai-account-hint" });
+        // 2.0.19：把 tweak 差异逐条列出来（本机值 vs 云端值）。这是复制被中止的直接原因，
+        // 必须显式呈现 —— 此前用户只看到「拉取失败」，被指向了一条不存在的出路。
+        if (view.tweakDiffRows.length > 0) {
+            body.createEl("p", {
+                text: view.tweakSettingsMismatched
+                    ? "同步参数差异（本机 vs 云端）—— 这是复制被中止的直接原因："
+                    : "同步参数差异（本机 vs 云端）：",
+                cls: "ai-account-livesync-alert",
+            });
+            const diffGrid = body.createDiv({ cls: "ai-account-sync-grid" });
+            for (const row of view.tweakDiffRows) {
+                diffGrid.createEl("strong", { text: row.label + "（" + row.key + "）" });
+                diffGrid.createSpan({
+                    text:
+                        "本机 " +
+                        row.local +
+                        " / 云端 " +
+                        row.preferred +
+                        (row.kind === "incompatible" ? "（不可静默改写）" : "（可自动对齐）"),
+                });
+            }
+        }
+        // 唯一的推荐动作：仅当存在 incompatible 差异时出现；点下去先弹显式确认，
+        // 确认后才走 control.alignTweaksToRemote()（内部使用 LiveSync 自己的 $fetchLocal）。
+        const alignAction = tweakAlignmentAction(view);
+        if (alignAction) {
+            const alignSetting = new Setting(body).setName(alignAction.label).setDesc(alignAction.description);
+            alignSetting.addButton((btn) => {
+                btn.setButtonText(alignAction.label).setIcon(alignAction.icon).setWarning();
+                btn.onClick(async () => {
+                    await withBusyButton(btn, alignAction.label, alignAction.runningLabel, async () => {
+                        const approved = await this.confirmLiveSyncAction(alignAction, alignAction.confirmMessage);
+                        if (!approved) {
+                            new Notice("已取消与云端对齐：同步仍会被中止。");
+                            return;
+                        }
+                        const result = await control.alignTweaksToRemote();
+                        new Notice(result.message);
+                    });
+                    refresh();
+                });
+            });
+        }
         if (view.hint) body.createEl("p", { text: view.hint, cls: "ai-account-hint" });
         if (view.error) body.createEl("p", { text: view.error, cls: "ai-account-hint" });
         for (const action of visibleLiveSyncActions(view)) {
@@ -476,7 +543,10 @@ export class AIAgentAccountModal extends Modal {
     }
 
     /** danger 弹一次确认；critical 在弹窗里还要求输入确认词。 */
-    private confirmLiveSyncAction(action: LiveSyncActionDescriptor, message: string): Promise<boolean> {
+    private confirmLiveSyncAction(
+        action: Pick<LiveSyncActionDescriptor, "label" | "risk" | "confirmKeyword">,
+        message: string
+    ): Promise<boolean> {
         return new Promise<boolean>((resolve) => {
             new LiveSyncConfirmModal(this.app, action, message, resolve).open();
         });
