@@ -1,6 +1,6 @@
 {
     "name": "osyc",
-    "version": "2.0.17",
+    "version": "2.0.18",
     "description": "Organize notes with an AI assistant and sync them across devices.",
     "main": "main.js",
     "type": "module",

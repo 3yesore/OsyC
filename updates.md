@@ -12,6 +12,16 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.18
+
+22nd September, 2026
+
+- OsyC `2.0.18` **self-heals the synchronisation configuration** so an older device that was silently not syncing starts again with no user action. A device activated by 2.0.13 could carry a `customChunkSize` of 60, and a legacy `remoteType` could disagree with the current remote; under the old guard `ensureRemoteIsCompatible` answered `MISMATCHED` and the replicator aborted without an error, so the user saw nothing. The OsyC-remote guard is widened to an OR decision over its three signals, and an idempotent repair that writes nothing when there is nothing to fix corrects exactly `customChunkSize` 60 to 0 and restores the canonical `remoteType` value; it runs at three automatic points (start-up, after activation, and every time the account dialog opens its sync panel) and never changes the remote address or the credentials. The account dialog also gains an always-visible `修复同步配置` button, and `重新激活卡密` is moved out of the default-collapsed fold into the always-visible area, which is the mobile regression where users could not reach it; a unit test asserts that the button is not inside the default-collapsed `details`.
+
+- OsyC `2.0.18` **finishes the email identity contract**. The device-limit copy is unified, the verification-code copy no longer lets a caller tell a registered address from an unregistered one, an unactivated account is guided to its next step instead of being shown an error, and the email-login path to the plan and entitlement labels is locked end to end by unit tests. Binding a card key to a mailbox now has rate limiting and an audit trail.
+
+- OsyC `2.0.18` adds the **engineering quality gate** that later cuts depend on: `scripts/gate-all.mjs` (with the `scripts/gate-all.sh` wrapper) runs the six mandatory checks in one command — `tsc --noEmit --skipLibCheck`, `eslint`, `svelte-check`, `tsc-check:apps`, the full unit suite on the threads pool and the sync acceptance self-test — prints each result and stops at the first failure, and `docs/RELEASE-CLOSURE-CHECKLIST.zh.md` now makes running it a hard gate before a cut and records the release-integrity and rollback procedure; `docs/FOUNDATION-INDEX.zh.md` indexes the foundation documents. The five versioned assets are rebuilt and re-hashed only after the six gates pass.
+
 ## 2.0.17
 
 21st September, 2026
