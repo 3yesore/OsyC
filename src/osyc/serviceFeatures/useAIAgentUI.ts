@@ -2,6 +2,10 @@ import { Modal, Notice, Platform, Setting, TFile, requestUrl, type App } from "@
 import type { WorkspaceLeaf } from "@/deps";
 import { AIAgentPaneView, VIEW_TYPE_AI_AGENT } from "@/osyc/features/AIAgent/AIAgentPaneView";
 import { AIAgentFloating } from "@/osyc/features/AIAgent/AIAgentFloating";
+import { SelectionToolbar } from "@/osyc/vendored/smartpick-toolbar/selectionToolbar";
+import { SELECTION_TOOLBAR_ACTIONS, buildSelectionMessage } from "@/osyc/features/AIAgent/selectionToolbarActions";
+import { captureActiveNoteFromApp } from "@/osyc/features/AIAgent/activeNoteBridge";
+import type { ActiveNoteSnapshot } from "@/osyc/features/AIAgent/activeNoteContext";
 import { AIAgentAccountModal } from "@/osyc/features/AIAgent/AIAgentAccountModal";
 import { AIAgentToolsModal } from "@/osyc/features/AIAgent/AIAgentToolsModal";
 import { CmdAIAgent } from "@/osyc/features/AIAgent/CmdAIAgent";
@@ -1316,6 +1320,33 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
         },
     });
 
+    /**
+     * 选中内容浮条：桌面跟随选区，移动端钉在内容区顶部。
+     * 点动作 = 打开 OC 页面，并把这次提问（附带活动笔记/选区快照）立刻发出去。
+     */
+    const sendSelectionTask = async (actionId: string, selectionText: string): Promise<void> => {
+        let snapshot: ActiveNoteSnapshot | undefined;
+        try {
+            const result = await captureActiveNoteFromApp(app, { contextMode: "selection" });
+            snapshot = result.snapshot;
+        } catch (error) {
+            osycLogger.warn("选中内容快照采集失败，改为只发选中文本", error);
+        }
+        const message = buildSelectionMessage(actionId, selectionText, Boolean(snapshot));
+        if (!message) return;
+        void agent.send(message, snapshot);
+    };
+
+    const selectionToolbar = new SelectionToolbar({
+        app,
+        actions: SELECTION_TOOLBAR_ACTIONS,
+        onAction: (actionId, selection) => {
+            openPane();
+            void sendSelectionTask(actionId, selection.text);
+        },
+    });
+    selectionToolbar.init();
+
     const onWindowError = (event: ErrorEvent) => {
         osycLogger.error("未捕获的 OsyC 窗口错误", event.error ?? event.message);
     };
@@ -1334,6 +1365,7 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             saveTimer = null;
         }
         floating.destroy();
+        selectionToolbar.destroy();
         accountModal.close();
         toolsModal.close();
         announcementsModal.close();
