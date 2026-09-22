@@ -1,4 +1,5 @@
 import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
+import { RemoteTypes, type RemoteType } from "@vrtmrz/livesync-commonlib/compat/common/types";
 
 /**
  * 激活自愈：保证「输入卡密后 vault 真的能上云」。
@@ -37,6 +38,25 @@ import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common
 /** provisioner 为每个租户创建的 CouchDB 同步账号前缀。 */
 export const OSYC_SYNC_USER_PREFIX = "osyc_sync_";
 
+/**
+ * LiveSync 用**空串**表示 CouchDB 远端（commonlib 0.1.19 实测
+ * `RemoteTypes.REMOTE_COUCHDB === ""`）。`ReplicatorService` 只有判定
+ * `remoteType === REMOTE_COUCHDB` 才会初始化复制器 —— 所以这里绝不能写字符串
+ * `"couchdb"`：它既不是合法 RemoteType，也会让 `isCouchDBConfigured` 恒为 false，
+ * 复制器永远不启动（比要修的问题更糟）。
+ *
+ * 设备上真正会坏的是「该键缺失 / 为 null」：`undefined !== ""`，同样恒 false，
+ * 表现为复制器从未启动、服务端 `_changes` 请求数恒为 0。自愈把这种情况补成
+ * 规范空串；已经是规范空串时不写盘（幂等、零写入）。
+ */
+export const OSYC_COUCHDB_REMOTE_TYPE: RemoteType = RemoteTypes.REMOTE_COUCHDB;
+
+/**
+ * 官方 LiveSync 端点域名后缀。活动档案 uri 落在这些域名下，即可认定是
+ * OsyC 自己签发的远端（见 {@link isOsycProvisionedRemote}）。
+ */
+export const OSYC_OFFICIAL_ENDPOINT_SUFFIXES: readonly string[] = ["sacu3.cn"];
+
 /** 激活流程可能写入的远端配置 id（CLI 侧使用；插件侧载荷里没有）。 */
 export const OSYC_REMOTE_CONFIG_ID = "osyc";
 
@@ -61,6 +81,8 @@ export const COMPATIBLE_CHUNK_SIZE_BASELINE = 0;
 export interface ReplicationRepair {
     liveSync?: true;
     customChunkSize?: number;
+    /** 修正后的远端类型；LiveSync 的 CouchDB 规范值是空串（见 {@link OSYC_COUCHDB_REMOTE_TYPE}）。 */
+    remoteType?: RemoteType;
 }
 
 type SettingsShape = {
@@ -69,6 +91,9 @@ type SettingsShape = {
     activeConfigurationId?: unknown;
     couchDB_USER?: unknown;
     customChunkSize?: unknown;
+    remoteType?: unknown;
+    couchDB_URI?: unknown;
+    remoteConfigurations?: unknown;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -76,34 +101,97 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * 判断启动自愈需要写下什么补丁。纯函数，方便单测。
+ * 活动档案的 uri（`remoteConfigurations[activeConfigurationId].uri`）。
+ * 缺失、类型不对或 activeConfigurationId 为空时返回空串。
+ */
+function activeConfigurationUri(settings: Record<string, unknown>): string {
+    const id = typeof settings.activeConfigurationId === "string" ? settings.activeConfigurationId.trim() : "";
+    if (!id) return "";
+    const configurations = isRecord(settings.remoteConfigurations) ? settings.remoteConfigurations : null;
+    if (!configurations) return "";
+    const profile = configurations[id];
+    if (!isRecord(profile)) return "";
+    return typeof profile.uri === "string" ? profile.uri.trim() : "";
+}
+
+/**
+ * 某个连接串是否指向官方 OsyC 端点域（例如 `sls+https://osyc3.sacu3.cn:…`）。
  *
- * 先过安全阀（全部满足才考虑修）：
- * 1. 这份配置已经完成过配置（`isConfigured === true`）—— 没配过的安装不动；
- * 2. `couchDB_USER` 是 OsyC provisioner 创建的 `osyc_sync_*` 账号
- *    —— 用户自己配的 CouchDB / 对象存储 / P2P 不会命中；
- * 3. 当前激活的不是别的远端配置。
+ * 覆盖两种输入：LiveSync 连接串（`sls+https://…`，用真实 parser 取出
+ * `couchDB_URI`）与普通 URL。解析失败 / 拿不到主机名一律返回 false ——
+ * 判定必须保守，绝不把手动自建的远端误判成官方端点。
+ */
+export function isOfficialOsycEndpoint(uri: unknown): boolean {
+    const raw = typeof uri === "string" ? uri.trim() : "";
+    if (!raw) return false;
+    let target = raw;
+    try {
+        const parsed = ConnectionStringParser.parse(raw);
+        if (parsed.type === "couchdb") {
+            const couchDB_URI = parsed.settings.couchDB_URI;
+            if (typeof couchDB_URI === "string" && couchDB_URI.trim()) target = couchDB_URI.trim();
+        }
+    } catch {
+        // 不是 LiveSync 连接串：仍然尝试按普通 URL 提取主机名。
+    }
+    let host = "";
+    try {
+        host = new URL(target).hostname.toLowerCase();
+    } catch {
+        const matched = target.match(/^[a-z0-9+.-]+:\/\/(?:[^@/]*@)?([^/?#:]+)/i);
+        host = matched ? matched[1].toLowerCase() : "";
+    }
+    if (!host) return false;
+    return OSYC_OFFICIAL_ENDPOINT_SUFFIXES.some((suffix) => host === suffix || host.endsWith(`.${suffix}`));
+}
+
+/**
+ * 判断这份配置是不是「OsyC 自己签发的远端」。
  *
- * 第 2、3 条是安全阀：只修「由激活流程配置、且用户没有切到别的远端」的安装，
- * 不会覆盖用户自己的同步选择。
+ * 三个来源**任一**成立即可（2.0.18 按现场反馈放宽）：
+ * 1. `isConfigured === true`：配置已由激活流程完成；
+ * 2. `couchDB_USER` 是 provisioner 的 `osyc_sync_*` 账号；
+ * 3. 活动档案（或顶层 `couchDB_URI`）指向官方端点域。
  *
- * 再按缺陷签名补齐：
+ * 旧版要求三条同时成立，真实设备上 `activeConfigurationId` / 档案形态一多就
+ * 全部漏判 —— 于是 customChunkSize=60 一直没纠正、复制器静默中止。改为 OR 后
+ * 只要签名对得上就修；判定本身仍保守（拿不到证据的不动）。
+ */
+export function isOsycProvisionedRemote(settings: Record<string, unknown>): boolean {
+    if (settings.isConfigured === true) return true;
+    const user = typeof settings.couchDB_USER === "string" ? settings.couchDB_USER.trim().toLowerCase() : "";
+    if (user.startsWith(OSYC_SYNC_USER_PREFIX)) return true;
+    if (isOfficialOsycEndpoint(activeConfigurationUri(settings))) return true;
+    return isOfficialOsycEndpoint(settings.couchDB_URI);
+}
+
+/** 活动档案能否解析为 couchdb 远端（补 remoteType 的前提）。 */
+function isCouchDbConfiguration(settings: Record<string, unknown>): boolean {
+    const uri = activeConfigurationUri(settings);
+    if (!uri) return false;
+    try {
+        return ConnectionStringParser.parse(uri).type === "couchdb";
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * 规划自愈补丁。纯函数，方便单测。
+ *
+ * 安全阀已按 2.0.17 现场反馈放宽为「三个来源任一成立即视为 OsyC 远端」
+ * （见 {@link isOsycProvisionedRemote}）。判定成立后**无条件**按下述缺陷签名补齐：
  * - `liveSync !== true` → 补 `liveSync: true`（2.0.11 前的载荷不含该键）；
  * - `customChunkSize === 60` → 改回 `0`。**精确匹配 60**，不是「任意非 0」：
- *   0 是正常基线，用户自配的其它值是用户选择，都不动。
+ *   0 是正常基线，用户自配的其它值一律不动；
+ * - `remoteType` 缺失 / 为 null / 是空白串，且活动档案可解析为 couchdb → 补上
+ *   规范空串（{@link OSYC_COUCHDB_REMOTE_TYPE}）。已经是规范空串时不写。
  *
- * 都不需要修时返回 null（避免无谓写盘）。
+ * 都不需要修时返回 null（避免无谓写盘）；补丁只含这三个键，绝不整份替换。
  */
 export function planProvisionedReplicationRepair(settings: SettingsShape | null | undefined): ReplicationRepair | null {
     if (!isRecord(settings)) return null;
-    if (settings.isConfigured !== true) return null;
-
-    const user = settings.couchDB_USER;
-    if (typeof user !== "string") return null;
-    if (!user.trim().toLowerCase().startsWith(OSYC_SYNC_USER_PREFIX)) return null;
-
-    const active = typeof settings.activeConfigurationId === "string" ? settings.activeConfigurationId : "";
-    if (active && active !== OSYC_REMOTE_CONFIG_ID) return null;
+    if (!isOsycProvisionedRemote(settings)) return null;
 
     const repair: ReplicationRepair = {};
     if (settings.liveSync !== true) {
@@ -113,8 +201,32 @@ export function planProvisionedReplicationRepair(settings: SettingsShape | null 
         // 2.0.13 的激活补丁写下的缺陷值：改回 must-match 基线，让复制器不再 MISMATCHED。
         repair.customChunkSize = COMPATIBLE_CHUNK_SIZE_BASELINE;
     }
-    if (repair.liveSync === undefined && repair.customChunkSize === undefined) return null;
+    const currentRemoteType = settings.remoteType;
+    const remoteTypeNeedsFix =
+        currentRemoteType !== OSYC_COUCHDB_REMOTE_TYPE &&
+        (currentRemoteType === undefined ||
+            currentRemoteType === null ||
+            (typeof currentRemoteType === "string" && currentRemoteType.trim() === ""));
+    if (remoteTypeNeedsFix && isCouchDbConfiguration(settings)) {
+        repair.remoteType = OSYC_COUCHDB_REMOTE_TYPE;
+    }
+    if (
+        repair.liveSync === undefined &&
+        repair.customChunkSize === undefined &&
+        repair.remoteType === undefined
+    ) {
+        return null;
+    }
     return repair;
+}
+
+/** 把补丁翻成可直接进日志 / Notice 的中文改动清单（不含任何凭据）。 */
+export function describeReplicationRepair(repair: ReplicationRepair): string[] {
+    const changes: string[] = [];
+    if (repair.liveSync === true) changes.push("补开 LiveSync 同步开关");
+    if (repair.customChunkSize !== undefined) changes.push(`纠正 customChunkSize 为 ${repair.customChunkSize}`);
+    if (repair.remoteType !== undefined) changes.push("补上 remoteType 为 couchdb");
+    return changes;
 }
 
 

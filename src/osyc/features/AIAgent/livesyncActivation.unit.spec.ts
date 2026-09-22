@@ -1,23 +1,28 @@
 import { describe, expect, it } from "vitest";
 
 import { ConnectionStringParser } from "@vrtmrz/livesync-commonlib/compat/common/ConnectionString";
-import type { BucketSyncSetting, CouchDBConnection } from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { RemoteTypes, type BucketSyncSetting, type CouchDBConnection } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import {
+    OSYC_COUCHDB_REMOTE_TYPE,
     OSYC_SYNC_USER_PREFIX,
+    describeReplicationRepair,
+    isOfficialOsycEndpoint,
     planProvisionedReplicationRepair,
     verifyActivatedRemote,
 } from "@/osyc/features/AIAgent/livesyncActivation";
 
 /**
- * 激活自愈的边界：只救「由激活流程配置、且没有切到别的远端」的安装。
+ * 激活自愈的边界（2.0.18 放宽后）。
  *
  * 背景见 livesyncActivation.ts：setup_uri 载荷不含 liveSync，默认 false，
- * 复制器永不启动，vault 一条都传不上云。
+ * 复制器永不启动；2.0.13 激活补丁还把 customChunkSize 写成 60（must-match 模板
+ * 基线是 0），ensureRemoteIsCompatible 返回 MISMATCHED，复制器**静默中止**，
+ * 服务端 _changes 请求数恒为 0。
  *
- * 自愈同时纠正 2.0.13 激活补丁写坏的 customChunkSize=60（must-match 参数，
- * 会让 ensureRemoteIsCompatible 返回 MISMATCHED，复制器静默中止）。
+ * 2.0.17 现场反馈：旧守卫要求「isConfigured + osyc_sync_ 前缀 + 非别的远端」三条
+ * 同时成立，真实设备档案形态一多就全部漏判。2.0.18 改为三个来源任一成立即修。
  */
-describe("planProvisionedReplicationRepair", () => {
+describe("planProvisionedReplicationRepair：守卫与缺陷签名", () => {
     const provisioned = {
         isConfigured: true,
         liveSync: false,
@@ -29,19 +34,48 @@ describe("planProvisionedReplicationRepair", () => {
         expect(planProvisionedReplicationRepair(provisioned)).toEqual({ liveSync: true });
     });
 
-    it("总开关本来就是开的：不动", () => {
+    it("总开关本来就是开的：不动（零写入）", () => {
         expect(planProvisionedReplicationRepair({ ...provisioned, liveSync: true })).toBeNull();
     });
 
-    it("不是 OsyC 建的同步账号（用户自己配的）：不动", () => {
-        expect(planProvisionedReplicationRepair({ ...provisioned, couchDB_USER: "myuser" })).toBeNull();
-        expect(planProvisionedReplicationRepair({ ...provisioned, couchDB_USER: undefined })).toBeNull();
+    it("完全不是 OsyC 的远端（未配置 / 无前缀 / 非官方域名）：不动", () => {
+        expect(
+            planProvisionedReplicationRepair({ isConfigured: false, liveSync: true, couchDB_USER: "myuser" })
+        ).toBeNull();
+        expect(
+            planProvisionedReplicationRepair({ liveSync: true, couchDB_USER: 123 } as never)
+        ).toBeNull();
     });
 
-    it("当前正使用别的远端配置：不动", () => {
+    // ── 2.0.18 守卫放宽：三个来源任一命中即视为 OsyC 远端 ──
+    it("守卫放宽①：仅 isConfigured 为真也会纠正", () => {
         expect(
-            planProvisionedReplicationRepair({ ...provisioned, activeConfigurationId: "mine" })
-        ).toBeNull();
+            planProvisionedReplicationRepair({ isConfigured: true, liveSync: true, customChunkSize: 60 })
+        ).toEqual({ customChunkSize: 0 });
+    });
+
+    it("守卫放宽②：活动档案 uri 指向官方端点域也会纠正（即使没有 isConfigured / 前缀）", () => {
+        const uri = couchDbUri({ couchDB_URI: "https://osyc3.sacu3.cn" });
+        expect(
+            planProvisionedReplicationRepair({
+                activeConfigurationId: "legacy-couchdb",
+                remoteConfigurations: {
+                    "legacy-couchdb": { id: "legacy-couchdb", name: "CouchDB Remote", uri, isEncrypted: false },
+                },
+                liveSync: true,
+                customChunkSize: 60,
+            })
+        ).toEqual({ customChunkSize: 0, remoteType: OSYC_COUCHDB_REMOTE_TYPE });
+    });
+
+    it("守卫放宽③：osyc_sync_ 前缀仍然命中（isConfigured 缺失也修）", () => {
+        expect(
+            planProvisionedReplicationRepair({
+                couchDB_USER: OSYC_SYNC_USER_PREFIX + "abc",
+                liveSync: true,
+                customChunkSize: 60,
+            })
+        ).toEqual({ customChunkSize: 0 });
     });
 
     it("激活流程自己的配置 id 或空字符串：可以修", () => {
@@ -51,10 +85,6 @@ describe("planProvisionedReplicationRepair", () => {
         expect(
             planProvisionedReplicationRepair({ ...provisioned, activeConfigurationId: "" })
         ).toEqual({ liveSync: true });
-    });
-
-    it("还没完成配置：不动", () => {
-        expect(planProvisionedReplicationRepair({ ...provisioned, isConfigured: false })).toBeNull();
     });
 
     it("命中 2.0.13 缺陷签名 customChunkSize===60：改回 0，并与补开总开关合并成一笔", () => {
@@ -87,18 +117,13 @@ describe("planProvisionedReplicationRepair", () => {
         }
     });
 
-    it("安全阀不得被分块纠正绕过：非 OsyC 账号 / 未配置 / 切到别的远端时 60 也不动", () => {
-        expect(
-            planProvisionedReplicationRepair({ ...provisioned, customChunkSize: 60, couchDB_USER: "myuser" })
-        ).toBeNull();
-        expect(
-            planProvisionedReplicationRepair({ ...provisioned, customChunkSize: 60, isConfigured: false })
-        ).toBeNull();
+    it("OsyC 守卫不得被分块纠正绕过：非 OsyC 配置的 60 也不动", () => {
         expect(
             planProvisionedReplicationRepair({
-                ...provisioned,
+                isConfigured: false,
+                liveSync: true,
+                couchDB_USER: "myuser",
                 customChunkSize: 60,
-                activeConfigurationId: "mine",
             })
         ).toBeNull();
     });
@@ -107,7 +132,107 @@ describe("planProvisionedReplicationRepair", () => {
         expect(planProvisionedReplicationRepair(null)).toBeNull();
         expect(planProvisionedReplicationRepair(undefined)).toBeNull();
         expect(planProvisionedReplicationRepair({} as never)).toBeNull();
-        expect(planProvisionedReplicationRepair({ ...provisioned, couchDB_USER: 123 } as never)).toBeNull();
+    });
+});
+
+/**
+ * remoteType 补齐：LiveSync 用**空串**表示 CouchDB（RemoteTypes.REMOTE_COUCHDB === ""）。
+ * 绝不能写字符串 "couchdb" —— ReplicatorService 判定 replicatorType === "" 才初始化复制器。
+ */
+describe("planProvisionedReplicationRepair：remoteType 补齐", () => {
+    const withCouchDbProfile = (uri: string) => ({
+        isConfigured: true,
+        liveSync: true,
+        activeConfigurationId: "legacy-couchdb",
+        remoteConfigurations: {
+            "legacy-couchdb": { id: "legacy-couchdb", name: "CouchDB Remote", uri, isEncrypted: false },
+        },
+    });
+
+    it("CouchDB 的规范值就是空串，不是字符串 couchdb", () => {
+        expect(OSYC_COUCHDB_REMOTE_TYPE).toBe(RemoteTypes.REMOTE_COUCHDB);
+        expect(OSYC_COUCHDB_REMOTE_TYPE).toBe("");
+    });
+
+    it("remoteType 缺失且活动档案可解析为 couchdb：补规范空串", () => {
+        expect(
+            planProvisionedReplicationRepair({ ...withCouchDbProfile(couchDbUri()), remoteType: undefined })
+        ).toEqual({ remoteType: OSYC_COUCHDB_REMOTE_TYPE });
+    });
+
+    it("remoteType 为 null 也补", () => {
+        expect(
+            planProvisionedReplicationRepair({ ...withCouchDbProfile(couchDbUri()), remoteType: null })
+        ).toEqual({ remoteType: OSYC_COUCHDB_REMOTE_TYPE });
+    });
+
+    it("customChunkSize=60 与 remoteType 缺失合并成一笔窄补丁", () => {
+        expect(
+            planProvisionedReplicationRepair({
+                ...withCouchDbProfile(couchDbUri()),
+                remoteType: undefined,
+                customChunkSize: 60,
+            })
+        ).toEqual({ customChunkSize: 0, remoteType: OSYC_COUCHDB_REMOTE_TYPE });
+    });
+
+    it("remoteType 已是规范空串 / 已是其它合法远端类型：零写入", () => {
+        expect(planProvisionedReplicationRepair({ ...withCouchDbProfile(couchDbUri()), remoteType: "" })).toBeNull();
+        expect(
+            planProvisionedReplicationRepair({ ...withCouchDbProfile(couchDbUri()), remoteType: "MINIO" })
+        ).toBeNull();
+    });
+
+    it("活动档案不是 couchdb：不补 remoteType", () => {
+        expect(
+            planProvisionedReplicationRepair({ ...withCouchDbProfile(s3Uri()), remoteType: undefined })
+        ).toBeNull();
+    });
+
+    it("幂等：连跑两次只在第一次产出补丁（应用后第二次零写入）", () => {
+        let settings: Record<string, unknown> = {
+            isConfigured: true,
+            liveSync: true,
+            remoteType: undefined,
+            customChunkSize: 60,
+            activeConfigurationId: "legacy-couchdb",
+            remoteConfigurations: {
+                "legacy-couchdb": { id: "legacy-couchdb", name: "CouchDB Remote", uri: couchDbUri(), isEncrypted: false },
+            },
+        };
+        const writes: Record<string, unknown>[] = [];
+        const apply = (patch: Record<string, unknown>) => {
+            writes.push(patch);
+            settings = { ...settings, ...patch };
+        };
+
+        const first = planProvisionedReplicationRepair(settings);
+        expect(first).toEqual({ customChunkSize: 0, remoteType: OSYC_COUCHDB_REMOTE_TYPE });
+        apply(first as Record<string, unknown>);
+
+        const second = planProvisionedReplicationRepair(settings);
+        expect(second).toBeNull();
+        expect(writes).toHaveLength(1);
+    });
+
+    it("describeReplicationRepair 翻出可读改动清单（不含凭据）", () => {
+        expect(
+            describeReplicationRepair({ liveSync: true, customChunkSize: 0, remoteType: OSYC_COUCHDB_REMOTE_TYPE })
+        ).toEqual(["补开 LiveSync 同步开关", "纠正 customChunkSize 为 0", "补上 remoteType 为 couchdb"]);
+        expect(describeReplicationRepair({})).toEqual([]);
+    });
+});
+
+describe("isOfficialOsycEndpoint", () => {
+    it("识别官方域（含端口 / 路径 / 历史子域），不误判自建远端", () => {
+        expect(isOfficialOsycEndpoint("https://osyc3.sacu3.cn")).toBe(true);
+        expect(isOfficialOsycEndpoint("https://sync.sacu3.cn:6984/db")).toBe(true);
+        expect(isOfficialOsycEndpoint("https://api4.sacu3.cn")).toBe(true);
+        expect(isOfficialOsycEndpoint(couchDbUri({ couchDB_URI: "https://osyc3.sacu3.cn" }))).toBe(true);
+        expect(isOfficialOsycEndpoint("https://sync.example.com")).toBe(false);
+        expect(isOfficialOsycEndpoint("https://notsacu3.cn")).toBe(false);
+        expect(isOfficialOsycEndpoint("")).toBe(false);
+        expect(isOfficialOsycEndpoint(undefined)).toBe(false);
     });
 });
 
@@ -131,6 +256,24 @@ function couchDbUri(overrides: Partial<CouchDBConnection> = {}): string {
             useRequestAPI: true,
             ...overrides,
         } as unknown as CouchDBConnection,
+    });
+}
+
+/** 用**真实** ConnectionStringParser 造 s3 档案 uri（不 mock）。 */
+function s3Uri(): string {
+    return ConnectionStringParser.serialize({
+        type: "s3",
+        settings: {
+            accessKey: "access-key",
+            secretKey: "secret-key",
+            bucket: "my-bucket",
+            region: "auto",
+            endpoint: "https://s3.example.com",
+            useCustomRequestHandler: false,
+            bucketCustomHeaders: "",
+            bucketPrefix: "",
+            forcePathStyle: true,
+        } as unknown as BucketSyncSetting,
     });
 }
 

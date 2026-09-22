@@ -268,4 +268,14 @@ describe("LiveSync 诊断上传摘要（2.0.17）", () => {
         expect(JSON.stringify(fingerprint)).not.toContain("topsecret");
         expect(JSON.stringify(fingerprint)).not.toContain("user:pw@");
     });
+
+    it("远端类型指纹把 CouchDB 的规范空串翻译成可读的 couchdb（证明修复生效）", () => {
+        // LiveSync 的 RemoteTypes.REMOTE_COUCHDB === ""：自愈补上的就是这个空串。
+        // 指纹要能直接读出 remoteType: couchdb，否则用户上传诊断仍看到 null。
+        expect(buildSettingsFingerprint({ remoteType: "" }).remoteType).toBe("couchdb");
+        expect(buildSettingsFingerprint({ remoteType: "MINIO" }).remoteType).toBe("MINIO");
+        // 键缺失 / null 才是真的没配好，仍为 null。
+        expect(buildSettingsFingerprint({}).remoteType).toBeNull();
+        expect(buildSettingsFingerprint({ remoteType: null }).remoteType).toBeNull();
+    });
 });

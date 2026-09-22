@@ -1,5 +1,6 @@
 import { Modal, Notice, Setting, type App } from "@/deps.ts";
 import { get } from "svelte/store";
+import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 import { openOsycSettings } from "./OsycSettingsModal";
 import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState } from "./CmdAIAgent";
 import { renderEmailAccountSection, renderProNamespaceSection, type AccountSectionContext } from "./osycAccountSections";
@@ -118,6 +119,10 @@ export class AIAgentAccountModal extends Modal {
         new Setting(contentEl).setName("同步状态").setHeading();
         this.renderSyncState(contentEl, state.syncState);
 
+        // 「重新激活卡密」必须常显：2.0.17 移动端实测，它原先藏在默认收起的
+        // 「账户操作」折叠区里，用户根本点不出来。这里移到同步区之后、折叠区之前。
+        this.renderReactivation(contentEl);
+
         // ── 设备与自带 Key（折叠，中低频）──
         this.renderFold(contentEl, "设备与自带 Key", false, (body) => {
             this.renderDeviceSection(body);
@@ -127,7 +132,6 @@ export class AIAgentAccountModal extends Modal {
         this.renderFold(contentEl, "账户操作", false, (body) => {
             this.renderEmailLogin(body);
             this.renderRecharge(body);
-            this.renderReactivation(body);
             this.renderProNamespace(body);
             this.renderUpgradeHint(body, plan);
         });
@@ -311,7 +315,35 @@ export class AIAgentAccountModal extends Modal {
                 })
             );
 
+        this.renderSyncRepair(contentEl);
+
         this.renderLiveSyncPanel(contentEl, syncState);
+    }
+
+    /**
+     * 「修复同步配置」：一键执行幂等窄补丁自愈，并立刻拉取一次。
+     *
+     * 常显在同步状态区块内，不放进任何默认收起的折叠区 —— 2.0.17 移动端实测，
+     * 用户找不到藏在折叠区里的入口。远端地址与凭据不在修复范围内。
+     */
+    private renderSyncRepair(contentEl: HTMLElement): void {
+        new Setting(contentEl)
+            .setName("修复同步配置")
+            .setDesc("自动纠正导致同步静默中止的分块参数与远端类型，并立即拉取一次；不改远端地址与凭据。")
+            .addButton((btn) =>
+                btn.setButtonText("一键修复").setIcon("wrench").setCta().onClick(async () => {
+                    const control = this.agent.livesyncControl;
+                    if (!control) {
+                        new Notice("当前版本未接入 LiveSync 控制能力，无法修复同步配置");
+                        return;
+                    }
+                    await withBusyButton(btn, "一键修复", "修复中…", async () => {
+                        const result = await control.repairSyncConfiguration();
+                        new Notice(result.message);
+                    });
+                    this.onOpen();
+                })
+            );
     }
 
     /**
@@ -342,6 +374,12 @@ export class AIAgentAccountModal extends Modal {
             body.empty();
             body.createEl("p", { text: "当前版本未接入 LiveSync 控制能力，无法执行同步操作。", cls: "ai-account-hint" });
             return;
+        }
+        // 时机三：每次打开账户弹窗 / 同步面板都先跑一次自愈（幂等，零写入时不落盘），
+        // 让面板读到的就是修复后的设置，用户完全不依赖任何按钮。
+        const repairResult = await control.reconcileSyncConfiguration();
+        if (repairResult.changed) {
+            osycLogger.info("账户弹窗同步面板完成配置自愈", { changes: repairResult.changes });
         }
         let input: LiveSyncDiagnosticInput;
         try {

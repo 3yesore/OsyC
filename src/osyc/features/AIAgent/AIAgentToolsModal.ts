@@ -3,6 +3,7 @@ import { get } from "svelte/store";
 import { openOsycSettings } from "./OsycSettingsModal";
 import { OsycAccountSectionModal, type OsycAccountSectionKind } from "./OsycAccountSectionModal";
 import { describeEmailEntryStatus, describeProNamespaceEntryStatus } from "./osycAccountSections";
+import { withBusyButton } from "./livesyncSyncActions";
 import type { AITask, CmdAIAgent } from "./CmdAIAgent";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
@@ -113,6 +114,11 @@ export class AIAgentToolsModal extends Modal {
                 this.openAccountDetails();
             }));
 
+        // 同步修复与重新激活：工具中心的账户页也必须有同名常显入口，
+        // 保证「账户弹窗」与「工具中心」两条路径都能找到（2.0.17 移动端实测）。
+        this.renderSyncRepair(contentEl);
+        this.renderReactivation(contentEl);
+
         // 账户身份入口：两个入口放在一起，只负责打开对应界面。
         // 渲染入口不登录、不发码、不切换同步空间（显式动作口径）。
         this.renderEmailEntry(contentEl);
@@ -144,6 +150,62 @@ export class AIAgentToolsModal extends Modal {
                     new Notice("无法打开 OsyC 设置");
                 }
             }));
+    }
+
+    /**
+     * 「修复同步配置」：与账户弹窗同名同实现 —— 一键执行幂等窄补丁自愈，
+     * 并立刻拉取一次，用 Notice 报结果。常显，不放进任何折叠区。
+     */
+    private renderSyncRepair(contentEl: HTMLElement): void {
+        new Setting(contentEl)
+            .setName("修复同步配置")
+            .setDesc("自动纠正导致同步静默中止的分块参数与远端类型，并立即拉取一次；不改远端地址与凭据。")
+            .addButton((button) =>
+                button.setButtonText("一键修复").setIcon("wrench").setCta().onClick(async () => {
+                    const control = this.agent.livesyncControl;
+                    if (!control) {
+                        new Notice("当前版本未接入 LiveSync 控制能力，无法修复同步配置");
+                        return;
+                    }
+                    await withBusyButton(button, "一键修复", "修复中…", async () => {
+                        const result = await control.repairSyncConfiguration();
+                        new Notice(result.message);
+                    });
+                    this.render();
+                })
+            );
+    }
+
+    /**
+     * 「重新激活卡密」：与账户弹窗同一份交互（输入卡密，调用 activate），
+     * 工具中心的账户页常显入口。不显示、不保存卡密原文。
+     */
+    private renderReactivation(contentEl: HTMLElement): void {
+        const setting = new Setting(contentEl)
+            .setName("重新激活卡密")
+            .setDesc("用于更换卡密、恢复同步配置或在新设备重新绑定。不会显示或保存卡密原文。")
+            .addButton((button) =>
+                button.setButtonText("重新激活").setIcon("key").setCta().onClick(async () => {
+                    const input = setting.controlEl.querySelector<HTMLInputElement>("input");
+                    const cardKey = input?.value.trim() ?? "";
+                    if (!cardKey) {
+                        new Notice("请输入卡密");
+                        return;
+                    }
+                    button.setDisabled(true);
+                    const result = await this.agent.activate(cardKey);
+                    button.setDisabled(false);
+                    if (input) input.value = "";
+                    new Notice(result.message);
+                    if (result.ok) this.render();
+                })
+            );
+        const input = setting.controlEl.createEl("input", {
+            type: "password",
+            placeholder: "输入新的卡密",
+            attr: { autocomplete: "off", autocapitalize: "none", spellcheck: "false" },
+        });
+        input.addClass("ai-account-input");
     }
 
     /** 邮箱账户入口：显示登录/绑定状态，点击只打开邮箱界面。 */

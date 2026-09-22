@@ -126,9 +126,30 @@ export interface LiveSyncActionPort {
     overwriteRemoteWithLocal(): Promise<void>;
 }
 
-/** 接线层额外提供的只读诊断。 */
+/**
+ * 「修复同步配置」的结果。
+ *
+ * `ok` = 链路可用（修复动作 + 完成后的一次拉取都没被拒），
+ * `changed` = 本次是否真的写了设置（幂等：不需要修时为 false 且零写入）。
+ */
+export interface LiveSyncRepairResult {
+    ok: boolean;
+    changed: boolean;
+    changes: string[];
+    message: string;
+}
+
+/** 接线层额外提供的只读诊断与同步配置自愈。 */
 export interface LiveSyncControlPort extends LiveSyncActionPort {
     diagnose(): Promise<LiveSyncDiagnosticInput>;
+    /**
+     * 幂等同步配置自愈：只在需要时写 `liveSync / customChunkSize / remoteType` 窄补丁，
+     * 只走 applyPartial（浅合并），绝不整份替换；不需要修时零写入，也不触发同步动作。
+     * 账户弹窗每次打开同步面板都会调一次（见 AIAgentAccountModal.paintLiveSyncPanel）。
+     */
+    reconcileSyncConfiguration(): Promise<LiveSyncRepairResult>;
+    /** 一键修复：先 reconcile，完成后立刻拉取一次；账户弹窗与工具中心两个按钮复用同一实现。 */
+    repairSyncConfiguration(): Promise<LiveSyncRepairResult>;
 }
 
 /** 诊断原始输入：全部来自 LiveSync（core.services）与后端同步快照。 */
@@ -276,8 +297,21 @@ export function buildSettingsFingerprint(settings: unknown): LiveSyncSettingsFin
                 : null,
         hashAlg: text(record.hashAlg) || null,
         chunkSplitterVersion: text(record.chunkSplitterVersion) || null,
-        remoteType: text(record.remoteType) || null,
+        remoteType: describeFingerprintRemoteType(record.remoteType),
     };
+}
+
+/**
+ * 诊断指纹里的远端类型：把 LiveSync 的 CouchDB 规范空串（`RemoteTypes.REMOTE_COUCHDB === ""`）
+ * 翻译成人类可读的 `couchdb`。
+ *
+ * 这样用户下次上传诊断时，`settings_fingerprint.remoteType` 能**直接证明**
+ * 2.0.18 自愈生效（remoteType: couchdb），而不会把正常的 CouchDB 显示成 null。
+ * 键缺失 / 为 null 仍然上报 null —— 那才是真的没配好。
+ */
+function describeFingerprintRemoteType(value: unknown): string | null {
+    if (value === "") return "couchdb";
+    return text(value) || null;
 }
 
 /**

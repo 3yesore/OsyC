@@ -68,6 +68,7 @@ vi.mock("@/osyc/features/AIAgent/livesyncPatch", () => ({
 vi.mock("@/osyc/features/AIAgent/livesyncActivation", () => ({
     // 返回 null 让加载期自愈直接跳过，避免引入 LiveSync 复制器依赖。
     planProvisionedReplicationRepair: vi.fn(() => null),
+    describeReplicationRepair: vi.fn(() => []),
     verifyActivatedRemote: vi.fn(() => ({ ok: true })),
 }));
 

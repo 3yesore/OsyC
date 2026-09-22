@@ -188,10 +188,11 @@ describe("激活流程的回读自检", () => {
         expect(verifyAt).toBeGreaterThan(applySettingsAt);
     });
 
-    it("复用纯函数 verifyActivatedRemote，而不是内联重复判定", () => {
-        expect(source).toContain(
-            'import { planProvisionedReplicationRepair, verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";'
-        );
+    it("复用纯函数 verifyActivatedRemote / planProvisionedReplicationRepair，而不是内联重复判定", () => {
+        expect(source).toContain('} from "@/osyc/features/AIAgent/livesyncActivation";');
+        expect(source).toContain("planProvisionedReplicationRepair");
+        expect(source).toContain("verifyActivatedRemote");
+        expect(source).toContain("describeReplicationRepair");
     });
 
     it("自检失败时 console.warn 明确中文原因并返回 false，让上层标为配置失败", () => {
@@ -213,14 +214,28 @@ describe("激活流程的回读自检", () => {
     });
 });
 
-describe("启动自愈的日志文案", () => {
-    it("按本次实际修补内容拼接，不再固定写「已补开 LiveSync 同步开关」", () => {
-        // 自愈现在也可能只纠正 customChunkSize（不补开关）；固定文案会把
-        // 「只改了分块参数」误报成「补开了总开关」，所以必须按 repair 内容拼。
+describe("同步配置自愈（2.0.18）", () => {
+    it("按本次实际修补内容拼接日志，并落到 osycLogger（含改了什么值）", () => {
+        // 固定的「已补开 LiveSync 同步开关」文案会把「只改了分块参数」误报成
+        // 「补开了总开关」；2.0.18 统一由 describeReplicationRepair 按补丁拼。
         expect(source).not.toContain("已补开 LiveSync 同步开关（激活自愈）");
-        expect(source).toContain("repair.liveSync === true");
-        expect(source).toContain("repair.customChunkSize !== undefined");
-        expect(source).toContain('osycLogger.info(`激活自愈：${repairs.join("；")}`)');
+        expect(source).toContain("describeReplicationRepair(repair)");
+        expect(source).toContain("osycLogger.info(`同步配置自愈（${source}）`");
+    });
+
+    it("三个时机共用同一个 runReplicationRepair：启动 / 激活成功 / 打开同步面板", () => {
+        expect(source).toContain('runReplicationRepair("startup")');
+        expect(source).toContain('runReplicationRepair("activation")');
+        expect(source).toContain('runReplicationRepair("panel")');
+        // 「修复同步配置」按钮复用 reconcile + 拉取的组合实现。
+        expect(source).toContain("async repairSyncConfiguration()");
+        expect(source).toContain("async reconcileSyncConfiguration()");
+    });
+
+    it("只下窄补丁、绝不整份替换（补丁只经 applyPartial）", () => {
+        expect(source).toContain("await core.services.setting.applyPartial(repair, true);");
+        // 激活写入仍走合并式 applyPartial，绝无整份替换式写入。
+        expect(source).toContain("await core.services.setting.applyPartial(mergedPatch, true);");
     });
 });
 

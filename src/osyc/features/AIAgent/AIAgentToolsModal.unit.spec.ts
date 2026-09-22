@@ -55,6 +55,18 @@ describe("AIAgentToolsModal", () => {
         expect(source).toContain("ai-tools-modal");
     });
 
+    it("账户页提供常显的「修复同步配置」与「重新激活卡密」入口（工具中心路径）", () => {
+        expect(source).toContain('setName("重新激活卡密")');
+        expect(source).toContain('setName("修复同步配置")');
+        expect(source).toContain("this.renderReactivation(contentEl)");
+        expect(source).toContain("this.renderSyncRepair(contentEl)");
+        // 与账户弹窗调用同一个修复函数：一键窄补丁自愈 + 拉取一次。
+        expect(source).toContain("control.repairSyncConfiguration()");
+        expect(source).toContain("this.agent.activate(cardKey)");
+        // 账户页没有默认收起的 details，两个入口必然常显。
+        expect(source).not.toContain('createEl("details"');
+    });
+
     it("opens one shared tools centre instead of rendering account actions in chat", () => {
         expect(uiSource).toContain("new AIAgentToolsModal(app, agent");
         expect(paneSource).toContain("onOpenTools");

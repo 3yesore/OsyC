@@ -45,7 +45,7 @@ describe("关键流程日志覆盖（2.0.17）", () => {
         ["setup URI 回读自检失败", 'osycLogger.warn("OsyC setup URI 回读自检失败"'],
         ["setup URI 应用成功", 'osycLogger.info("OsyC setup URI 应用成功"'],
         ["setup URI 应用异常", 'osycLogger.warn("OsyC setup URI 应用异常"'],
-        ["启动自愈", "osycLogger.info(`激活自愈：${repairs.join"],
+        ["同步配置自愈", "osycLogger.info(`同步配置自愈（${source}）`"],
         ["LiveSync 拉取开始", '"OsyC LiveSync 拉取开始"'],
         ["LiveSync 拉取完成", '"OsyC LiveSync 拉取完成"'],
         ["LiveSync 推送完成", '"OsyC LiveSync 推送完成"'],

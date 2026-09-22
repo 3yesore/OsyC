@@ -12,7 +12,11 @@ import type { NecessaryServices } from "@vrtmrz/livesync-commonlib/compat/interf
 import { decodeSettingsFromSetupURI } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { buildSetupPatch, planCouchDbRemoteConfigurationReroute, sanitizeLivesyncPatch } from "@/osyc/features/AIAgent/livesyncPatch";
 import type { ObsidianLiveSyncSettings } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { planProvisionedReplicationRepair, verifyActivatedRemote } from "@/osyc/features/AIAgent/livesyncActivation";
+import {
+    describeReplicationRepair,
+    planProvisionedReplicationRepair,
+    verifyActivatedRemote,
+} from "@/osyc/features/AIAgent/livesyncActivation";
 import { LiveSyncCouchDBReplicator } from "@vrtmrz/livesync-commonlib/compat/replication/couchdb/LiveSyncReplicator";
 import { buildLiveSyncDiagnosticSummary, describeLiveSyncError, readConfiguredRemote, type LiveSyncControlPort, type LiveSyncDiagnosticInput } from "@/osyc/features/AIAgent/livesyncSyncActions";
 import { resolveServiceUrl } from "@/osyc/features/AIAgent/serviceDefaults";
@@ -126,30 +130,44 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
     const adapter = app.vault?.adapter;
     const configPath = `${app.vault.configDir}/${CONFIG_FILE_NAME}`;
 
-    // 激活自愈（2026-09-18 生产故障）：早期激活流程写下去的 LiveSync 配置里
-    // 没有打开 liveSync 总开关（setup_uri 载荷不含该键，默认 false），
-    // 复制器 `liveSync || syncOnStart` 两个都为 false 时永不启动 ——
-    // 表现为「激活成功、云库里只有版本标记、服务端 vault 恒为空」。
-    // 这里在加载时补一次，让**已经激活过**的设备也能把 vault 完整传上云，
-    // 不必重输卡密。是否动手由 planProvisionedReplicationRepair 的安全阀决定：
-    // 只认 OsyC 激活写入的远端，且用户没有别的远端配置。
-    void (async () => {
+    /**
+     * 同步配置自愈（2026-09-18 生产故障 + 2026-09-22 移动端反馈）：
+     *
+     * - 早期激活流程没有打开 `liveSync` 总开关（setup_uri 载荷不含该键，默认 false），
+     *   复制器 `liveSync || syncOnStart` 两个都为 false 时永不启动；
+     * - 2.0.13 的激活补丁把 `customChunkSize` 写成 60（must-match 模板基线是 0），
+     *   `ensureRemoteIsCompatible` 返回 MISMATCHED，复制器**静默中止** ——
+     *   服务端 `_changes` 请求数恒为 0；
+     * - `remoteType` 缺失 / 为 null 时复制器同样不会初始化。
+     *
+     * 这里只下窄补丁（`liveSync / customChunkSize / remoteType` 三个键，走 applyPartial
+     * 浅合并，绝不整份替换），两条都不需要修时**零写入**。判定由纯函数
+     * planProvisionedReplicationRepair 负责（2.0.18 起守卫已放宽）。
+     *
+     * 三个调用时机：插件启动、激活成功后、每次打开账户弹窗/同步面板。
+     * 全程不依赖用户点任何按钮。
+     */
+    const runReplicationRepair = async (
+        source: string
+    ): Promise<{ changed: boolean; changes: string[]; error?: string }> => {
         try {
-            const repair = planProvisionedReplicationRepair(
-                core.services.setting.currentSettings()
-            );
-            if (!repair) return;
+            const repair = planProvisionedReplicationRepair(core.services.setting.currentSettings());
+            if (!repair) return { changed: false, changes: [] };
             await core.services.setting.applyPartial(repair, true);
             await core.services.control.applySettings();
-            // 自愈可能只纠正 customChunkSize（不补开关），日志要按本次实际修补内容拼接。
-            const repairs: string[] = [];
-            if (repair.liveSync === true) repairs.push("补开 LiveSync 同步开关");
-            if (repair.customChunkSize !== undefined) repairs.push(`纠正 customChunkSize 为 ${repair.customChunkSize}`);
-            osycLogger.info(`激活自愈：${repairs.join("；")}`);
+            // 日志要含「改了什么值」，供用户上传诊断时与 settings_fingerprint 对照；
+            // repair 只含三个非敏感键，不含任何凭据。
+            const changes = describeReplicationRepair(repair);
+            osycLogger.info(`同步配置自愈（${source}）`, { changes, repair });
+            return { changed: true, changes };
         } catch (error) {
-            osycLogger.warn("激活自愈失败", error);
+            osycLogger.warn(`同步配置自愈失败（${source}）`, error);
+            return { changed: false, changes: [], error: describeLiveSyncError(error) };
         }
-    })();
+    };
+
+    // 时机一：插件启动。让**已经激活过**、被 2.0.13 写坏的设备不经用户操作就自愈。
+    void runReplicationRepair("startup");
 
     const agent = new CmdAIAgent();
     // 本会话最近一次由 OsyC 发起的 LiveSync 拉取/推送时刻，供诊断摘要使用。
@@ -416,6 +434,9 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
                 endpoint: activatedRemote.endpoint,
                 remoteType: activatedRemote.remoteType,
             });
+            // 时机二：激活成功后立刻自愈。即使本次 setup URI 没覆盖到
+            // customChunkSize / remoteType（历史设备上的遗留缺陷），也当场纠正。
+            await runReplicationRepair("activation");
             return true;
         } catch (error) {
             // 配置失败不该让激活失败 —— 记在返回值里，由 UI 提示手动配置；
@@ -540,6 +561,53 @@ export function useAIAgentUI(host: NecessaryServices<"API" | "appLifecycle", nev
             }
             if (errors.length > 0) input.error = errors.join("；");
             return input;
+        },
+
+        // 时机三：每次打开账户弹窗 / 同步面板都会调一次。幂等，不需要修时零写入。
+        async reconcileSyncConfiguration() {
+            const outcome = await runReplicationRepair("panel");
+            if (outcome.error) {
+                return {
+                    ok: false,
+                    changed: false,
+                    changes: [],
+                    message: "同步配置检查失败：" + outcome.error,
+                };
+            }
+            return {
+                ok: true,
+                changed: outcome.changed,
+                changes: outcome.changes,
+                message: outcome.changed
+                    ? "已修复同步配置：" + outcome.changes.join("；")
+                    : "同步配置已是最新，无需修复",
+            };
+        },
+
+        // 「修复同步配置」按钮：一键自愈 + 完成后立刻拉取一次。
+        async repairSyncConfiguration() {
+            const outcome = await runReplicationRepair("manual");
+            const prefix = outcome.error
+                ? "同步配置检查失败：" + outcome.error
+                : outcome.changed
+                  ? "已修复同步配置：" + outcome.changes.join("；")
+                  : "同步配置已是最新，无需修复";
+            try {
+                await runOneWayReplication("pullOnly");
+                return {
+                    ok: true,
+                    changed: outcome.changed,
+                    changes: outcome.changes,
+                    message: prefix + "；已触发一次拉取",
+                };
+            } catch (error) {
+                return {
+                    ok: false,
+                    changed: outcome.changed,
+                    changes: outcome.changes,
+                    message: prefix + "；拉取失败：" + describeLiveSyncError(error),
+                };
+            }
         },
 
         async acceptRemoteMilestone(): Promise<void> {

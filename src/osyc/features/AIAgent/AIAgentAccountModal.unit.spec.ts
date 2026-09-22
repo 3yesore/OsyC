@@ -120,14 +120,39 @@ describe("AI 账户移动端摘要", () => {
         expect(sectionSource).toContain("邮箱会话仅在本次运行有效，重启 Obsidian 后需重新验证");
     });
 
-    it("账户操作区顺序：邮箱 → 充值 → 重新激活", () => {
+    it("账户操作折叠区顺序：邮箱 → 充值 → Pro 空间", () => {
         const order = [
             "this.renderEmailLogin(body)",
             "this.renderRecharge(body)",
-            "this.renderReactivation(body)",
+            "this.renderProNamespace(body)",
         ].map((needle) => modalSource.indexOf(needle));
         expect(order.every((idx) => idx > -1)).toBe(true);
         expect(order).toEqual([...order].sort((a, b) => a - b));
+    });
+
+    it("同步修复与重新激活是常显入口，不在默认收起的折叠区里（2.0.17 移动端实测）", () => {
+        // 两个入口都以 contentEl（常显区）渲染，按钮 + 同名 Setting 都在。
+        expect(modalSource).toContain("this.renderReactivation(contentEl)");
+        expect(modalSource).toContain("this.renderSyncRepair(contentEl)");
+        expect(modalSource).toContain('setName("修复同步配置")');
+        expect(modalSource).toContain('setName("重新激活卡密")');
+        // 修复按钮必须调用与接线层同一个修复函数（一键自愈 + 拉取）。
+        expect(modalSource).toContain("control.repairSyncConfiguration()");
+        // 且这两个入口绝不出现在「账户操作」折叠回调里（原来重新激活就藏在这里）。
+        const foldAt = modalSource.indexOf('this.renderFold(contentEl, "账户操作"');
+        expect(foldAt).toBeGreaterThan(-1);
+        const foldEnd = modalSource.indexOf("});", foldAt);
+        expect(foldEnd).toBeGreaterThan(foldAt);
+        const foldCallback = modalSource.slice(foldAt, foldEnd);
+        expect(foldCallback).not.toContain("renderReactivation");
+        expect(foldCallback).not.toContain("renderSyncRepair");
+        // 折叠区仍然保留邮箱 / 充值 / Pro 空间。
+        expect(foldCallback).toContain("this.renderEmailLogin(body)");
+        expect(foldCallback).toContain("this.renderRecharge(body)");
+    });
+
+    it("打开同步面板时也会自动跑一次配置自愈（不依赖用户点按钮）", () => {
+        expect(modalSource).toContain("await control.reconcileSyncConfiguration()");
     });
 
     // ── 版面基线：官方分组 + 折叠 ──
