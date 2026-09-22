@@ -12,6 +12,26 @@
 
 ---
 
+## 切版前硬门禁（不可跳过）
+
+**切版前必须在仓库根目录跑 `node scripts/gate-all.mjs`（等价 `sh scripts/gate-all.sh`），
+六项全绿（打印 `6/6 PASS` 且 exit 0）才允许继续后面的构建与切版。任一 FAIL 立即停止，
+修好再从头跑；不得跳过、不得只挑其中几项。**
+
+门禁覆盖（顺序固定，即 2.0.16 起补进发布清单的六项）：
+
+1. `tsc --noEmit --skipLibCheck`
+2. `npm run lint`
+3. `npm run svelte-check`
+4. `npm run tsc-check:apps`
+5. `npm run test:unit -- --pool=threads`（本机必须 threads 池：forks 池会被执行环境强杀）
+6. `npm run test:acceptance:sync:self-test`
+
+`node scripts/gate-all.mjs --list` 只列项不执行。该脚本只跑这六项；`build`、五个资产指纹
+与真实租户链路门禁见第 2、3、4.2、4.3 节。
+
+---
+
 ## 0. 一次性准备（新开 shell 时）
 
 - [ ] `git rev-parse --show-toplevel` —— 确认在插件仓库根目录。
@@ -56,7 +76,11 @@
 > 仓库内没有自动生成/校验 `release-info.json` 的脚本，这一步是人工维护，
 > 也是历史上该文件漂移的原因 —— 必须逐字节核对。
 
-## 4. 三个门禁（全绿才继续；任一失败即停）
+## 4. 门禁（全绿才继续；任一失败即停）
+
+> 其中 `tsc --noEmit --skipLibCheck`、`lint`、`svelte-check`、`tsc-check:apps`、
+> 全量单测与同步自检六项，已由「切版前硬门禁」的 `scripts/gate-all.mjs` 一次跑完；
+> 下面保留逐项说明，供单独复跑或排查时参考。
 
 ### 4.1 类型检查 + 单元测试全量
 
@@ -128,3 +152,4 @@
 | 日期 | 变更 |
 |---|---|
 | 2026-09-20 | 初版：按「干净工作区 → build → 指纹 → 三门禁 → 台账 → 交接」固化切版前收口清单 |
+| 2026-09-22 | 新增 `scripts/gate-all.mjs` / `scripts/gate-all.sh` 一键门禁，并把「切版前必须跑 gate-all（六项全绿）」写成硬要求 |
