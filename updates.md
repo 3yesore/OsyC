@@ -12,6 +12,14 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.20
+
+22nd September, 2026
+
+- OsyC `2.0.20` **makes the interactive conflict-resolution dialog follow the interface language**. Every user-facing string in `ConflictResolveModal` was a hard-coded English literal, so a device whose interface language is Chinese still showed an English dialog (reported against a real iPhone screenshot: the buttons read `Use local`, `Concat both`, `Not now`). The title, the version names, the `▲ Prev` / `▼ Next` / `Use …` / `Concat both` / `Not now` / `Cancel` / `Close` buttons and the `(Deleted)` / `(Too large diff to display)` placeholders now all resolve through the repository `$msg(...)` message table, the three keys the read-only comparison pane already asked for (`Vault and database revision`, `Vault file`, `Database revision`) are added so they stop falling back to English, and `zh` plus `zh-tw` carry the translations. A new spec locks the translations in all three languages and asserts at source level that no English interface phrase may appear as a literal outside a `$msg` key.
+
+- OsyC `2.0.20` adds a **regression gate for must-match synchronisation parameters**. Every write that reaches one of the 18 `TweakValuesShouldMatchedTemplate` keys must carry either the template baseline or the value aligned from the remote `PREFERRED` set, so a unilateral write of a different value — the defect that made the replicator abort silently and left the device not syncing — can no longer enter the code. The guard covers the setup patch, the provisioned-replication repair and the final activation patch output including the profile rewrite, is exercised across all 18 keys, and keeps the known `usePluginSyncV2` deviation pinned and reported instead of silently tolerated.
+
 ## 2.0.19
 
 22nd September, 2026
