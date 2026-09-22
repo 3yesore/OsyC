@@ -125,7 +125,8 @@
         "Ledger promotion on 2026-09-22: currentStable moves from 2.0.19 (now previousStable, superseded, tag 2.0.19 at 92514bc) to 2.0.20, and the reserved 2.0.20 candidate line is consumed. The 2.0.18 record that previously sat in previousStable is preserved together with 2.0.17, 2.0.16, 2.0.15, 2.0.14, 2.0.13 and 2.0.12 in previousCandidate, which remains a list of historical records ordered newest first.",
         "2.0.20 was published on 2026-09-22T10:30:21Z by fast-forwarding main from 5d537bc to 3209891, which triggered publish-release-assets.yml run 35716327231 (run #96, conclusion success). The workflow created tag 2.0.20 (a lightweight tag pointing at 3209891) and the GitHub Release OsyC 2.0.20 as a normal (non-prerelease) release, so no pre-release promotion was needed. GET /releases/latest resolves to 2.0.20 and manifest.json on the default branch reads 2.0.20. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js c7e8d8fb, manifest.json d2292aac, manifest-beta.json d2292aac, styles.css cbc4e6da, versions.json b199aee1.",
         "Note on the 2.0.20 tag target: release-info.json names the cut commit 20a7981, and the rebuilt main.js was committed separately as 4876b5b before the release-info (6595a97) and ledger reservation (3209891) commits, so tag 2.0.20 points at the pushed default-branch HEAD 3209891 rather than at the cut commit. This follows the 2.0.13/2.0.14/2.0.15/2.0.16/2.0.17/2.0.18/2.0.19 pattern.",
-        "2.0.20 发布时仍不含支付相关改动：未并入 codex/recharge-entry-2.0.18 (4207c4f)；该版本只含中文界面与同步参数写入门禁。"
+        "2.0.20 发布时仍不含支付相关改动：未并入 codex/recharge-entry-2.0.18 (4207c4f)；该版本只含中文界面与同步参数写入门禁。",
+        "2.0.21 is reserved on 2026-09-22 by the branch codex/ai-context-tier-2.0.21 at cut commit 4d788e3; the rebuilt main.js was committed separately as fc9da31 before this reservation, so tag 2.0.21 would point at the pushed default-branch HEAD rather than at the cut commit (the 2.0.13-2.0.20 pattern). The candidate carries no tag, releaseUrl or publishedAt. Publication intent recorded with the reservation: this candidate is to be published as a PRE-RELEASE test package under publicationRules.featureAgentsMayPublishTestPackages (mustBePrerelease=true), NOT as a stable promotion. currentStable stays 2.0.20 and promotion remains the release-captain action. Acceptance evidence on record before publication: gate-all six gates 6/6 PASS; vitest 156 files / 1303 cases; iOS 15 compatibility check passed; sync acceptance default link 16/16 OK (exit 0); sync acceptance Pro namespace link 19/19 OK (exit 0); negative case (Pro URI with the base --expect-db) exit 1 with the two expected failures. See docs/reports/2026-09-22-sync-acceptance-gate.md in the workspace repository. Known gap recorded with the reservation: deviceAcceptance is pending on real hardware. The selection action bar needs the iOS/Android checklist in the mobile survey report (touch selection timing, soft keyboard position, iOS selection loss on tap, synthesised click, scroll behaviour, outside-dismiss, orientation and backgrounding, iPadOS highlight residue). Governance note: this candidate line was written on the explicit instruction of the repository owner (option A) so that a pre-release test package could be prepared; it is flagged here for the release captain to ratify or adjust. No push to main, no tag and no GitHub Release was performed by the feature agent."
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
@@ -209,5 +210,14 @@
                 "versions.json": "5b7d0ff2bbba52ba2ca44814f03df79cc2b687fb7665dfb2939716f76a12de57"
             }
         }
-    ]
+    ],
+    "candidate": {
+        "version": "2.0.21",
+        "status": "reserved",
+        "channel": "candidate",
+        "sourceBranch": "codex/ai-context-tier-2.0.21",
+        "sourceCommit": "4d788e3",
+        "assetSourceCommit": "4d788e3",
+        "deviceAcceptance": "pending-desktop"
+    }
 }
