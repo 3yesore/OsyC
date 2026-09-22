@@ -48,6 +48,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         zh: "(已过天数,0为禁用自动删除)",
         "zh-tw": "（已過天數，0 表示停用自動刪除）",
     },
+    "(Deleted)": {
+        def: "(Deleted)",
+        zh: "（已删除）",
+        "zh-tw": "（已刪除）",
+    },
     "(e.g., after editing many files whilst offline)": {
         def: "(e.g., after editing many files whilst offline)",
         es: "(p. ej., tras editar muchos archivos sin conexión)",
@@ -170,6 +175,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
             "zh-tw":
                 "（如果你正在將此裝置設定為第一台同步裝置，請選擇此項。）此選項適合初次使用 LiveSync，並希望從頭開始設定的使用者。",
         },
+    "(Too large diff to display)": {
+        def: "(Too large diff to display)",
+        zh: "（差异过大，无法显示）",
+        "zh-tw": "（差異過大，無法顯示）",
+    },
     "↑: Overwrite Remote": {
         def: "↑: Overwrite Remote",
         es: "↑: Sobrescribir remoto",
@@ -599,6 +609,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         zh: "恢复为未配置状态",
         "zh-tw": "恢復為未設定狀態",
     },
+    Base: {
+        def: "Base",
+        zh: "基准版本",
+        "zh-tw": "基準版本",
+    },
     "Batch database update": {
         def: "Batch database update",
         es: "Actualización por lotes de BD",
@@ -756,6 +771,7 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         def: "Close",
         es: "Cerrar",
         ko: "닫기",
+        zh: "关闭",
         "zh-tw": "關閉",
     },
     "Close & Disconnect": {
@@ -927,6 +943,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         zh: "为 chunks 计算修订版本(以前的行为)",
         "zh-tw": "為 chunks 計算修訂版本（舊有行為）",
     },
+    "Concat both": {
+        def: "Concat both",
+        zh: "合并保留两者",
+        "zh-tw": "合併保留兩者",
+    },
     Configuration: {
         def: "Configuration",
         es: "Configuración",
@@ -986,6 +1007,16 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ru: "Снова вручную укажите те же параметры сервера, что и на других устройствах. Только для очень опытных пользователей。",
         zh: "手动重新输入与你其他设备相同的服务器信息。仅适合高级用户。",
         "zh-tw": "手動重新輸入與其他裝置相同的伺服器資訊。僅適合進階使用者。",
+    },
+    Conflicted: {
+        def: "Conflicted",
+        zh: "冲突版本",
+        "zh-tw": "衝突版本",
+    },
+    "Conflicting changes": {
+        def: "Conflicting changes",
+        zh: "检测到冲突",
+        "zh-tw": "偵測到衝突",
     },
     Connect: {
         def: "Connect",
@@ -1184,6 +1215,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ru: "Имя базы данных",
         zh: "数据库名称",
         "zh-tw": "資料庫名稱",
+    },
+    "Database revision": {
+        def: "Database revision",
+        zh: "数据库修订版本",
+        "zh-tw": "資料庫修訂版本",
     },
     "Database suffix": {
         def: "Database suffix",
@@ -3553,6 +3589,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         zh: "应用",
         "zh-tw": "套用",
     },
+    Local: {
+        def: "Local",
+        zh: "本地",
+        "zh-tw": "本機",
+    },
     "Local Database Tweak": {
         def: "Local Database Tweak",
         es: "Ajustes de la base de datos local",
@@ -4631,6 +4672,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ko: "더 새로움 (${diff})",
         "zh-tw": "較新（${diff}）",
     },
+    Next: {
+        def: "Next",
+        zh: "下一个",
+        "zh-tw": "下一個",
+    },
     "No checks have been performed yet.": {
         def: "No checks have been performed yet.",
         es: "Todavía no se ha realizado ninguna comprobación.",
@@ -4745,6 +4791,7 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         def: "Not now",
         es: "Ahora no",
         ko: "나중에",
+        zh: "暂不处理",
         "zh-tw": "暫不處理",
     },
     "Note that the Group ID is not limited to the generated format; you can use any string as the Group ID.": {
@@ -7315,6 +7362,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ko: "기록을 표시할 파일 선택",
         "zh-tw": "選擇要顯示歷程的檔案",
     },
+    "Pick a version": {
+        def: "Pick a version",
+        zh: "选择版本",
+        "zh-tw": "選擇版本",
+    },
     "Please be aware that the End-to-End Encryption passphrase is not validated until the synchronisation process actually commences. This is a security measure designed to protect your data.":
         {
             def: "Please be aware that the End-to-End Encryption passphrase is not validated until the synchronisation process actually commences. This is a security measure designed to protect your data.",
@@ -7504,6 +7556,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ru: "Пресеты",
         zh: "预设",
         "zh-tw": "預設集",
+    },
+    Prev: {
+        def: "Prev",
+        zh: "上一个",
+        "zh-tw": "上一個",
     },
     "Prevent fetching configuration from server": {
         def: "Prevent fetching configuration from server",
@@ -7825,6 +7882,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ru: "Настройки исправления изменены",
         zh: "修复设置已更改",
         "zh-tw": "修復設定已變更",
+    },
+    Remote: {
+        def: "Remote",
+        zh: "远端",
+        "zh-tw": "遠端",
     },
     "Remote Database Tweak (In sunset)": {
         def: "Remote Database Tweak (In sunset)",
@@ -12323,6 +12385,11 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ko: "URL",
         "zh-tw": "URL",
     },
+    "Use ${name}": {
+        def: "Use ${name}",
+        zh: "使用${name}",
+        "zh-tw": "使用${name}",
+    },
     "Use a custom passphrase": {
         def: "Use a custom passphrase",
         es: "Usar una frase de contraseña personalizada",
@@ -12470,6 +12537,16 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ru: "Имя пользователя",
         zh: "用户名",
         "zh-tw": "使用者名稱",
+    },
+    "Vault and database revision": {
+        def: "Vault and database revision",
+        zh: "保管库与数据库修订版本",
+        "zh-tw": "儲存庫與資料庫修訂版本",
+    },
+    "Vault file": {
+        def: "Vault file",
+        zh: "保管库文件",
+        "zh-tw": "儲存庫檔案",
     },
     "Verbose Log": {
         def: "Verbose Log",

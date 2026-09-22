@@ -2427,3 +2427,20 @@ You should perform this operation only in exceptional circumstances, such as whe
     when the server data is completely corrupted, when changes on all other
     devices are no longer needed, or when the database size has become unusually
     large in comparison to the Vault size.
+
+# InteractiveConflictResolving 弹窗（ConflictResolveModal / PaneHatch 只读对比）
+Conflicting changes: Conflicting changes
+Pick a version: Pick a version
+Base: Base
+Conflicted: Conflicted
+Local: Local
+Remote: Remote
+Vault and database revision: Vault and database revision
+Vault file: Vault file
+Database revision: Database revision
+Prev: Prev
+Next: Next
+"Use ${name}": "Use ${name}"
+Concat both: Concat both
+(Deleted): (Deleted)
+(Too large diff to display): (Too large diff to display)

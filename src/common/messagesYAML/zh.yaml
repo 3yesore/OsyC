@@ -1600,3 +1600,22 @@ xxhash64 (Fastest): xxhash64（最快）
 "Synchronisation utilising journal files. You must have set up an S3/MinIO/R2 compatible object storage.": "通过日志文件进行同步。你需要事先部署好兼容 S3/MinIO/R2 的对象存储服务。"
 "Peer-to-Peer only": "仅 Peer-to-Peer"
 "This feature enables direct synchronisation between devices. No server is required, but both devices must be online at the same time for synchronisation to occur, and some features may be limited. Internet connection is only required to signalling (detecting peers) and not for data transfer.": "此功能可在设备之间直接同步，无需服务器；但同步时两台设备必须同时在线，且部分功能可能受限。互联网连接仅用于信令（发现对端），不用于数据传输。"
+
+# InteractiveConflictResolving 弹窗（ConflictResolveModal / PaneHatch 只读对比）
+Conflicting changes: 检测到冲突
+Pick a version: 选择版本
+Base: 基准版本
+Conflicted: 冲突版本
+Local: 本地
+Remote: 远端
+Vault and database revision: 保管库与数据库修订版本
+Vault file: 保管库文件
+Database revision: 数据库修订版本
+Prev: 上一个
+Next: 下一个
+"Use ${name}": "使用${name}"
+Concat both: 合并保留两者
+(Deleted): （已删除）
+(Too large diff to display): （差异过大，无法显示）
+Not now: 暂不处理
+Close: 关闭

@@ -1838,4 +1838,21 @@ Setup:
   垃圾回收：找到 ${unusedChunks} 個未使用的 chunks 可刪除。
 "Garbage Collection completed. Deleted chunks: ${deletedChunks} / ${totalChunks}. Time taken: ${seconds} seconds.": |-
   垃圾回收完成。已刪除 chunks：${deletedChunks} / ${totalChunks}。耗時：${seconds} 秒。
+
+# InteractiveConflictResolving 彈窗（ConflictResolveModal / PaneHatch 唯讀對比）
+Conflicting changes: 偵測到衝突
+Pick a version: 選擇版本
+Base: 基準版本
+Conflicted: 衝突版本
+Local: 本機
+Remote: 遠端
+Vault and database revision: 儲存庫與資料庫修訂版本
+Vault file: 儲存庫檔案
+Database revision: 資料庫修訂版本
+Prev: 上一個
+Next: 下一個
+"Use ${name}": "使用${name}"
+Concat both: 合併保留兩者
+(Deleted): （已刪除）
+(Too large diff to display): （差異過大，無法顯示）
 "Failed to start replication after Garbage Collection.": 垃圾回收後無法啟動複寫。
