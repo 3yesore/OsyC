@@ -3,6 +3,8 @@ import { mount } from "svelte";
 import { SvelteItemView } from "@/common/SvelteItemView.ts";
 import AIAgentPaneComponent from "./AIAgentPane.svelte";
 import type { AISnippet, CmdAIAgent } from "./CmdAIAgent";
+import { captureActiveNoteFromApp } from "./activeNoteBridge";
+import type { ActiveNoteSnapshot } from "./activeNoteContext";
 import type { Writable } from "svelte/store";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 
@@ -124,6 +126,27 @@ export class AIAgentPaneView extends SvelteItemView {
         panel.createEl("p", { text: "请关闭此标签后重新打开；如果仍失败，请在命令面板执行“打开 OsyC 日志”。" });
     }
 
+    /**
+     * 发送前把用户此刻正在看的笔记快照一起上行。
+     *
+     * 取不到（没开笔记、不是 Markdown、超出上限、设备不支持加密）就按原样发送：
+     * 上下文是增益，绝不能因为它失败而挡住用户的提问。服务端只在这一条消息里使用它，
+     * 不回传、不进任务接口。
+     */
+    private async sendWithContext(message: string): Promise<void> {
+        let snapshot: ActiveNoteSnapshot | undefined;
+        try {
+            const result = await captureActiveNoteFromApp(this.app);
+            snapshot = result.snapshot;
+            if (result.error) {
+                osycLogger.warn("活动笔记快照未附带：" + result.error);
+            }
+        } catch (error) {
+            osycLogger.warn("活动笔记快照采集失败，改为不带上下文发送", error);
+        }
+        void this.agent.send(message, snapshot);
+    }
+
     instantiateComponent(target: HTMLElement) {
         return mount(AIAgentPaneComponent, {
             target: target,
@@ -132,7 +155,7 @@ export class AIAgentPaneView extends SvelteItemView {
                 tasks: this.agent.tasks,
                 agentState: this.agent.state,
                 isMock: this.agent.isMock,
-                onSend: (message: string): void => void this.agent.send(message),
+                onSend: (message: string): void => void this.sendWithContext(message),
                 onActivate: (cardKey: string) => this.agent.activate(cardKey),
                 onClear: () => this.agent.clearFinished(),
                 onOpenFile: (path: string) => this.openFile(path),
