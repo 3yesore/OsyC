@@ -14,47 +14,17 @@
         "commit": "9b2af60d026a049effcb0071ae12fafff5a17d4f"
     },
     "currentStable": {
-        "version": "2.0.18",
-        "tag": "2.0.18",
+        "version": "2.0.19",
+        "tag": "2.0.19",
         "status": "published",
         "channel": "stable",
-        "sourceBranch": "release/2.0.18",
-        "sourceCommit": "2acee51",
-        "assetSourceCommit": "2acee51",
-        "releaseCommit": "96b4fef",
-        "releaseRunId": "35690934232",
-        "publishedAt": "2026-09-22T05:30:17Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.18",
-        "deviceAcceptance": "pending-desktop",
-        "assets": [
-            "main.js",
-            "manifest.json",
-            "manifest-beta.json",
-            "styles.css",
-            "versions.json"
-        ],
-        "assetSha256": {
-            "main.js": "f634d9e4f0d798229225c2c3e705a679b48b4a662506a98a66ea5f1b0643d7fc",
-            "manifest.json": "99bae65cc1d10304e585494ae19d702c09329fbccf24370c85242806a3833d57",
-            "manifest-beta.json": "99bae65cc1d10304e585494ae19d702c09329fbccf24370c85242806a3833d57",
-            "styles.css": "cbc4e6da4f47579ce5158a75e5e96c275f107423b3b201c296d509aafd6f03fa",
-            "versions.json": "f6820fdf0e0975b3fd76923914fb31799829e87d907acced591069fb87b04fd5"
-        }
-    },
-    "previousStable": {
-        "version": "2.0.17",
-        "tag": "2.0.17",
-        "status": "superseded",
-        "publishedAt": "2026-09-21T04:50:10Z",
-        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.17"
-    },
-    "candidate": {
-        "version": "2.0.19",
-        "channel": "stable",
-        "status": "reserved",
         "sourceBranch": "release/2.0.19",
         "sourceCommit": "334de7f",
         "assetSourceCommit": "334de7f",
+        "releaseCommit": "92514bc",
+        "releaseRunId": "35694028272",
+        "publishedAt": "2026-09-22T06:15:40Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.19",
         "deviceAcceptance": "pending-desktop",
         "assets": [
             "main.js",
@@ -70,6 +40,13 @@
             "styles.css": "cbc4e6da4f47579ce5158a75e5e96c275f107423b3b201c296d509aafd6f03fa",
             "versions.json": "ed0ae579ed909c239ad2f1e10b2b00d8eed80654874b1641cf6aa5fcc09dc74b"
         }
+    },
+    "previousStable": {
+        "version": "2.0.18",
+        "tag": "2.0.18",
+        "status": "superseded",
+        "publishedAt": "2026-09-22T05:30:17Z",
+        "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.18"
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -137,7 +114,11 @@
         "2.0.18 发布时仍不含支付相关改动：未并入 codex/recharge-entry-2.0.18 (4207c4f)。",
         "2.0.19 is reserved by the branch release/2.0.19 at cut commit 334de7f; the rebuilt main.js is committed separately as ce61bfb, so tag 2.0.19 will point at the pushed default-branch HEAD rather than at the cut commit (the 2.0.13/2.0.14/2.0.15/2.0.16/2.0.17/2.0.18 pattern). The candidate intentionally carries no tag, releaseUrl or publishedAt. 2.0.19 carries the cross-device tweak auto-alignment fix (f3bf628, cherry-picked as f998b69): planTweakAlignment() compares all 18 TweakValuesShouldMatchedTemplate keys after merging TweakValuesDefault and mirroring isObjectDifferent(..., true), and on an official managed remote (official endpoint domain or an osyc_sync_ account) it auto-aligns every diff, encrypt included, through LiveSync own use-remote branch (extractObject(TweakValuesTemplate, preferred) -> saveSettingData -> setPreferredRemoteTweakSettings -> $fetchLocal() when a rebuild is needed), at four points (start-up, after activation, when the plugin panel or account dialog opens, and before every pull), with no dialog and no confirmation; self-hosted remotes still only warn and require an explicit confirmation, and FORBIDDEN_KEYS is reused so no auto-align path can write a passphrase or credential. 诊断字段新增 tweak_diff / remote_preferred_status / tweak_settings_mismatched。本次只含同步参数自动对齐修复与诊断字段，不含任何支付/充值改动。",
         "The five versioned assets were rebuilt and re-hashed after the 2.0.19 cut: main.js 1b89822a, manifest.json and manifest-beta.json 770f98c0, styles.css cbc4e6da (unchanged from 2.0.18), versions.json ed0ae579. release-info.json names the cut commit 334de7f. The candidate gate on the cut tree was node scripts/gate-all.mjs 6/6 PASS, exit 0: tsc --noEmit --skipLibCheck (0 errors), eslint (0 errors / 9 pre-existing warnings), svelte-check (0 errors / 0 warnings), tsc-check:apps (0 errors), the full unit suite on the threads pool (151 files / 1261 tests green) and the sync acceptance self-test (8/8 OK). Build products follow in a separate commit.",
-        "本次不含支付相关改动：2.0.19 的 origin/main..HEAD diff 中零 osycRechargeSection.ts、OsycRechargeModal.ts、rechargeEntry.ts 等支付/收款码/订单 UI 文件；codex/recharge-entry-2.0.18 (4207c4f) 一律未并入。"
+        "本次不含支付相关改动：2.0.19 的 origin/main..HEAD diff 中零 osycRechargeSection.ts、OsycRechargeModal.ts、rechargeEntry.ts 等支付/收款码/订单 UI 文件；codex/recharge-entry-2.0.18 (4207c4f) 一律未并入。",
+        "Ledger promotion on 2026-09-22: currentStable moves from 2.0.18 (now previousStable, superseded, tag 2.0.18 at 96b4fef) to 2.0.19, and the reserved 2.0.19 candidate line is consumed. The 2.0.17 record that previously sat in previousStable is preserved together with 2.0.16, 2.0.15, 2.0.14, 2.0.13 and 2.0.12 in previousCandidate, which remains a list of historical records ordered newest first.",
+        "2.0.19 was published on 2026-09-22T06:15:40Z by fast-forwarding main from e184f0c to 92514bc, which triggered publish-release-assets.yml run 35694028272 (conclusion success). The workflow created tag 2.0.19 (a lightweight tag pointing at 92514bc) and the GitHub Release OsyC 2.0.19 as a normal (non-prerelease) release, so no pre-release promotion was needed. GET /releases/latest resolves to 2.0.19 and manifest.json on the default branch reads 2.0.19. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js 1b89822a, manifest.json 770f98c0, manifest-beta.json 770f98c0, styles.css cbc4e6da, versions.json ed0ae579.",
+        "Note on the 2.0.19 tag target: release-info.json names the cut commit 334de7f, and the rebuilt main.js was committed separately as ce61bfb before the release-info (3b771ba) and ledger reservation (92514bc) commits, so tag 2.0.19 points at the pushed default-branch HEAD 92514bc rather than at the cut commit. This follows the 2.0.13/2.0.14/2.0.15/2.0.16/2.0.17/2.0.18 pattern.",
+        "2.0.19 发布时仍不含支付相关改动：未并入 codex/recharge-entry-2.0.18 (4207c4f)；该版本只含同步参数自动对齐修复与诊断字段。"
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
@@ -154,6 +135,13 @@
         "bratStableValidationRequired": true
     },
     "previousCandidate": [
+        {
+            "version": "2.0.17",
+            "tag": "2.0.17",
+            "status": "superseded",
+            "publishedAt": "2026-09-21T04:50:10Z",
+            "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.17"
+        },
         {
             "version": "2.0.16",
             "tag": "2.0.16",
