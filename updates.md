@@ -12,6 +12,14 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.19
+
+22nd September, 2026
+
+- OsyC `2.0.19` **removes the cross-device synchronisation dead end** where two devices on the same remote kept failing to pull. A must-match synchronisation parameter (for example `encrypt` or `customChunkSize`) could differ between a device and the remote; the replication layer then rejected the device as `MISMATCHED` and returned before replication began, so the panel read `拉取失败（拉取未完成：远端连接失败或同步已取消）` about a second later and the device never synced, with nothing else to show. The client now reads the remote preferred values and aligns the local ones before replication, so on an official managed remote the alignment happens automatically at start-up, after activation, when the plugin panel or the account dialog opens, and before every pull, with no manual settings change for the user. A self-hosted remote still only warns and requires an explicit confirmation, and this path never writes a passphrase or any other credential.
+
+- OsyC `2.0.19` makes a mismatch **self-evident in diagnostics**: the uploadable report and the sync panel now list every differing must-match key with its local and remote value, whether the remote preferred values could be read at all, and one recommended action.
+
 ## 2.0.18
 
 22nd September, 2026
