@@ -1,7 +1,7 @@
 {
     "id": "osyc",
     "name": "OsyC",
-    "version": "2.0.20",
+    "version": "2.0.21",
     "minAppVersion": "1.7.2",
     "description": "Organize notes with an AI assistant and sync them across devices.",
     "author": "OsyC",

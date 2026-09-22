@@ -12,6 +12,16 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 2.0.21
+
+22nd September, 2026
+
+- OsyC `2.0.21` **attaches the note you are looking at to the message you send**. The editor snapshot (path, mode, cursor, selection and content hash) is captured at send time and travels with that one request; it is never returned through the task APIs. This closes a gap where the capture code existed and was unit-tested but nothing in the running plugin ever called it, so an agent could be asked about "this note" without being given the note.
+- The snapshot always carries the whole-note SHA-256, even when the server only injects part of the body, so the hash stays the version identifier used by conflict-checked write-back.
+- Context tiers (`note` / `toc` / `selection` / `selection_window`) are implemented and unit-tested but stay disabled until the server accepts a trimmed snapshot; today the plugin sends the full note, which is what the current server contract requires.
+- OsyC `2.0.21` adds a **floating action bar over a text selection**. On desktop it appears above the selection; on mobile it is pinned to the top of the content area, so the soft keyboard and scrolling cannot dislodge it. Four actions ship: explain, rewrite, translate and extract todos. Choosing one opens the OC page and sends that request immediately with the selection attached.
+- The bar keeps the mobile handling that is easy to get wrong: desktop and mobile listen to different events, a drag of more than 8px counts as scrolling and does not open the bar, a click outside dismisses it behind a guard so it cannot immediately reopen, and on iOS the button press is prevented from clearing the editor selection with the synthesised click suppressed.
+- The mechanism layer is adapted from SmartPick (MIT, commit `57022fe`); see `THIRD_PARTY_NOTICES.md`.
 ## 2.0.20
 
 22nd September, 2026
