@@ -1,6 +1,6 @@
 {
     "schemaVersion": 1,
-    "updatedAt": "2026-09-21",
+    "updatedAt": "2026-09-22",
     "releaseOwner": "release-captain",
     "sourceRepository": {
         "name": "obsidian-livesync",
@@ -47,6 +47,29 @@
         "status": "superseded",
         "publishedAt": "2026-09-21T03:31:46Z",
         "releaseUrl": "https://github.com/3yesore/OsyC/releases/tag/2.0.16"
+    },
+    "candidate": {
+        "version": "2.0.18",
+        "channel": "stable",
+        "status": "reserved",
+        "sourceBranch": "release/2.0.18",
+        "sourceCommit": "2acee51",
+        "assetSourceCommit": "2acee51",
+        "deviceAcceptance": "pending-desktop",
+        "assets": [
+            "main.js",
+            "manifest.json",
+            "manifest-beta.json",
+            "styles.css",
+            "versions.json"
+        ],
+        "assetSha256": {
+            "main.js": "f634d9e4f0d798229225c2c3e705a679b48b4a662506a98a66ea5f1b0643d7fc",
+            "manifest.json": "99bae65cc1d10304e585494ae19d702c09329fbccf24370c85242806a3833d57",
+            "manifest-beta.json": "99bae65cc1d10304e585494ae19d702c09329fbccf24370c85242806a3833d57",
+            "styles.css": "cbc4e6da4f47579ce5158a75e5e96c275f107423b3b201c296d509aafd6f03fa",
+            "versions.json": "f6820fdf0e0975b3fd76923914fb31799829e87d907acced591069fb87b04fd5"
+        }
     },
     "notes": [
         "2.0.5 has a repository tag but no GitHub Release, so it is not usable as a BRAT-installable rollback path. The effective rollback target is 2.0.4.",
@@ -103,7 +126,11 @@
         "2.0.17 was published on 2026-09-21T04:50:10Z by fast-forwarding main from e658f0b to 0ce12bb, which triggered publish-release-assets.yml run 35562386987 (run #90, conclusion success). The workflow created tag 2.0.17 and the GitHub Release OsyC 2.0.17 as a normal (non-prerelease) release, so no pre-release promotion was needed. GET /releases/latest resolves to 2.0.17 and manifest.json on the default branch reads 2.0.17. All five versioned assets were downloaded and hashed after publication and match release-info.json byte for byte: main.js f67ccb75, manifest.json 03dbdc32, manifest-beta.json 03dbdc32, styles.css cbc4e6da, versions.json d2fe3604.",
         "Note on the 2.0.17 tag target: release-info.json names the cut commit 898c347, and the rebuilt main.js was committed separately as 42e7651 before the release-info (4a3c409) and ledger reservation (0ce12bb) commits, so tag 2.0.17 points at the pushed default-branch HEAD 0ce12bb rather than at the cut commit. This follows the 2.0.13/2.0.14/2.0.15/2.0.16 pattern.",
         "Ledger promotion on 2026-09-21: currentStable moves from 2.0.16 (now previousStable, superseded, tag 2.0.16 at 1c87af5) to 2.0.17, and the reserved 2.0.17 candidate line is consumed. The 2.0.15 record that previously sat in previousStable is preserved together with 2.0.14, 2.0.13 and 2.0.12 in previousCandidate, which remains a list of historical records ordered newest first.",
-        "2.0.17 shipped after the svelte-check gate caught a defect in the diagnostics commit on its source branch (the new synthetic manual AITaskStatus value was missing from AIAgentTaskCard's STATUS_META, and tsc --noEmit does not scan .svelte files); the source branch codex/diagnostics-2.0.17 was amended to fe87dba, the integration branch was rebuilt from e658f0b, and all six candidate gates then passed before the cut."
+        "2.0.17 shipped after the svelte-check gate caught a defect in the diagnostics commit on its source branch (the new synthetic manual AITaskStatus value was missing from AIAgentTaskCard's STATUS_META, and tsc --noEmit does not scan .svelte files); the source branch codex/diagnostics-2.0.17 was amended to fe87dba, the integration branch was rebuilt from e658f0b, and all six candidate gates then passed before the cut.",
+        "2.0.18 is reserved by the branch release/2.0.18 at cut commit 2acee51; the rebuilt main.js is committed separately as 03263b1, so tag 2.0.18 will point at the pushed default-branch HEAD rather than at the cut commit (the 2.0.13/2.0.14/2.0.15/2.0.16/2.0.17 pattern). The candidate intentionally carries no tag, releaseUrl or publishedAt. The tree integrates exactly three local lines on top of 2.0.17 (391268c): the sync-configuration self-heal with the always-visible 修复同步配置 entry and the 重新激活卡密 move out of the default-collapsed fold (f8ee8f4), the email-identity contract completion (e819721) and the engineering foundation gate-all.mjs / release-closure checklist / foundation index (be39ab5). 本次不含支付相关改动：不并入充值入口 4207c4f，不含收款码或订单 UI。",
+        "The 2.0.18 tree also narrows the seller/buyer documentation gate (2acee51, cherry-picked to codex/foundation-2.0.18 as bb58f0b) and closes the D4 over-broad-gate todo. The rule now fails only a real money-to-credit/quota mapping (12 元额度, ¥12 额度, 1 积分 = 0.015 元, 折合/等值/相当于/换算/兑换 + an amount, model_quota 12.0 元, pro_grant_yuan=18.00 x credits_per_yuan); a policy or technical note that mentions 人民币 while saying the mapping is not written is compliant, so the correct docs/FOUNDATION-INDEX.zh.md note passes; and the buyer-facing listing and acceptance documents keep the strict price-free form (no yen sign, no 人民币, no number+元, no RMB). The INTERNAL_DOC_ALLOWLIST is removed because the precise rule no longer needs it. The gate patch is carried in this release because the foundation document would otherwise fail the gate its own branch introduced; the same spec commit is applied to codex/foundation-2.0.18, which is also 6/6 green.",
+        "The five versioned assets were rebuilt and re-hashed after the 2.0.18 cut: main.js f634d9e4, manifest.json and manifest-beta.json 99bae65c, styles.css cbc4e6da (unchanged from 2.0.17), versions.json f6820fdf. release-info.json names the cut commit 2acee51. The candidate gate on the cut tree was node scripts/gate-all.mjs 6/6 PASS, exit 0: tsc --noEmit --skipLibCheck (0 errors), eslint (0 errors / 9 pre-existing warnings), svelte-check (0 errors / 0 warnings), tsc-check:apps (0 errors), the full unit suite on the threads pool (150 files / 1234 tests green) and the sync acceptance self-test (8/8 OK). Build products follow in a separate commit.",
+        "本次不含支付相关改动：2.0.18 的 origin/main..HEAD diff 中零 osycRechargeSection.ts、OsycRechargeModal.ts、rechargeEntry.ts 等支付/收款码/订单 UI 文件；codex/recharge-entry-2.0.18 (4207c4f) 一律未并入。"
     ],
     "publicationRules": {
         "singleWriter": "release-captain",
