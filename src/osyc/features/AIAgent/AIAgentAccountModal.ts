@@ -3,7 +3,13 @@ import { get } from "svelte/store";
 import { osycLogger } from "@/osyc/serviceFeatures/osycLogger";
 import { openOsycSettings } from "./OsycSettingsModal";
 import type { CmdAIAgent, PlanType, AIEntitlements, AIAgentSyncState } from "./CmdAIAgent";
-import { renderEmailAccountSection, renderProNamespaceSection, type AccountSectionContext } from "./osycAccountSections";
+import {
+    EMAIL_SESSION_HINT,
+    EMAIL_UNACTIVATED_HINT,
+    renderEmailAccountSection,
+    renderProNamespaceSection,
+    type AccountSectionContext,
+} from "./osycAccountSections";
 import { LiveSyncConfirmModal } from "./LiveSyncConfirmModal";
 import { describeLiveSyncError, runLiveSyncAction, summarizeSyncDiagnostics, visibleLiveSyncActions, withBusyButton } from "./livesyncSyncActions";
 import type { LiveSyncActionDescriptor, LiveSyncControlPort, LiveSyncDiagnosticInput, LiveSyncDiagnosticView } from "./livesyncSyncActions";
@@ -92,6 +98,16 @@ export class AIAgentAccountModal extends Modal {
         const ent = state.entitlements;
 
         contentEl.createEl("h2", { text: "我的账户" });
+
+        // 未激活（含「邮箱已登录但还没绑卡密」）：不报错，直接在首屏给下一步与 G2 会话说明。
+        if (!state.activated) {
+            contentEl.createEl("p", {
+                text: this.agent.emailAccount
+                    ? `尚未激活：${EMAIL_UNACTIVATED_HINT}。${EMAIL_SESSION_HINT}。`
+                    : "尚未激活：输入卡密后即可使用；也可以先用邮箱验证码登录。",
+                cls: "ai-account-hint",
+            });
+        }
 
         // ── 概览：档位 + 账本 ──
         const badgeRow = contentEl.createDiv({ cls: "ai-account-badge-row" });

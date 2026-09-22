@@ -1,8 +1,12 @@
 # 邮箱身份口径核对（客户端 ↔ 服务端）
 
-> 基线：`release/2.0.14`（HEAD `da37be1`）。首次核对日期 2026-09-20。
+> 基线：`origin/main`（2.0.17，HEAD `391268c`）。首次核对日期 2026-09-20。
 > 更新（2026-09-21，`release/2.0.15`）：已补上 G1 的 bind-email 客户端消费者与 UI 入口，
-> 并顺带修掉 G2 / G3 / G4；下文每条缺口都标注了「已在 2.0.15 实现」或「仍待办」。
+> 并顺带修掉 G2 / G3 / G4。
+> 更新（2026-09-22，分支 `codex/email-complete-2.0.18`，基线 2.0.17）：G5 / G7 落实为
+> 「服务端单一文案 + 客户端不再改写」；补上邮箱登录的档位/权益端到端单测、未激活邮箱的
+> 引导与两处会话提示，以及服务端 `/api/account/bind-card` 的速率限制与审计事件。
+> 下文每条缺口都标注了「已实现」或「仍待办」。
 > 目的：把**服务端已实现的能力**与**客户端已实现的能力**逐条对齐，标出缺口。
 >
 > 本文只记录接口契约与缺口，**不包含**任何真实卡密、口令、setup URI 或邮箱地址。
@@ -19,6 +23,8 @@
 | 客户端 | `src/osyc/features/AIAgent/osycAccountSections.ts` | 共享邮箱区块 UI（地址 / 发码 60s 倒计时 / 登录 / 两个方向的绑定） |
 | 客户端 | `src/osyc/features/AIAgent/AIAgentAccountModal.ts` | 账户弹窗委托共享区块 |
 | 客户端 | `src/osyc/features/AIAgent/AIAgentToolsModal.ts` L82–L122 | 「账户」页（新增入口的落点） |
+
+> 下文标记的 L 行号以首次核对的基线为准，随改动会漂移；以函数名 / 常量名为准。
 
 ---
 
@@ -46,7 +52,7 @@
   2. 账户不存在则 `upsert_email_account`（**首次即注册**），记录登录时间；
   3. 取 `cards_for_account`；
   4. 无论是否绑卡，都签发 `session_token = create_account_session(account, device_id)`；
-  5. **账户已有卡密且有 device_id** → `activate_device` 签发设备 `token`；设备超限 → 403「设备数量已达上限」；
+  5. **账户已有卡密且有 device_id** → `activate_device` 签发设备 `token`；设备超限 → 403 `DEVICE_LIMIT_MESSAGE`（「本设备已达该卡密上限，请先解绑旧设备」，2.0.18 起统一），并记 `device_limit` 审计事件；
   6. 无卡密时给 `message: "账户已创建，请先用卡密激活或绑定卡密后使用"`。
 - 成功响应：`{ ok, registered, account: { account_id, email_masked }, cards[], session_token, token?, card_key?, message? }`。
 - routes 侧附加：返回 `card_key` 且档位为 `member/pro` 时 `ensure_default_route`（失败只记日志，不影响登录）。
@@ -71,8 +77,10 @@
   1. `get_card` 不存在 → 404「卡密无效」；
   2. `account_for_session` 无效 → 401「邮箱会话已失效，请重新验证邮箱」；
   3. `link_account_card(..., "claim")`；
-  4. 有设备时 `activate_device` 签发 `token`；设备超限**不整体失败**，改为 `device_limit_reached: true` + 专属 message。
-- 成功响应：`{ ok, message, cards[], token?, card_key?, device_id?, device_limit_reached? }`。
+  4. 频控（2.0.18 新增）：按 **账户 + 设备** 滑窗 60s/10 限流；
+  5. 有设备时 `activate_device` 签发 `token`；设备超限**不整体失败**，改为 `device_limit_reached: true`
+     + 统一的 `DEVICE_LIMIT_MESSAGE`，并记 `device_limit` 审计事件；无论成功与否都记 `bound` 审计事件。
+- 成功响应：`{ ok, message, cards[], card_linked, token?, card_key?, device_id?, device_limit_reached? }`。
 
 ### 1.5 服务端状态码 → 语义汇总
 
@@ -80,9 +88,9 @@
 |---|---|---|---|---|
 | 400 | 邮箱格式不正确 | 验证码无效/过期/已使用 | 验证码无效/过期 | — |
 | 401 | — | — | — | 会话失效 |
-| 403 | — | 设备数量已达上限 | — | — |
+| 403 | — | `DEVICE_LIMIT_MESSAGE`（2.0.18 起与 bind-card 共用同一句） | — | — |
 | 404 | — | — | — | 卡密无效 |
-| 429 | 发码过频 | 尝试次数过多 | — | — |
+| 429 | 发码过频 | 尝试次数过多 | — | 绑定过频（2.0.18 新增） |
 | 501 | 功能未启用 | 功能未启用 | — | — |
 | 503 | 邮件发送失败 | — | — | — |
 
@@ -162,22 +170,32 @@
   `EMAIL_BIND_DIRECTION_FORWARD = "卡密 → 邮箱（绑定当前卡密）"`（`bindEmailToAccount`，需已激活卡密 + `purpose="bind"` 验证码）。
 - **仍未做**：无。
 
-### G5 · 设备超限的两个分支文案来源不同 **[记录 · 2.0.15 行为有变]**
+### G5 · 设备超限的两个分支文案来源不同 **[已实现 · 2.0.18]**
 
-- **现状**：`bind-card` 的设备超限仍是 200 + `device_limit_reached`，客户端透出服务端 message，未变。
-- **2.0.15 变化**：G3 改为「优先回显服务端 detail」后，`verify` 的 403 也会先显示服务端原文（「设备数量已达上限」）；
-  客户端固定改写「本设备已达该卡密上限，请先解绑旧设备」只在服务端未给 `detail` 时生效。
-- **需要补什么**：无（两个分支都能给出可读文案）；此处如实记录行为变化。
+- **原现状**：`bind-card` 的设备超限是 200 + `device_limit_reached` + 带前缀的服务端 message；
+  `verify` 的 403 是「设备数量已达上限」；客户端 403 兜底又是「本设备已达该卡密上限，请先解绑旧设备」，
+  同一「设备超限」出现三种措辞。
+- **2.0.18 实现**：
+  1. 服务端新增唯一常量 `DEVICE_LIMIT_MESSAGE = "本设备已达该卡密上限，请先解绑旧设备"`
+     （`backend/app/email_auth.py`），`verify` 的 403 与 `bind-card` 的 `device_limit_reached` 共用同一句；
+  2. `bind-card` 不再把「卡密已并入账户」写进 message，改用机器可读字段 `card_linked: true` 表达并入事实；
+  3. 客户端新增 `EMAIL_DEVICE_LIMIT_MESSAGE`（`CmdAIAgent.ts`），`describeEmailError(403)`、
+     `bindCardToEmail` 的 `device_limit_reached`、`bindEmailToAccount` 的（防御性）同一信号都回落到它。
+- **仍未做**：无。
 
 ### G6 · 登录成功会写入 `settings.token` 并置 `activated`（非自动切换空间） **[仍待办：无]**
 
 - **现状**：`loginWithEmail` 在服务端签发设备 token 时直接覆盖本地 token 并激活 —— 这是邮箱登录流程的**必要结果**。
 - **仍待办**：无。新增的 bind-email 入口只在用户点击时执行；渲染时既不自动登录，也不自动切换同步空间。
 
-### G7 · 防枚举文案与客户端文案不一致 **[仍待办]**
+### G7 · 防枚举文案与客户端文案不一致 **[已实现 · 2.0.18]**
 
-- **现状**：服务端成功响应固定「若该邮箱可用，验证码已发送」；客户端在 2xx 时改写为「验证码已发送至 <原文邮箱>，5 分钟内有效」。
-- **仍待办**：产品确认是否保留客户端改写（会回显用户输入原文，非哈希）。2.0.15 未改动该口径。
+- **原现状**：服务端成功响应固定「若该邮箱可用，验证码已发送」；客户端在 2xx 时改写为
+  「验证码已发送至 <原文邮箱>，5 分钟内有效」，既替换了防枚举文案，也回显了用户输入的明文邮箱。
+- **2.0.18 实现**：客户端 2xx 只回显服务端 `message`，缺失时用同一句中性兜底，绝不回显明文邮箱
+  （`CmdAIAgent.requestEmailCode`）；共享邮箱区块的两个「发送验证码 / 发送绑定验证码」状态行
+  也改为直接 `setStatus(result.message)`，删掉本地拼接。
+- **仍未做**：无。
 
 ---
 
@@ -190,5 +208,49 @@
 - **同步空间入口**：复用账户弹窗的 Pro 区块，打开时只做一次**只读 GET** 回显；真正开通/切换仍必须用户点击
   「开通并切换到独立空间」（`requestProNamespace`）。
 - **已在 2.0.15 完成**：G1、G2、G3、G4。
-- **仍待办 / 仅记录**：G5（记录行为变化）、G6（无需动作）、G7（防枚举文案口径待产品确认）。
-- **未验证**：真机 Obsidian 点击流程未跑；服务端侧 `backend/` 不在本仓库，未随本次改动一起验证。
+- **已在 2.0.18 完成**：G5、G7，以及下面第 5 节的三项收尾。
+- **仍待办 / 仅记录**：G6（无需动作：邮箱登录写 `settings.token` 并激活是流程必要结果）。
+- **未验证**：真机 Obsidian 点击流程未跑（只过单元测试与 `tsc` / `lint` / `svelte-check`）；
+  服务端已在 `/srv/osyc/current` 通过全量 unittest 并重启 `osyc-api` 一次。
+
+---
+
+## 5. 2.0.18 收尾项（邮箱身份 · 买家可见）
+
+> 本节记录 2.0.18 在 G1–G4 之上的三项收尾，均已在分支 `codex/email-complete-2.0.18`（基线 2.0.17）实现。
+
+### 5.1 邮箱登录 → 档位 / 权益标签 **[已实现 · 已补端到端单测]**
+
+- **链路**：`loginWithEmail` 在服务端签发设备 token 时覆盖 `settings.token`、置 `activated`，
+  随后调用 `refreshStatus()`（`GET /api/status`）；`/api/status` 下发 `plan` 与 snake_case
+  `entitlements`，由 `CmdAIAgent` 映射为 `state.plan` / `state.entitlements`
+  （`maxDevices` / `cloudVault` / `schedules` / `cloudQuotaMb` 等）。
+- **单测**：`CmdAIAgent.tierLabel.unit.spec.ts` 覆盖 member / pro / base 三档；2.0.18 追加一条
+  端到端式用例：`send-code`（防枚举文案）→ `verify`（签发 token）→ `status`（pro 权益），
+  断言 `state.plan === "pro"`、`PLAN_LABEL` 显示「Pro」、`maxDevices === 10`、
+  `cloudVault === true`、`cloudQuotaMb ≈ 333.33`，且发码文案不含明文邮箱。
+- **仍未做**：无。服务端 `/api/status` 的 `plan` / `entitlements` 由
+  `backend/tests/test_status_plan_entitlements.py` 锁定。
+
+### 5.2 未激活但已登录邮箱的引导 + 会话提示 **[已实现 · 2.0.18]**
+
+- **引导**：共享区块新增 `EMAIL_UNACTIVATED_HINT = "绑定卡密后即可使用"`；
+  `describeEmailEntryStatus`（工具中心入口行）与 `describeEmailSessionStatus`（区块状态行）
+  都会在「已登录但未绑定卡密」时给出该引导，且不报错。
+- **两处可见**：账户弹窗（`AIAgentAccountModal`）与工具中心账户页（`OsycAccountSectionModal`）
+  都渲染同一份 `renderEmailAccountSection`，会话提示 `EMAIL_SESSION_HINT` 只维护一份；
+  账户弹窗在未激活时还在首屏直接给出同一提示与引导，不依赖展开折叠体。
+- **仍未做**：无。会话仍只存内存（见 G2），重启需重新验证是既定口径。
+
+### 5.3 服务端速率限制与审计事件 **[已实现 · 2.0.18]**
+
+| 接口 | 速率限制 | 审计事件（`record_email_event`） |
+|---|---|---|
+| `POST /api/email/send-code` | 邮箱 60s/1、邮箱 1h/10、IP 1h/20 | `sent` / `send_failed` |
+| `POST /api/email/verify` | 邮箱 10min/12（`_consume`） | `verified`；2.0.18 新增 403 设备超限的 `device_limit` |
+| `POST /api/account/bind-email` | 邮箱 10min/12（`_consume`，`purpose=bind`） | `bound` |
+| `POST /api/account/bind-card` | **2.0.18 新增**：账户+设备 60s/10 | **2.0.18 新增**：`bound` / `device_limit` |
+
+- **未改动**：任何档位权益数值（`entitlements_for`）与支付相关代码均未触碰。
+- **单测**：`backend/tests/test_email_auth.py`（verify 403 统一文案 + `device_limit` 审计）、
+  `backend/tests/test_email_account_session.py`（bind-card 限流 429、成功审计、设备超限统一文案 + `device_limit` 审计）。

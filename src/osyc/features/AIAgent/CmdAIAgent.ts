@@ -477,6 +477,15 @@ export function readEmailErrorDetail(raw: unknown): string | null {
     return sanitiseServerDetail(record?.detail ?? record?.message ?? record?.error);
 }
 
+/**
+ * G5：设备超限的唯一用户文案。
+ *
+ * 邮箱验证码登录（`/api/email/verify` 的 403）与两个绑定方向
+ * （`bind-card` 的 `device_limit_reached`、`bind-email`）都必须回落到这一句：
+ * 同一情况只能有一种措辞，且服务端在 403 / `device_limit_reached` 上也下发同一句。
+ */
+export const EMAIL_DEVICE_LIMIT_MESSAGE = "本设备已达该卡密上限，请先解绑旧设备";
+
 /** Pro「独立同步空间」的可展示条目（GET/POST /api/pro/namespace 下发）。 */
 export interface ProNamespaceInfo {
     /** 服务端是否认为该空间已开通。 */
@@ -720,7 +729,14 @@ export class CmdAIAgent {
             return { ok: false, message: this.describeEmailError(status, data) };
         }
         osycLogger.info("OsyC 邮箱验证码已发送", { purpose });
-        return { ok: true, message: `验证码已发送至 ${value}，5 分钟内有效` };
+        // G7：防枚举文案只认服务端下发的 `message`（「若该邮箱可用，验证码已发送」），
+        // 客户端不改写、也不回显用户输入的明文邮箱；服务端漏发时用同一句中性兜底。
+        const res = data as { message?: string } | null;
+        const message =
+            typeof res?.message === "string" && res.message.trim()
+                ? res.message.trim()
+                : "若该邮箱可用，验证码已发送";
+        return { ok: true, message };
     }
 
     /**
@@ -804,8 +820,10 @@ export class CmdAIAgent {
             await this.refreshStatus();
         }
         if (res?.device_limit_reached) {
+            // G5：以机器可读的 `device_limit_reached` 为准，统一用同一句文案，
+            // 不采用服务端该次可能带前缀的 message，避免同一情况两种措辞。
             osycLogger.warn("OsyC 卡密并入邮箱失败", { deviceLimitReached: true });
-            return { ok: false, message: res.message ?? "本设备已达该卡密上限，请先解绑旧设备" };
+            return { ok: false, message: EMAIL_DEVICE_LIMIT_MESSAGE };
         }
         osycLogger.info("OsyC 卡密并入邮箱成功");
         return { ok: true, message: "卡密已并入邮箱账户" };
@@ -842,7 +860,14 @@ export class CmdAIAgent {
             email_masked?: string;
             cards?: EmailCardRef[];
             message?: string;
+            device_limit_reached?: boolean;
         } | null;
+        // G5：bind-email 目前不签发设备 token，但服务端一旦下发同一机器可读信号，
+        // 必须与 bind-card 用同一句文案，避免两个绑定方向各说各话。
+        if (res?.device_limit_reached) {
+            osycLogger.warn("OsyC 卡密绑定邮箱失败", { deviceLimitReached: true });
+            return { ok: false, message: EMAIL_DEVICE_LIMIT_MESSAGE };
+        }
         const masked =
             typeof res?.email_masked === "string" && res.email_masked.trim()
                 ? res.email_masked.trim()
@@ -869,7 +894,7 @@ export class CmdAIAgent {
         if (detail) return detail;
         if (status === 400) return "验证码无效或已过期";
         if (status === 401) return "邮箱会话已失效，请重新验证邮箱";
-        if (status === 403) return "本设备已达该卡密上限，请先解绑旧设备";
+        if (status === 403) return EMAIL_DEVICE_LIMIT_MESSAGE;
         if (status === 404) return "卡密无效";
         if (status === 429) return "操作过于频繁，请稍后再试";
         if (status === 501) return "服务端未开启邮箱登录，请联系管理员";

@@ -5,7 +5,7 @@ vi.mock("@/deps.ts", () => ({
     requestUrl: (...args: unknown[]) => requestUrlMock(...args),
 }));
 
-import { CmdAIAgent, readEmailErrorDetail } from "./CmdAIAgent";
+import { CmdAIAgent, EMAIL_DEVICE_LIMIT_MESSAGE, readEmailErrorDetail } from "./CmdAIAgent";
 
 interface RequestShape {
     url?: unknown;
@@ -152,5 +152,49 @@ describe("CmdAIAgent · 卡密 → 邮箱绑定（G1）", () => {
         requestUrlMock.mockResolvedValue(reply(400, { detail: "验证码已被使用" }));
         const result = await agent.loginWithEmail("user@example.com", "123456");
         expect(result).toEqual({ ok: false, message: "验证码已被使用" });
+    });
+
+    it("发码成功只回显服务端防枚举文案，不改写、不回显明文邮箱（G7）", async () => {
+        requestUrlMock.mockResolvedValue(
+            reply(200, { ok: true, message: "若该邮箱可用，验证码已发送", masked: "u***@example.com", ttl_seconds: 300 })
+        );
+        const result = await agent.requestEmailCode("user@example.com", "login");
+        expect(result).toEqual({ ok: true, message: "若该邮箱可用，验证码已发送" });
+        expect(result.message).not.toContain("user@example.com");
+    });
+
+    it("服务端漏发 message 时用中性防枚举兜底，仍不回显邮箱（G7）", async () => {
+        requestUrlMock.mockResolvedValue(reply(200, { ok: true }));
+        const result = await agent.requestEmailCode("user@example.com", "login");
+        expect(result).toEqual({ ok: true, message: "若该邮箱可用，验证码已发送" });
+    });
+
+    it("两个绑定方向的设备超限收敛到同一句文案（G5）", async () => {
+        // 方向「邮箱 → 卡密」：200 + device_limit_reached，服务端文案带前缀也不采用
+        agent.emailAccount = { masked: "u***@example.com", cards: [], session: "email-session" };
+        requestUrlMock.mockResolvedValue(
+            reply(200, {
+                ok: true,
+                device_limit_reached: true,
+                message: "卡密已并入账户，但本设备已达该卡密上限，请先解绑旧设备",
+            })
+        );
+        const reverse = await agent.bindCardToEmail("TEST-CARD");
+        expect(reverse).toEqual({ ok: false, message: EMAIL_DEVICE_LIMIT_MESSAGE });
+
+        // 方向「卡密 → 邮箱」：服务端若下发同一机器可读信号，也必须同一文案
+        agent.emailAccount = null;
+        agent.configure("https://api.example.com", "card-token");
+        requestUrlMock.mockResolvedValue(
+            reply(200, { ok: true, device_limit_reached: true, message: "本设备已达上限" })
+        );
+        const forward = await agent.bindEmailToAccount("user@example.com", "123456");
+        expect(forward).toEqual({ ok: false, message: EMAIL_DEVICE_LIMIT_MESSAGE });
+    });
+
+    it("verify 403 无 detail 时回落到统一设备上限文案（G5）", async () => {
+        requestUrlMock.mockResolvedValue(reply(403, {}));
+        const result = await agent.loginWithEmail("user@example.com", "123456");
+        expect(result).toEqual({ ok: false, message: EMAIL_DEVICE_LIMIT_MESSAGE });
     });
 });

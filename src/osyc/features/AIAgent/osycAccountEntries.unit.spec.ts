@@ -12,7 +12,13 @@ vi.mock("@/deps.ts", () => ({
 
 import { emptyProNamespaceState } from "./CmdAIAgent";
 import type { EmailAccountSession, ProNamespaceState } from "./CmdAIAgent";
-import { describeEmailEntryStatus, describeProNamespaceEntryStatus } from "./osycAccountSections";
+import {
+    EMAIL_SESSION_HINT,
+    EMAIL_UNACTIVATED_HINT,
+    describeEmailEntryStatus,
+    describeEmailSessionStatus,
+    describeProNamespaceEntryStatus,
+} from "./osycAccountSections";
 
 const toolsSource = readFileSync(
     fileURLToPath(new URL("./AIAgentToolsModal.ts", import.meta.url)),
@@ -129,6 +135,35 @@ describe("工具中心账户页 · 邮箱与同步空间入口", () => {
         const bound = describeEmailEntryStatus(withCard);
         expect(bound).toContain("已登录");
         expect(bound).toContain("已绑定 1 个卡密");
+    });
+
+    it("邮箱已登录但未绑定卡密时明确引导「绑定卡密后即可使用」（不报错）", () => {
+        const noCard: EmailAccountSession = { masked: "user***@example.com", cards: [], session: "test-session" };
+
+        const entry = describeEmailEntryStatus(noCard);
+        expect(entry).toContain("已登录");
+        expect(entry).toContain("未绑定卡密");
+        expect(entry).toContain(EMAIL_UNACTIVATED_HINT);
+
+        const status = describeEmailSessionStatus(noCard);
+        expect(status).toContain(EMAIL_UNACTIVATED_HINT);
+        expect(status).toContain(EMAIL_SESSION_HINT);
+
+        const withCard: EmailAccountSession = { ...noCard, cards: [{ card_key: "TEST-CARD" }] };
+        const boundStatus = describeEmailSessionStatus(withCard);
+        expect(boundStatus).toContain("已登录");
+        expect(boundStatus).toContain(EMAIL_SESSION_HINT);
+        expect(boundStatus).not.toContain(EMAIL_UNACTIVATED_HINT);
+    });
+
+    it("G2 会话提示在账户弹窗与工具中心入口页两处都可见", () => {
+        // 提示只在共享区块维护一份，两处宿主都渲染它
+        expect(sectionsSource).toContain("说明：${EMAIL_SESSION_HINT}");
+        expect(accountModalSource).toContain("renderEmailAccountSection(contentEl, this.sectionContext())");
+        expect(sectionModalSource).toContain("renderEmailAccountSection(contentEl, ctx)");
+        // 账户弹窗首屏（未激活时）直接给出同一提示与引导，不依赖展开折叠体
+        expect(accountModalSource).toContain("EMAIL_SESSION_HINT");
+        expect(accountModalSource).toContain("EMAIL_UNACTIVATED_HINT");
     });
 
     it("入口是显式动作：渲染入口不自动登录，也不切换同步空间", () => {

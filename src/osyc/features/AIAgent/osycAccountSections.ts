@@ -32,13 +32,35 @@ export function describeProNamespace(state: ProNamespaceState): string {
     return parts.join(" · ");
 }
 
+/**
+ * 已登录邮箱但尚未绑定卡密：不报错，明确引导下一步。
+ *
+ * 邮箱登录本身会把账户建出来，但只有卡密才带来档位与额度；这条引导在入口行
+ * 与账户区块共用，避免用户看到「已登录」却不知道还差什么。
+ */
+export const EMAIL_UNACTIVATED_HINT = "绑定卡密后即可使用";
+
 /** 邮箱入口行状态（纯只读快照，不发请求、不登录）。 */
 export function describeEmailEntryStatus(account: EmailAccountSession | null): string {
     if (!account) return "未登录：用邮箱验证码登录，或绑定卡密";
     const cards = account.cards.length;
     return cards > 0
         ? `已登录 ${account.masked} · 已绑定 ${cards} 个卡密`
-        : `已登录 ${account.masked} · 未绑定卡密`;
+        : `已登录 ${account.masked} · 未绑定卡密（${EMAIL_UNACTIVATED_HINT}）`;
+}
+
+/**
+ * 账户区块的邮箱状态行。
+ *
+ * 已登录即附带 G2 的「仅本次运行有效」说明；尚未绑定卡密时再补未激活引导，
+ * 让「未激活但已登录邮箱」的用户一眼看到下一步，而不是停留在错误状态。
+ */
+export function describeEmailSessionStatus(account: EmailAccountSession): string {
+    const base = `已登录 ${account.masked}`;
+    if (account.cards.length === 0) {
+        return `${base} · 未激活：${EMAIL_UNACTIVATED_HINT}（${EMAIL_SESSION_HINT}）`;
+    }
+    return `${base}（${EMAIL_SESSION_HINT}）`;
 }
 
 /** Pro 独立同步空间入口行状态（纯只读快照，不发请求、不切换空间）。 */
@@ -140,7 +162,8 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
                 new Notice(result.message);
                 if (result.ok) {
                     startCountdown(60);
-                    setStatus(`验证码已发送至 ${email}，5 分钟内有效`);
+                    // G7：状态行同样只回显服务端防枚举文案，不回显明文邮箱。
+                    setStatus(result.message);
                 } else {
                     btn.setDisabled(false);
                     setStatus(result.message);
@@ -171,7 +194,8 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
 
     const account = ctx.agent.emailAccount;
     if (account) {
-        setStatus(`已登录 ${account.masked}（${EMAIL_SESSION_HINT}）`);
+        // 未激活但已登录邮箱时给明确引导（不报错），并保留 G2 会话说明。
+        setStatus(describeEmailSessionStatus(account));
         const cards = account.cards.map((c) => c.card_key).join("、") || "暂未绑定卡密";
         box.createEl("p", { text: `已关联卡密：${cards}`, cls: "ai-account-hint" });
     }
@@ -236,7 +260,8 @@ export function renderEmailAccountSection(contentEl: HTMLElement, ctx: AccountSe
                 new Notice(result.message);
                 if (result.ok) {
                     startBindCountdown(60);
-                    setStatus(`绑定验证码已发送至 ${email}，5 分钟内有效`);
+                    // G7：绑定发码与登录发码同一口径，只回显服务端文案。
+                    setStatus(result.message);
                 } else {
                     btn.setDisabled(false);
                     setStatus(result.message);

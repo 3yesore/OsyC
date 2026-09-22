@@ -177,4 +177,68 @@ describe("CmdAIAgent · 档位标签 D6（纯邮箱登录的 member/pro）", () 
 
         expect(get(agent.state).plan).toBe("member");
     });
+
+    /**
+     * 端到端式：一次纯邮箱登录走完整链路
+     * 发码（防枚举文案）→ verify（签发设备 token）→ status（下发 plan/entitlements）。
+     * 断言买家立刻会看到的档位标签与权益数值都正确。
+     */
+    it("端到端：发码 → 邮箱登录 → 档位与权益标签正确；发码文案保持防枚举", async () => {
+        requestUrlMock.mockImplementation(async (request: RequestShape) => {
+            const url = String(request.url ?? "");
+            if (url.endsWith("/api/email/send-code")) {
+                return reply(200, {
+                    ok: true,
+                    message: "若该邮箱可用，验证码已发送",
+                    masked: "u***@example.com",
+                    ttl_seconds: 300,
+                });
+            }
+            if (url.endsWith("/api/email/verify")) {
+                return reply(200, {
+                    ok: true,
+                    registered: false,
+                    account: { account_id: "acc-1", email_masked: "u***@example.com" },
+                    cards: [{ card_key: "CARD-PRO" }],
+                    session_token: "email-session",
+                    token: "email-device-token",
+                    card_key: "CARD-PRO",
+                });
+            }
+            if (url.endsWith("/api/status")) {
+                return reply(200, {
+                    credits: 800,
+                    expire_at: 1893456000,
+                    model: "DeepSeek-V4-Flash",
+                    plan: "pro",
+                    entitlements: entitlementsFor("pro"),
+                });
+            }
+            return reply(404, {});
+        });
+
+        const sent = await agent.requestEmailCode("user@example.com", "login");
+        expect(sent.ok).toBe(true);
+        // G7：客户端不替换防枚举文案，也不回显明文邮箱。
+        expect(sent.message).toBe("若该邮箱可用，验证码已发送");
+        expect(sent.message).not.toContain("user@example.com");
+
+        const login = await agent.loginWithEmail("user@example.com", "123456");
+        expect(login.ok).toBe(true);
+
+        const state = get(agent.state);
+        expect(state.activated).toBe(true);
+        expect(state.plan).toBe("pro");
+        expect(PLAN_LABEL[state.plan]).toBe("Pro");
+        expect(state.entitlements?.sync).toBe(true);
+        expect(state.entitlements?.cloudVault).toBe(true);
+        expect(state.entitlements?.schedules).toBe(true);
+        expect(state.entitlements?.maxDevices).toBe(10);
+        expect(state.entitlements?.cloudQuotaMb).toBeCloseTo(333.33, 2);
+        expect(agent.emailAccount).toEqual({
+            masked: "u***@example.com",
+            cards: [{ card_key: "CARD-PRO" }],
+            session: "email-session",
+        });
+    });
 });
